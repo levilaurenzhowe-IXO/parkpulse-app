@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phantasialand Pulse</title>
+  <title>ParkPulse Live & Verlauf</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -15,20 +15,34 @@
 
     <header class="flex items-center justify-between border-b border-slate-800 pb-4">
       <div>
-        <h1 class="text-2xl font-black text-amber-500 flex items-center gap-2">
-          <i class="fa-solid fa-dragon"></i> Phantasialand Live
+        <h1 class="text-2xl font-black text-blue-400 flex items-center gap-2">
+          <i class="fa-solid fa-roller-coaster"></i> ParkPulse Live
         </h1>
-        <p class="text-xs text-slate-400">24/7 Wartezeiten-Verlauf im 15-Minuten-Takt</p>
+        <p class="text-xs text-slate-400">Live-Wartezeiten & Diagramme im 15-Min-Takt</p>
       </div>
 
-      <button onclick="loadData()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95">
+      <button onclick="loadParkData()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95">
         <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
       </button>
     </header>
 
-    <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 flex items-center gap-2">
-      <i class="fa-solid fa-chart-line text-amber-400"></i>
-      <span id="statusText">Lade Verlaufsdaten...</span>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="selectPark('56', 'Phantasialand')" id="btn-56" class="park-btn px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white transition">
+        🇩🇪 Phantasialand
+      </button>
+      <button onclick="selectPark('60', 'Kings Island')" id="btn-60" class="park-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+        🇺🇸 Kings Island
+      </button>
+      <button onclick="selectPark('64', 'Cedar Point')" id="btn-64" class="park-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+        🇺🇸 Cedar Point
+      </button>
+    </div>
+
+    <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <i class="fa-solid fa-chart-line text-blue-400 shrink-0"></i>
+        <span id="statusText" class="truncate">Lade Daten vom Server...</span>
+      </div>
     </div>
 
     <div id="ridesContainer" class="space-y-3">
@@ -38,24 +52,48 @@
 
   <script>
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
-    let chartInstances = {}; // Speichert die Diagramm-Instanzen
 
-    async function loadData() {
+    let selectedParkId = '56';
+    let selectedParkName = 'Phantasialand';
+    let chartInstances = {};
+
+    function selectPark(id, name) {
+      selectedParkId = id;
+      selectedParkName = name;
+
+      document.querySelectorAll('.park-btn').forEach(btn => {
+        btn.className = 'park-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition';
+      });
+      const activeBtn = document.getElementById(`btn-${id}`);
+      if (activeBtn) activeBtn.className = 'park-btn px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white transition';
+
+      loadParkData();
+    }
+
+    async function loadParkData() {
       const statusText = document.getElementById('statusText');
       const container = document.getElementById('ridesContainer');
       const icon = document.getElementById('refreshIcon');
 
       icon.classList.add('fa-spin');
+      statusText.innerHTML = `Lade Daten für <b>${selectedParkName}</b>...`;
 
       try {
-        const response = await fetch(`${SERVER_URL}/api/phantasialand`);
-        if (!response.ok) throw new Error("Server antwortet nicht");
+        const response = await fetch(`${SERVER_URL}/api/park?park=${selectedParkId}`);
+        if (!response.ok) throw new Error("Server-Antwort fehlerhaft");
 
         const data = await response.json();
         const history = data.history || [];
 
         if (history.length === 0) {
-          statusText.innerHTML = `⏳ Noch keine Verlaufsdaten vorhanden. Der Server sammelt gerade...`;
+          statusText.innerHTML = `⏳ Server sammelt erste Messungen für <b>${selectedParkName}</b>...`;
+          container.innerHTML = `
+            <div class="col-span-full py-10 text-center text-slate-400 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+              <i class="fa-solid fa-clock-rotate-left text-3xl text-blue-400 animate-spin"></i>
+              <p class="text-xs font-bold">Erster Datenabruf läuft...</p>
+              <p class="text-[11px] text-slate-500">Klicke in ein paar Sekunden nochmal auf Aktualisieren.</p>
+            </div>
+          `;
           return;
         }
 
@@ -63,12 +101,12 @@
         const latestRides = latestEntry.rides || [];
         const timeRecorded = latestEntry.time;
 
-        statusText.innerHTML = `🟢 <b>${latestRides.length} Attraktionen</b> geladen (${history.length} Messungen seit heute, letztes Update: ${timeRecorded} Uhr).`;
+        statusText.innerHTML = `🟢 <b>${selectedParkName}</b>: ${latestRides.length} Attraktionen (Messung von ${timeRecorded} Uhr, ${history.length} Datenpunkte).`;
 
-        // Nach geöffnet & Wartezeit sortieren
+        // Sortieren: Geöffnet zuerst, dann nach Wartezeit
         latestRides.sort((a, b) => b.isOpen - a.isOpen || b.waitTime - a.waitTime);
 
-        // UI Generieren
+        // Cards generieren
         container.innerHTML = latestRides.map((ride, index) => {
           const isOpen = ride.isOpen;
           const wait = ride.waitTime;
@@ -87,7 +125,7 @@
                   <h3 class="font-bold text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
                   <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
                     <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
-                    ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-amber-400">Verlauf anzeigen <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
+                    ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-blue-400">Verlauf anzeigen <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
                   </span>
                 </div>
                 
@@ -106,9 +144,8 @@
           `;
         }).join('');
 
-        // Diagramme im Hintergrund vorbereiten
+        // Diagramme zeichnen
         latestRides.forEach((ride, index) => {
-          // Extrahiere die Zeitpunkte und die Wartezeiten für genau DIESE Attraktion
           const labels = history.map(h => h.time);
           const points = history.map(h => {
             const foundRide = h.rides.find(r => r.name === ride.name);
@@ -120,7 +157,7 @@
 
       } catch (err) {
         console.error(err);
-        statusText.innerHTML = `⚠️ Server wächt auf... Bitte kurz warten und 'Aktualisieren' klicken.`;
+        statusText.innerHTML = `⚠️ Server wacht gerade auf... Bitte kurz warten und nochmal 'Aktualisieren' klicken.`;
       } finally {
         icon.classList.remove('fa-spin');
       }
@@ -146,8 +183,8 @@
           datasets: [{
             label: 'Wartezeit (Min)',
             data: points,
-            borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderColor: '#60a5fa',
+            backgroundColor: 'rgba(96, 165, 250, 0.1)',
             borderWidth: 2,
             fill: true,
             tension: 0.3,
@@ -178,7 +215,7 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    window.onload = loadData;
+    window.onload = loadParkData;
   </script>
 </body>
 </html>
