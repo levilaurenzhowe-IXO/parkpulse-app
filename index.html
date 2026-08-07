@@ -55,13 +55,13 @@
 
     <!-- Dezente & einklappbare Park-Auslastung (Max. 25.000 Besucher) -->
     <div class="bg-slate-950 border border-amber-500/40 rounded-xl overflow-hidden shadow-xl shadow-amber-500/5">
-      <!-- Toggle Bar: Sehr dezent -->
+      <!-- Toggle Bar -->
       <button onclick="toggleHeaderCrowdBox()" class="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-900/80 transition">
         <div class="flex items-center gap-2 min-w-0 flex-1">
           <i class="fa-solid fa-users text-amber-400 text-xs shrink-0"></i>
           
           <!-- Gelber Auslastungs-Balken basierend auf 25.000 Max. Besucher -->
-          <div class="w-24 sm:w-44 h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 shrink-0">
+          <div class="w-20 sm:w-44 h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 shrink-0">
             <div id="loadScoreBar" class="h-full bg-amber-400 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
           </div>
 
@@ -229,7 +229,7 @@
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
-    const MAX_PARK_CAPACITY = 25000; // Maximale Parkkapazität
+    const MAX_PARK_CAPACITY = 25000;
     
     let globalRidesData = [];
     let globalHistoryData = [];
@@ -243,9 +243,8 @@
     let notifiedThresholds = new Set();
     let currentModalRideName = null;
     let isHiddenSectionExpanded = false;
-    let currentlyExpandedCardId = null; // Für das Akkordeon-Prinzip (nur 1 Kachel gleichzeitig offen)
+    let currentlyExpandedCardId = null;
 
-    // DATENBANK DER ATTRAKTIONEN MIT EXAKTEN KAPAZITÄTEN
     const RIDE_DATABASE = {
       'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
       'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', desc: 'Minenbahn für die ganze Familie mit einer der höchsten Kapazitäten im Park.', capacity: 2400, duration: '3 min', opened: '1996', speed: '55 km/h' },
@@ -306,7 +305,6 @@
       return { people, meters };
     }
 
-    // EXTREM LEUCHTENDE HIGH-CONTRAST FARBEN FÜR MINUTEN
     function getWaitColorClass(wait, isOpen) {
       if (!isOpen) return 'text-slate-600';
       if (wait <= 15) return 'text-emerald-400 font-extrabold shadow-sm';
@@ -321,7 +319,6 @@
       chevron.classList.toggle('rotate-180');
     }
 
-    // LOCAL STORAGE
     function getFavorites() {
       try { return JSON.parse(localStorage.getItem('pp_favorites') || '[]'); } catch { return []; }
     }
@@ -350,7 +347,6 @@
       try { return JSON.parse(localStorage.getItem('pp_thresholds') || '{}'); } catch { return {}; }
     }
 
-    // SLIDER MODAL LOGIK
     function openThresholdModal(rideName) {
       currentModalRideName = rideName;
       const thresholds = getThresholds();
@@ -400,7 +396,6 @@
       renderUI();
     }
 
-    // NOTIFICATIONS
     function checkThresholds(rides) {
       const thresholds = getThresholds();
       const hidden = getHiddenRides();
@@ -457,7 +452,6 @@
       }
     }
 
-    // GLOBALE CROWD-RECHNUNG (BEZOGEN AUF MAX 25.000 BESUCHER)
     function updateLoadScore(rides) {
       const hidden = getHiddenRides();
       const visibleOpenRides = rides.filter(r => !hidden.includes(r.name) && r.isOpen);
@@ -477,9 +471,7 @@
       const totalWalkingPeople = Math.round(totalQueuePeople * 0.55);
       const totalParkGuests = totalQueuePeople + totalWalkingPeople;
 
-      // Prozentualer Anteil an der Maximalkapazität von 25.000
       const capacityPercent = Math.min(100, Math.round((totalParkGuests / MAX_PARK_CAPACITY) * 100));
-
       const avgWait = visibleOpenRides.reduce((sum, r) => sum + r.waitTime, 0) / visibleOpenRides.length;
 
       document.getElementById('loadScoreBar').style.width = `${capacityPercent}%`;
@@ -528,19 +520,20 @@
             backgroundColor: 'rgba(245, 158, 11, 0.15)',
             borderWidth: 2,
             fill: true,
-            tension: 0.3,
-            pointRadius: 2,
-            pointHoverRadius: 5
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 4
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (context) => `~${context.raw.toLocaleString('de-DE')} Besucher`
+                label: (context) => `~${context.raw.toLocaleString('de-DE')} Gäste`
               }
             }
           },
@@ -557,7 +550,6 @@
       });
     }
 
-    // TIMERS & REFRESH
     function startLiveTimer() {
       lastLoadTimestamp = Date.now();
       if (liveTimerInterval) clearInterval(liveTimerInterval);
@@ -576,7 +568,6 @@
       autoRefreshInterval = setInterval(loadPhantasialandData, AUTO_REFRESH_SECONDS * 1000);
     }
 
-    // API DATEN LADEN
     async function loadPhantasialandData() {
       const statusText = document.getElementById('statusText');
       const icon = document.getElementById('refreshIcon');
@@ -631,7 +622,6 @@
       }
     }
 
-    // TENDENZ BERECHNEN
     function getWaitTrend(rideName, currentWait, isOpen) {
       if (!isOpen || globalHistoryData.length < 2) {
         return { icon: 'fa-minus', color: 'text-slate-600', deltaStr: '' };
@@ -650,7 +640,6 @@
       else return { icon: 'fa-minus', color: 'text-slate-500', deltaStr: '' };
     }
 
-    // BERECHNET GESAMTE VERGANGENHEIT UND TRENDPROGNOSE
     function calculateSmartHistoryAndForecast(rideName) {
       const historyLabels = globalHistoryData.map(h => h.time);
       
@@ -694,7 +683,6 @@
       };
     }
 
-    // EXTREM CLEANES KACHEL-DESIGN MIT NEON-ORANGE RAHMEN & BREITEREM GRAPH
     function createRideCardHtml(ride, cardId, isHiddenInSection = false) {
       const favorites = getFavorites();
       const thresholds = getThresholds();
@@ -713,18 +701,18 @@
       return `
         <div id="rideCard-${cardId}" class="bg-slate-950 border ${isHiddenInSection ? 'border-slate-800' : isFav ? 'border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)]' : 'border-amber-500/50'} rounded-xl p-2.5 transition duration-200 hover:border-amber-400 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
           
-          <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center justify-between gap-2.5">
             
-            <!-- 1. GANZ LINKS: GROSSE ZAHL (Ohne 'm') & Pfeil -->
-            <div class="flex items-center gap-1 font-mono min-w-[50px] justify-center shrink-0">
+            <!-- 1. GANZ LINKS: GROSSE ZAHL -->
+            <div class="flex items-center gap-1 font-mono min-w-[45px] justify-center shrink-0">
               <span class="text-2xl sm:text-3xl ${colorClass}">
                 ${isOpen ? wait : '--'}
               </span>
               ${isOpen ? `<i class="fa-solid ${trend.icon} ${trend.color} text-[10px] self-start mt-0.5"></i>` : ''}
             </div>
 
-            <!-- 2. MITTE-LINKS: NAME, THMENBEREICH, SCHLANGENLÄNGE & PERSONEN -->
-            <div class="min-w-0 flex-1 pl-1">
+            <!-- 2. MITTE-LINKS: NAME, THEMENBEREICH, SCHLANGENLÄNGE -->
+            <div class="min-w-0 flex-1 pl-0.5">
               <div class="flex items-center gap-1.5 truncate">
                 <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
                 <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
@@ -740,13 +728,13 @@
               </div>
             </div>
 
-            <!-- 3. MITTEL-RECHTS: BREITERER MINIATUR-GRAPH MIT GERAHMTEM LOOK -->
-            <div class="hidden sm:block w-48 h-9 bg-black border border-amber-500/30 rounded-lg p-1 shrink-0">
+            <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (SOWOHL AUF DESKTOP ALS AUCH MOBILE) -->
+            <div class="w-28 sm:w-48 h-9 bg-black border border-amber-500/30 rounded-lg p-1 shrink-0">
               <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
             </div>
 
-            <!-- 4. GANZ RECHTS: 3 BUTTONS (STAR, BELL, EYE) -->
-            <div class="flex items-center gap-0.5 pl-1 border-l border-slate-800 shrink-0" onclick="event.stopPropagation()">
+            <!-- 4. GANZ RECHTS: BUTTONS (Desktop: immer da, Mobile: nur wenn ausgeklappt via CSS) -->
+            <div class="hidden sm:flex items-center gap-0.5 pl-1 border-l border-slate-800 shrink-0" onclick="event.stopPropagation()">
               <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-900'} transition" title="Favorit">
                 <i class="fa-solid fa-star text-[11px]"></i>
               </button>
@@ -763,70 +751,78 @@
 
           </div>
 
-          <!-- AUSKLAPPBEREICH: LINKS INFOS UNTEREINANDER, RECHTS 2 GRAPHEN EXAKT IN PERFEKTER HÖHE -->
-          <div id="chartContainer-${cardId}" class="hidden mt-3 pt-3 border-t border-slate-800 space-y-2 cursor-default" onclick="event.stopPropagation()">
+          <!-- AUSKLAPPBEREICH -->
+          <div id="chartContainer-${cardId}" class="hidden mt-3 pt-3 border-t border-slate-800 space-y-3 cursor-default" onclick="event.stopPropagation()">
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+            <!-- BUTTONS AUF MOBILE ANZEIGEN WENN AUSGEKLAPPT -->
+            <div class="flex sm:hidden items-center justify-end gap-2 pb-1 border-b border-slate-900">
+              <span class="text-[10px] text-slate-500 font-semibold mr-auto">Aktionen:</span>
+              <button onclick="toggleFavorite('${rideKey}')" class="px-2.5 py-1 flex items-center gap-1 rounded-lg text-xs ${isFav ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-slate-400 bg-black border border-slate-800'}">
+                <i class="fa-solid fa-star text-[10px]"></i> Favorit
+              </button>
+              <button onclick="openThresholdModal('${rideKey}')" class="px-2.5 py-1 flex items-center gap-1 rounded-lg text-xs ${hasThresh ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-slate-400 bg-black border border-slate-800'}">
+                <i class="fa-solid fa-bell text-[10px]"></i> Alarm
+              </button>
+              <button onclick="toggleHideRide('${rideKey}')" class="px-2.5 py-1 flex items-center gap-1 rounded-lg text-xs text-slate-400 bg-black border border-slate-800">
+                <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[10px]"></i> ${isHiddenInSection ? 'Zeigen' : 'Ausblenden'}
+              </button>
+            </div>
+
+            <!-- INFOS OBEN NEBENEINANDER IN EINER REIHE -->
+            <div class="bg-black border border-slate-800 rounded-lg p-2 space-y-2">
+              <p class="text-slate-300 text-[11px] font-medium leading-relaxed">${meta.desc}</p>
               
-              <!-- LINKS: INFOS & NUMMERN STRIKT UNTEREINANDER (Feste Höhe) -->
-              <div class="bg-black border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between text-xs space-y-1.5 h-full">
-                <p class="text-slate-300 text-[11px] font-medium leading-relaxed border-b border-slate-800 pb-1.5">${meta.desc}</p>
-                
-                <div class="space-y-1.5 font-mono text-[10px] flex-1 flex flex-col justify-center">
-                  <div class="flex justify-between items-center bg-slate-950 p-1.5 rounded border border-slate-800">
-                    <span class="text-slate-400">Stunden-Kapazität:</span>
-                    <strong class="text-amber-400">${meta.capacity} Pers/Std</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950 p-1.5 rounded border border-slate-800">
-                    <span class="text-slate-400">Menschen in Schlange:</span>
-                    <strong class="text-cyan-400">~${queueMetrics.people} Personen</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950 p-1.5 rounded border border-slate-800">
-                    <span class="text-slate-400">Schlangenlänge:</span>
-                    <strong class="text-emerald-400">~${queueMetrics.meters} Meter</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950 p-1.5 rounded border border-slate-800">
-                    <span class="text-slate-400">Fahrzeit & Tempo:</span>
-                    <strong class="text-slate-200">${meta.duration} / ${meta.speed}</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950 p-1.5 rounded border border-slate-800">
-                    <span class="text-slate-400">Eröffnungsjahr:</span>
-                    <strong class="text-slate-200">${meta.opened}</strong>
-                  </div>
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 font-mono text-[10px]">
+                <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+                  <span class="text-slate-500 block text-[9px] uppercase">Kapazität</span>
+                  <strong class="text-amber-400">${meta.capacity} P/h</strong>
+                </div>
+                <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+                  <span class="text-slate-500 block text-[9px] uppercase">In Schlange</span>
+                  <strong class="text-cyan-400">~${queueMetrics.people} Pers.</strong>
+                </div>
+                <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+                  <span class="text-slate-500 block text-[9px] uppercase">Länge</span>
+                  <strong class="text-emerald-400">~${queueMetrics.meters} m</strong>
+                </div>
+                <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+                  <span class="text-slate-500 block text-[9px] uppercase">Dauer / Tempo</span>
+                  <strong class="text-slate-200">${meta.duration} / ${meta.speed}</strong>
+                </div>
+                <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center col-span-2 sm:col-span-1">
+                  <span class="text-slate-500 block text-[9px] uppercase">Eröffnung</span>
+                  <strong class="text-slate-200">${meta.opened}</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- DIE 2 GRAPHEN UNTEREINANDER -->
+            <div class="space-y-3">
+              <!-- Graph 1: Wartezeit + Prognose -->
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Wartezeit (Ist)</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Trend-Prognose (+20m)</span>
+                  </p>
+                  <span class="text-[9px] text-amber-400 font-mono font-semibold">${meta.type}</span>
+                </div>
+                <div class="h-28 w-full bg-black border border-slate-800 rounded-lg p-1.5">
+                  <canvas id="chart-${cardId}"></canvas>
                 </div>
               </div>
 
-              <!-- RECHTS: DIE 2 GRAPHEN SPANEN GENAU DIE GLEICHE HÖHE WIE DIE LINKEN INFOS -->
-              <div class="md:col-span-2 flex flex-col justify-between space-y-2 h-full">
-                
-                <!-- Graph 1: Wartezeit + Prognose -->
-                <div class="flex-1 flex flex-col justify-between">
-                  <div class="flex justify-between items-center mb-0.5">
-                    <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                      <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Wartezeit (Ist)</span>
-                      <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Trend-Prognose (+20m)</span>
-                    </p>
-                    <span class="text-[9px] text-amber-400 font-mono font-semibold">${meta.type}</span>
-                  </div>
-                  <div class="h-24 w-full bg-black border border-slate-800 rounded-lg p-1">
-                    <canvas id="chart-${cardId}"></canvas>
-                  </div>
+              <!-- Graph 2: Menschen in der Schlange im Tagesverlauf -->
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <p class="text-[9px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-users text-cyan-400"></i> Menschen in Warteschlange über den Tag
+                  </p>
                 </div>
-
-                <!-- Graph 2: Menschen in der Schlange im Tagesverlauf -->
-                <div class="flex-1 flex flex-col justify-between pt-1">
-                  <div class="flex justify-between items-center mb-0.5">
-                    <p class="text-[9px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <i class="fa-solid fa-users text-cyan-400"></i> Menschen in Warteschlange über den Tag
-                    </p>
-                  </div>
-                  <div class="h-20 w-full bg-black border border-slate-800 rounded-lg p-1">
-                    <canvas id="queueChart-${cardId}"></canvas>
-                  </div>
+                <div class="h-24 w-full bg-black border border-slate-800 rounded-lg p-1.5">
+                  <canvas id="queueChart-${cardId}"></canvas>
                 </div>
-
               </div>
-
             </div>
 
           </div>
@@ -835,7 +831,6 @@
       `;
     }
 
-    // AKKORDEON LOGIK: NUR 1 KACHEL GLEICHZEITIG OFFEN
     function toggleAccordion(cardId) {
       if (currentlyExpandedCardId && currentlyExpandedCardId !== cardId) {
         const prevContainer = document.getElementById(`chartContainer-${currentlyExpandedCardId}`);
@@ -855,7 +850,6 @@
       }
     }
 
-    // UI RENDERING
     function renderUI() {
       const mainContainer = document.getElementById('ridesContainer');
       const hiddenContainer = document.getElementById('hiddenRidesContainer');
@@ -980,7 +974,6 @@
         hiddenSection.classList.add('hidden');
       }
 
-      // CHARTS ZEICHNEN
       try {
         if (typeof Chart !== 'undefined') {
           renderedItems.forEach(item => {
@@ -1001,8 +994,8 @@
 
       if (sparklineInstances[elementId]) sparklineInstances[elementId].destroy();
 
-      const { actualPoints, forecastPoints } = dataObj;
-      const fullLabels = Array.from({ length: actualPoints.length + forecastPoints.length }, (_, i) => i);
+      const { actualPoints, forecastPoints, historyLabels, forecastLabels } = dataObj;
+      const fullLabels = [...historyLabels, ...forecastLabels];
       const paddedActual = [...actualPoints];
       
       const paddedForecast = new Array(actualPoints.length - 1).fill(null);
@@ -1017,13 +1010,13 @@
           labels: fullLabels,
           datasets: [
             {
-              label: 'Realität',
+              label: 'Wartezeit',
               data: paddedActual,
               borderColor: '#f59e0b',
               backgroundColor: 'rgba(245, 158, 11, 0.2)',
               borderWidth: 1.5,
               fill: true,
-              tension: 0.3,
+              tension: 0.35,
               pointRadius: 0
             },
             {
@@ -1034,7 +1027,7 @@
               backgroundColor: 'rgba(16, 185, 129, 0.1)',
               borderWidth: 1.5,
               fill: true,
-              tension: 0.3,
+              tension: 0.35,
               pointRadius: 0
             }
           ]
@@ -1042,7 +1035,16 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          interaction: { mode: 'index', intersect: false },
+          plugins: { 
+            legend: { display: false }, 
+            tooltip: { 
+              enabled: true,
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${context.raw} Min`
+              }
+            } 
+          },
           scales: {
             x: { display: false },
             y: { display: false, beginAtZero: true }
@@ -1079,9 +1081,9 @@
               backgroundColor: 'rgba(245, 158, 11, 0.15)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
-              pointRadius: 2,
-              pointHoverRadius: 4
+              tension: 0.35,
+              pointRadius: 0,
+              pointHoverRadius: 5
             },
             {
               label: 'Trend-Prognose (+20m)',
@@ -1091,15 +1093,16 @@
               backgroundColor: 'rgba(16, 185, 129, 0.08)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
-              pointRadius: 2,
-              pointHoverRadius: 4
+              tension: 0.35,
+              pointRadius: 0,
+              pointHoverRadius: 5
             }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           plugins: { 
             legend: { display: false },
             tooltip: {
@@ -1148,9 +1151,9 @@
               backgroundColor: 'rgba(34, 211, 238, 0.15)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
-              pointRadius: 2,
-              pointHoverRadius: 4
+              tension: 0.35,
+              pointRadius: 0,
+              pointHoverRadius: 5
             },
             {
               label: 'Prognose',
@@ -1160,15 +1163,16 @@
               backgroundColor: 'rgba(16, 185, 129, 0.08)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
-              pointRadius: 2,
-              pointHoverRadius: 4
+              tension: 0.35,
+              pointRadius: 0,
+              pointHoverRadius: 5
             }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           plugins: { 
             legend: { display: false },
             tooltip: {
