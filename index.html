@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phantasialand Pulse - Smart Edition</title>
+  <title>Phantasialand Pulse - Smart Crowd Estimator</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* Custom Slider & Styling */
     input[type=range]::-webkit-slider-thumb {
       -webkit-appearance: none;
       height: 20px;
@@ -38,9 +37,9 @@
     <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-800/80 pb-3 gap-3">
       <div>
         <h1 class="text-xl sm:text-2xl font-black text-amber-500 flex items-center gap-2 tracking-tight">
-          <i class="fa-solid fa-dragon animate-pulse"></i> Phantasialand Live
+          <i class="fa-solid fa-dragon animate-pulse"></i> Phantasialand Live & Crowd Radar
         </h1>
-        <p class="text-[11px] text-slate-400 mt-0.5">Live-Wartezeiten, Trendprognosen & Smart Notifications</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Live-Wartezeiten, Schlangenlängen & Parkbesucher-Rechner</p>
       </div>
 
       <div class="flex items-center gap-2 self-end sm:self-auto">
@@ -53,20 +52,42 @@
       </div>
     </header>
 
-    <!-- Park-Auslastung -->
-    <div id="loadScoreBox" class="hidden bg-slate-900/90 border border-slate-800/90 rounded-xl p-3 shadow-lg backdrop-blur-md">
-      <div class="flex items-center justify-between mb-1.5">
+    <!-- Park-Auslastung & Besucher-Kalkulator -->
+    <div id="loadScoreBox" class="hidden bg-slate-900/90 border border-slate-800/90 rounded-xl p-3 shadow-lg backdrop-blur-md space-y-2">
+      <div class="flex items-center justify-between">
         <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-          <i class="fa-solid fa-gauge-high text-amber-400"></i>
-          Park-Auslastung
+          <i class="fa-solid fa-users-line text-amber-400"></i>
+          Park-Auslastung & Besucher-Schätzung
           <span id="activeCountBadge" class="text-[10px] font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700/50">-- Bahnen</span>
         </span>
         <span id="loadScoreLabel" class="text-xs font-black tracking-wide">--</span>
       </div>
+
       <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
         <div id="loadScoreBar" class="h-full rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
       </div>
-      <div class="flex justify-between items-center mt-1.5 text-[10px] text-slate-500">
+
+      <!-- Parkbesucher-Berechnung Info-Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-800/60 text-center font-mono">
+        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
+          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">In Schlangen</span>
+          <span id="totalQueuePeople" class="text-xs font-black text-amber-400">0 Pers.</span>
+        </div>
+        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
+          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">Schlangen-Länge</span>
+          <span id="totalQueueMeters" class="text-xs font-black text-cyan-400">0 m</span>
+        </div>
+        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
+          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">Freigänger/Gastro</span>
+          <span id="totalWalkingPeople" class="text-xs font-black text-emerald-400">0 Pers.</span>
+        </div>
+        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
+          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">Geschätzte Park-Gäste</span>
+          <span id="totalParkGuests" class="text-xs font-black text-purple-400">0 Pers.</span>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center text-[10px] text-slate-500 pt-0.5">
         <p id="loadScoreText">Berechne Auslastung...</p>
         <span id="hiddenRidesNote" class="text-amber-500/80 font-medium hidden"></span>
       </div>
@@ -97,6 +118,7 @@
           <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-layer-group text-amber-500/80 mr-1"></i>Gruppierung:</span>
           <select id="sortSelect" onchange="renderUI()" class="w-full sm:w-auto bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/50 transition cursor-pointer">
             <option value="waitTime">⏳ Nach Wartezeit (Höchste zuerst)</option>
+            <option value="queuePeople">👥 Nach Personen in Schlange</option>
             <option value="area">🏰 Nach Themenbereich</option>
             <option value="type">🎢 Nach Attraktionsart</option>
           </select>
@@ -145,25 +167,22 @@
         <p id="modalRideName" class="font-black text-amber-400 text-sm truncate"></p>
       </div>
 
-      <!-- Slider Display -->
       <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 text-center space-y-0.5">
         <span class="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Benachrichtigung ab weniger als</span>
         <div class="text-2xl font-black text-amber-400 font-mono" id="modalSliderValue">15 Min</div>
       </div>
 
-      <!-- Range Input -->
       <div class="space-y-1.5">
         <input type="range" id="thresholdSlider" min="0" max="120" step="5" value="15" 
           oninput="updateModalSliderDisplay(this.value)"
           class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer border border-slate-700/50">
         <div class="flex justify-between text-[9px] text-slate-500 font-mono">
-          <span>0 Min (Sofort)</span>
+          <span>0 Min</span>
           <span>60 Min</span>
           <span>120 Min</span>
         </div>
       </div>
 
-      <!-- Presets -->
       <div class="space-y-1">
         <span class="text-[10px] text-slate-400 font-semibold">Schnellauswahl:</span>
         <div class="grid grid-cols-4 gap-1.5">
@@ -174,7 +193,6 @@
         </div>
       </div>
 
-      <!-- Action Buttons -->
       <div class="flex gap-2 pt-2 border-t border-slate-800">
         <button onclick="removeThresholdFromModal()" id="modalDeleteBtn" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1">
           <i class="fa-solid fa-trash"></i> Löschen
@@ -190,7 +208,7 @@
   <script>
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
     const PHANTASIALAND_ID = '56';
-    const AUTO_REFRESH_SECONDS = 300; // Auto-Update alle 5 Minuten
+    const AUTO_REFRESH_SECONDS = 300;
     
     let globalRidesData = [];
     let globalHistoryData = [];
@@ -203,41 +221,41 @@
     let currentModalRideName = null;
     let isHiddenSectionExpanded = false;
 
-    // DATENBANK DER ATTRAKTIONEN
+    // DATENBANK DER ATTRAKTIONEN INKL. EXAKTER STUNDEN-KAPAZITÄT (REIN-FREI-ZEIT-BLOG DATEN)
     const RIDE_DATABASE = {
-      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', duration: '2 min', opened: '2006', speed: '80 km/h' },
-      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Minenbahn für die ganze Familie mit Canyon-Setting.', duration: '3 min', opened: '1996', speed: '55 km/h' },
-      'Crazy Bats': { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Längste Dunkelachterbahn der Welt.', duration: '4 min', opened: '1988', speed: '47 km/h' },
-      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Flying Coaster mit Launch durch Steampunk-Welt Rookburgh.', duration: '2 min', opened: '2020', speed: '78 km/h' },
-      'Raik': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Familienfreundlicher Boomerang-Coaster in Klugheim.', duration: '1 min', opened: '2016', speed: '62 km/h' },
-      'Taron': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zweifach-Launch durch Klugheims Felslandschaft.', duration: '1 min', opened: '2016', speed: '117 km/h' },
-      "Winja's Fear & Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zwei Indoor-Spinning-Coaster in Wuze Town.', duration: '2 min', opened: '2002', speed: '60 km/h' },
-      'Chiapas': { area: 'Mexico', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Wasserbahn mit steilster Abfahrt der Welt.', duration: '6 min', opened: '2014', speed: 'Steilste Abfahrt' },
-      'Talocan': { area: 'Mexico', type: 'Thrill / Schwingfahrt', icon: 'fa-chess-rook', desc: 'Top Spin mit Feuer- und Wassereffekten.', duration: '2 min', opened: '2007', speed: 'Surprise' },
-      'Mystery Castle': { area: 'Mystery', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Indoor-Falltower im düsteren Schloss.', duration: '1 min', opened: '1998', speed: 'Bungee-Launch' },
-      'River Quest': { area: 'Mystery', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Rafting-Fahrt mit steilen Abfahrten.', duration: '6 min', opened: '2002', speed: 'Spritzig' },
-      'Avoras': { area: 'Fantasy (Wuze Town)', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Kletterabenteuer im Wuze Tal.', duration: '10 min', opened: '2024', speed: 'Aktiv' },
-      'Deep in Africa – Adventure Trail': { area: 'Deep in Africa', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Interaktiver Pfad um Black Mamba.', duration: '10 min', opened: '2022', speed: 'Interaktiv' },
-      'Maus au Chocolat': { area: 'Berlin', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: '3D-Mäusejagd in der Tortenfabrik.', duration: '7 min', opened: '2011', speed: '3D-Shooter' },
-      'Das Verrückte Hotel Tartüff': { area: 'Berlin', type: 'Laufgeschäft / Fun House', icon: 'fa-hotel', desc: 'Verrücktes Fun House im Berliner Stil.', duration: '8 min', opened: '2012', speed: 'Selbstlauf' },
-      'Pferdekarussell': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Nostalgisches Karussell auf dem Kaiserplatz.', duration: '3 min', opened: '1998', speed: 'Gemütlich' },
-      'Tikal': { area: 'Mexico', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Zwei Mini-Freifalltürme für Familien.', duration: '2 min', opened: '2001', speed: 'Familientower' },
-      "Mopti's Monkey Depot": { area: 'Deep in Africa', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kletterspaß für Kinder.', duration: 'Aktiv', opened: '2024', speed: 'Kinder-Areal' },
-      'Würmling Express': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Einschienenbahn mit Ausblick aufs Wuze Tal.', duration: '6 min', opened: '2010', speed: 'Aussicht' },
-      'Wakobato': { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Ruhige Bootsfahrt auf dem Mondsee.', duration: '9 min', opened: '2009', speed: 'Ruhig' },
-      "Wirtls Taubenturm": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Mitmach-Turm zum Hochziehen.', duration: '2 min', opened: '2007', speed: 'Mitmach-Fun' },
-      "Wözl's Wassertreter": { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Tretbootfahrt über den Mondsee.', duration: 'Flexibel', opened: '2004', speed: 'Tretboot' },
-      'Tittle Tattle Tree': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Schwerelos in der Wuze-Halle.', duration: '3 min', opened: '2002', speed: 'Indoor-Vertikal' },
-      'Geister Rikscha': { area: 'China Town', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Geisterfahrt durch chinesische Mythen.', duration: '8 min', opened: '1981', speed: 'Kult-Darkride' },
-      'Feng Ju Palace': { area: 'China Town', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Illusionsfahrt mit drehender Perspektive.', duration: '8 min', opened: '2002', speed: 'Mad House' },
-      "Wolke's Luftpost": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Tret-Karussell im Wuze Tal.', duration: '2 min', opened: '2010', speed: 'Mitmach-Karussell' },
-      'Bolles Flugschule': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Flugkarussell für Kinder.', duration: '3 min', opened: '2009', speed: 'Flugkarussell' },
-      'Bolles Riesenrad': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kinder-Riesenrad in Berlin.', duration: '4 min', opened: '2009', speed: 'Minirad' },
-      'Die fröhliche Bienchenjagd': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Buntes Kinder-Hüpfkarussell.', duration: '2 min', opened: '2010', speed: 'Hüpf-Karussell' },
-      'Der lustige Papagei': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Schaukelfahrt für Kinder.', duration: '2 min', opened: '2010', speed: 'Schaukel' },
-      'Bumper Klumpen': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kinder-Autoscooter in Wuze-Schuhen.', duration: '3 min', opened: '2003', speed: 'Autoscooter' },
-      "Wözl's Duck Washer": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Entenkarussell für Kinder.', duration: '2 min', opened: '2003', speed: 'Kinder-Spin' },
-      "Wupi's Wabi Wipper": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Mini-Freifall für Kinder.', duration: '2 min', opened: '2003', speed: 'Kinder-Freefall' }
+      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
+      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Minenbahn für die ganze Familie mit Canyon-Setting.', capacity: 2300, duration: '3 min', opened: '1996', speed: '55 km/h' },
+      'Crazy Bats': { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Längste Dunkelachterbahn der Welt.', capacity: 1200, duration: '4 min', opened: '1988', speed: '47 km/h' },
+      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Flying Coaster mit Launch durch Steampunk-Welt Rookburgh.', capacity: 1400, duration: '2 min', opened: '2020', speed: '78 km/h' },
+      'Raik': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Familienfreundlicher Boomerang-Coaster in Klugheim.', capacity: 720, duration: '1 min', opened: '2016', speed: '62 km/h' },
+      'Taron': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zweifach-Launch durch Klugheims Felslandschaft.', capacity: 1200, duration: '1 min', opened: '2016', speed: '117 km/h' },
+      "Winja's Fear & Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zwei Indoor-Spinning-Coaster in Wuze Town.', capacity: 1440, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      'Chiapas': { area: 'Mexico', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Wasserbahn mit steilster Abfahrt der Welt.', capacity: 1600, duration: '6 min', opened: '2014', speed: 'Steilste Abfahrt' },
+      'Talocan': { area: 'Mexico', type: 'Thrill / Schwingfahrt', icon: 'fa-chess-rook', desc: 'Top Spin mit Feuer- und Wassereffekten.', capacity: 900, duration: '2 min', opened: '2007', speed: 'Surprise' },
+      'Mystery Castle': { area: 'Mystery', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Indoor-Falltower im düsteren Schloss.', capacity: 1400, duration: '1 min', opened: '1998', speed: 'Bungee-Launch' },
+      'River Quest': { area: 'Mystery', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Rafting-Fahrt mit steilen Abfahrten.', capacity: 1400, duration: '6 min', opened: '2002', speed: 'Spritzig' },
+      'Avoras': { area: 'Fantasy (Wuze Town)', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Kletterabenteuer im Wuze Tal.', capacity: 400, duration: '10 min', opened: '2024', speed: 'Aktiv' },
+      'Deep in Africa – Adventure Trail': { area: 'Deep in Africa', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Interaktiver Pfad um Black Mamba.', capacity: 500, duration: '10 min', opened: '2022', speed: 'Interaktiv' },
+      'Maus au Chocolat': { area: 'Berlin', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: '3D-Mäusejagd in der Tortenfabrik.', capacity: 1200, duration: '7 min', opened: '2011', speed: '3D-Shooter' },
+      'Das Verrückte Hotel Tartüff': { area: 'Berlin', type: 'Laufgeschäft / Fun House', icon: 'fa-hotel', desc: 'Verrücktes Fun House im Berliner Stil.', capacity: 800, duration: '8 min', opened: '2012', speed: 'Selbstlauf' },
+      'Pferdekarussell': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Nostalgisches Karussell auf dem Kaiserplatz.', capacity: 600, duration: '3 min', opened: '1998', speed: 'Gemütlich' },
+      'Tikal': { area: 'Mexico', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Zwei Mini-Freifalltürme für Familien.', capacity: 400, duration: '2 min', opened: '2001', speed: 'Familientower' },
+      "Mopti's Monkey Depot": { area: 'Deep in Africa', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kletterspaß für Kinder.', capacity: 300, duration: 'Aktiv', opened: '2024', speed: 'Kinder-Areal' },
+      'Würmling Express': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Einschienenbahn mit Ausblick aufs Wuze Tal.', capacity: 500, duration: '6 min', opened: '2010', speed: 'Aussicht' },
+      'Wakobato': { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Ruhige Bootsfahrt auf dem Mondsee.', capacity: 600, duration: '9 min', opened: '2009', speed: 'Ruhig' },
+      "Wirtls Taubenturm": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Mitmach-Turm zum Hochziehen.', capacity: 300, duration: '2 min', opened: '2007', speed: 'Mitmach-Fun' },
+      "Wözl's Wassertreter": { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Tretbootfahrt über den Mondsee.', capacity: 200, duration: 'Flexibel', opened: '2004', speed: 'Tretboot' },
+      'Tittle Tattle Tree': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Schwerelos in der Wuze-Halle.', capacity: 500, duration: '3 min', opened: '2002', speed: 'Indoor-Vertikal' },
+      'Geister Rikscha': { area: 'China Town', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Geisterfahrt durch chinesische Mythen.', capacity: 1500, duration: '8 min', opened: '1981', speed: 'Kult-Darkride' },
+      'Feng Ju Palace': { area: 'China Town', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Illusionsfahrt mit drehender Perspektive.', capacity: 750, duration: '8 min', opened: '2002', speed: 'Mad House' },
+      "Wolke's Luftpost": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Tret-Karussell im Wuze Tal.', capacity: 250, duration: '2 min', opened: '2010', speed: 'Mitmach-Karussell' },
+      'Bolles Flugschule': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Flugkarussell für Kinder.', capacity: 250, duration: '3 min', opened: '2009', speed: 'Flugkarussell' },
+      'Bolles Riesenrad': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kinder-Riesenrad in Berlin.', capacity: 200, duration: '4 min', opened: '2009', speed: 'Minirad' },
+      'Die fröhliche Bienchenjagd': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Buntes Kinder-Hüpfkarussell.', capacity: 200, duration: '2 min', opened: '2010', speed: 'Hüpf-Karussell' },
+      'Der lustige Papagei': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Schaukelfahrt für Kinder.', capacity: 200, duration: '2 min', opened: '2010', speed: 'Schaukel' },
+      'Bumper Klumpen': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kinder-Autoscooter in Wuze-Schuhen.', capacity: 250, duration: '3 min', opened: '2003', speed: 'Autoscooter' },
+      "Wözl's Duck Washer": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Entenkarussell für Kinder.', capacity: 200, duration: '2 min', opened: '2003', speed: 'Kinder-Spin' },
+      "Wupi's Wabi Wipper": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Mini-Freifall für Kinder.', capacity: 200, duration: '2 min', opened: '2003', speed: 'Kinder-Freefall' }
     };
 
     function getRideMeta(name) {
@@ -246,10 +264,29 @@
           return meta;
         }
       }
-      return { area: 'Sonstige Themenwelt', type: 'Attraktion', icon: 'fa-ticket', desc: 'Spannendes Erlebnis im Phantasialand.', duration: 'k. A.', opened: 'k. A.', speed: 'k. A.' };
+      return { area: 'Sonstige Themenwelt', type: 'Attraktion', icon: 'fa-ticket', desc: 'Spannendes Erlebnis im Phantasialand.', capacity: 500, duration: 'k. A.', opened: 'k. A.', speed: 'k. A.' };
     }
 
-    // HELFER FÜR DYNAMISCHE FARBEN DER MINUTENZAHL
+    // FORMEL-LOGIK: SCHLANGENMENSCHEN & METER BERECHNEN
+    function calculateQueueMetrics(rideName, waitTime, isOpen) {
+      if (!isOpen) return { people: 0, meters: 0 };
+
+      const meta = getRideMeta(rideName);
+      const capacity = meta.capacity || 500;
+
+      // Wenn Wartezeit 5 Min oder 0 Min -> bei kleineren Attraktionen meist fast leer -> pauschal 10 Menschen
+      if (waitTime <= 5) {
+        return { people: 10, meters: 5 };
+      }
+
+      // Formal: (Kapazität / 60) * Minuten
+      const people = Math.round((capacity / 60) * waitTime);
+      // 2 Menschen pro Meter Schlange
+      const meters = Math.round(people / 2);
+
+      return { people, meters };
+    }
+
     function getWaitColorClass(wait, isOpen) {
       if (!isOpen) return 'text-slate-600';
       if (wait <= 15) return 'text-emerald-400';
@@ -393,7 +430,7 @@
       }
     }
 
-    // AUSLASTUNG BERECHNEN
+    // GLOBALE CROWD-RECHNUNG FÜR GESAMTEN PARK
     function updateLoadScore(rides) {
       const box = document.getElementById('loadScoreBox');
       const hidden = getHiddenRides();
@@ -405,6 +442,20 @@
         box.classList.add('hidden');
         return;
       }
+
+      // Berechne Summen über alle geöffnete Bahnen
+      let totalQueuePeople = 0;
+      let totalQueueMeters = 0;
+
+      visibleOpenRides.forEach(r => {
+        const metrics = calculateQueueMetrics(r.name, r.waitTime, r.isOpen);
+        totalQueuePeople += metrics.people;
+        totalQueueMeters += metrics.meters;
+      });
+
+      // ZUSÄTZLICH: Freigänger auf Wegen, Restaurants, Shows (+55% der Schlangenmenge)
+      const totalWalkingPeople = Math.round(totalQueuePeople * 0.55);
+      const totalParkGuests = totalQueuePeople + totalWalkingPeople;
 
       const avgWait = visibleOpenRides.reduce((sum, r) => sum + r.waitTime, 0) / visibleOpenRides.length;
       const percent = Math.min(100, Math.round((avgWait / 55) * 100));
@@ -420,6 +471,12 @@
       document.getElementById('loadScoreLabel').textContent = `${label} (${percent}%)`;
       document.getElementById('loadScoreLabel').style.color = color;
       document.getElementById('activeCountBadge').textContent = `${visibleOpenRides.length} / ${totalVisibleRides.length} aktiv`;
+
+      document.getElementById('totalQueuePeople').textContent = `${totalQueuePeople.toLocaleString('de-DE')} Pers.`;
+      document.getElementById('totalQueueMeters').textContent = `${totalQueueMeters.toLocaleString('de-DE')} m`;
+      document.getElementById('totalWalkingPeople').textContent = `~${totalWalkingPeople.toLocaleString('de-DE')} Pers.`;
+      document.getElementById('totalParkGuests').textContent = `~${totalParkGuests.toLocaleString('de-DE')} Pers.`;
+
       document.getElementById('loadScoreText').textContent =
         `Ø Wartezeit: ${Math.round(avgWait)} Min über ${visibleOpenRides.length} geöffnete Attraktionen`;
 
@@ -525,7 +582,6 @@
       else return { icon: 'fa-minus', color: 'text-slate-500', deltaStr: '' };
     }
 
-    // EXTRAKTION VON VERGANGENHEITS- UND PROGNOSEDATEN
     function calculateSmartHistoryAndForecast(rideName) {
       const historyLabels = globalHistoryData.map(h => h.time);
       const actualPoints = globalHistoryData.map(h => {
@@ -534,17 +590,15 @@
         return (found && found.isOpen) ? found.waitTime : 0;
       });
 
-      // Berechne 15-Minuten Trend (3 Schritte x 5 Min)
       let trendRate = 0;
       if (actualPoints.length >= 4) {
         const pCurrent = actualPoints[actualPoints.length - 1];
         const p15mAgo = actualPoints[actualPoints.length - 4];
-        trendRate = (pCurrent - p15mAgo) / 3; // Steigung pro 5-Min-Intervall
+        trendRate = (pCurrent - p15mAgo) / 3;
       } else if (actualPoints.length >= 2) {
         trendRate = actualPoints[actualPoints.length - 1] - actualPoints[actualPoints.length - 2];
       }
 
-      // Erstelle Prognose-Punkte (nächste 4 Intervalle = 20 Min)
       const forecastPoints = [];
       const forecastLabels = [];
       const lastVal = actualPoints.length > 0 ? actualPoints[actualPoints.length - 1] : 0;
@@ -552,20 +606,13 @@
       for (let i = 1; i <= 5; i++) {
         let predictedVal = Math.max(0, Math.round(lastVal + (trendRate * i)));
         forecastPoints.push(predictedVal);
-        
-        // Simuliere Zukunfts-Label (+5m, +10m etc.)
         forecastLabels.push(`+${i*5}m`);
       }
 
-      return {
-        historyLabels,
-        actualPoints,
-        forecastPoints,
-        forecastLabels
-      };
+      return { historyLabels, actualPoints, forecastPoints, forecastLabels };
     }
 
-    // SCHMALE ATTRAKTIONS-KARTE RENDERN
+    // SCHMALE KARTE RENDERN INKL. SCHLANGENLÄNGE
     function createRideCardHtml(ride, cardId, isHiddenInSection = false) {
       const favorites = getFavorites();
       const thresholds = getThresholds();
@@ -579,13 +626,16 @@
       const trend = getWaitTrend(ride.name, wait, isOpen);
       const colorClass = getWaitColorClass(wait, isOpen);
 
+      // Metriken berechnen
+      const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
+
       return `
         <div class="bg-slate-900 border ${isHiddenInSection ? 'border-slate-800/60 bg-slate-950/40' : isFav ? 'border-amber-500/40 shadow shadow-amber-500/5' : 'border-slate-800/90'} rounded-xl p-2.5 transition duration-200 hover:border-slate-700">
           
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
             
-            <!-- 1. Linker Bereich: Icon & Name (Schmal) -->
-            <div class="flex items-center gap-2.5 w-full sm:w-48 shrink-0 cursor-pointer select-none" onclick="toggleChart('${cardId}')">
+            <!-- 1. Linker Bereich: Icon & Name & Schlangenmeter-Indikator -->
+            <div class="flex items-center gap-2.5 w-full sm:w-52 shrink-0 cursor-pointer select-none" onclick="toggleChart('${cardId}')">
               <div class="relative w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-amber-400 text-sm shrink-0">
                 <i class="fa-solid ${meta.icon}"></i>
                 <span class="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full border border-slate-900 ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
@@ -593,7 +643,14 @@
               
               <div class="min-w-0 flex-1">
                 <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
-                <p class="text-[10px] text-slate-400 font-medium truncate">${meta.area}</p>
+                <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
+                  <span class="truncate">${meta.area}</span>
+                  ${isOpen ? `
+                    <span class="text-[9px] font-mono text-cyan-400/90 bg-cyan-950/40 px-1 rounded border border-cyan-800/40 shrink-0">
+                      ~${queueMetrics.people}P / ${queueMetrics.meters}m
+                    </span>
+                  ` : ''}
+                </div>
               </div>
             </div>
 
@@ -607,7 +664,6 @@
             <!-- 3. Rechter Bereich: Gefärbte Minutenzahl, Pfeil & Buttons -->
             <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 border-t sm:border-t-0 border-slate-800/60 pt-1.5 sm:pt-0">
               
-              <!-- Zahl in kräftiger Farbe (Grün / Gelb / Rot) -->
               <div class="flex items-baseline gap-1 font-mono min-w-[55px] justify-end">
                 <span class="text-2xl font-black tracking-tight leading-none ${colorClass}">
                   ${isOpen ? wait : '---'}
@@ -646,10 +702,24 @@
             
             <div class="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 text-xs space-y-1">
               <p class="text-slate-300 text-[11px] font-medium leading-relaxed">${meta.desc}</p>
-              <div class="flex flex-wrap gap-x-3 gap-y-0.5 pt-1 text-[10px] text-slate-400 font-mono">
-                <span>⏱️ Dauer: <strong class="text-slate-200">${meta.duration}</strong></span>
-                <span>📅 Eröffnung: <strong class="text-slate-200">${meta.opened}</strong></span>
-                ${meta.speed !== 'k. A.' ? `<span>⚡ Tempo: <strong class="text-slate-200">${meta.speed}</strong></span>` : ''}
+              
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1.5 font-mono text-[10px]">
+                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
+                  <span class="text-slate-500 block">Kapazität:</span>
+                  <strong class="text-amber-400">${meta.capacity} P/Std</strong>
+                </div>
+                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
+                  <span class="text-slate-500 block">Menschen in Schlange:</span>
+                  <strong class="text-cyan-400">~${queueMetrics.people} Pers.</strong>
+                </div>
+                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
+                  <span class="text-slate-500 block">Schlangenlänge:</span>
+                  <strong class="text-emerald-400">~${queueMetrics.meters} Meter</strong>
+                </div>
+                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
+                  <span class="text-slate-500 block">Fahrzeit & Tempo:</span>
+                  <strong class="text-slate-200">${meta.duration} / ${meta.speed}</strong>
+                </div>
               </div>
             </div>
 
@@ -717,11 +787,18 @@
       } else {
         let htmlBuffer = '';
 
-        if (sortMode === 'waitTime') {
+        if (sortMode === 'waitTime' || sortMode === 'queuePeople') {
           visibleRides.sort((a, b) => {
             const aFav = favorites.includes(a.name) ? 1 : 0;
             const bFav = favorites.includes(b.name) ? 1 : 0;
             if (aFav !== bFav) return bFav - aFav;
+
+            if (sortMode === 'queuePeople') {
+              const qA = calculateQueueMetrics(a.name, a.waitTime, a.isOpen).people;
+              const qB = calculateQueueMetrics(b.name, b.waitTime, b.isOpen).people;
+              return b.isOpen - a.isOpen || qB - qA;
+            }
+
             return b.isOpen - a.isOpen || b.waitTime - a.waitTime;
           });
 
@@ -790,7 +867,7 @@
         hiddenSection.classList.add('hidden');
       }
 
-      // CHARTS ZEICHNEN UND SYNCHRONISIEREN
+      // CHARTS ZEICHNEN
       try {
         if (typeof Chart !== 'undefined') {
           renderedItems.forEach(item => {
@@ -809,7 +886,6 @@
       if (container) container.classList.toggle('hidden');
     }
 
-    // 1. INTEGRIRTER ZIERLICHER MINI-ZEITSTRAHL GRAPH
     function renderMiniTimelineGraph(elementId, dataObj) {
       const ctx = document.getElementById(elementId);
       if (!ctx) return;
@@ -818,13 +894,12 @@
 
       const { actualPoints, forecastPoints } = dataObj;
 
-      // Verbinde Ist- und Prognose-Daten
       const fullLabels = Array.from({ length: actualPoints.length + forecastPoints.length }, (_, i) => i);
       const paddedActual = [...actualPoints];
       
       const paddedForecast = new Array(actualPoints.length - 1).fill(null);
       if (actualPoints.length > 0) {
-        paddedForecast.push(actualPoints[actualPoints.length - 1]); // Anknüpfungspunkt
+        paddedForecast.push(actualPoints[actualPoints.length - 1]);
       }
       paddedForecast.push(...forecastPoints);
 
@@ -868,7 +943,6 @@
       });
     }
 
-    // 2. AUSFÜHRLICHER DETAIL-CHART BEIM AUSKLAPPEN
     function renderDetailedChart(elementId, dataObj) {
       const ctx = document.getElementById(elementId);
       if (!ctx) return;
@@ -876,9 +950,7 @@
       if (chartInstances[elementId]) chartInstances[elementId].destroy();
 
       const { historyLabels, actualPoints, forecastPoints, forecastLabels } = dataObj;
-
       const fullLabels = [...historyLabels, ...forecastLabels];
-      
       const paddedActual = [...actualPoints];
       
       const paddedForecast = new Array(actualPoints.length - 1).fill(null);
