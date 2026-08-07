@@ -8,125 +8,321 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Custom Slider & Blur Styles */
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: #f59e0b;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+    input[type=range]::-moz-range-thumb {
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: #f59e0b;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-8 font-sans">
+<body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-6 font-sans selection:bg-amber-500/30">
 
-  <div class="max-w-2xl mx-auto space-y-6">
+  <div class="max-w-3xl mx-auto space-y-5">
 
-    <header class="flex items-center justify-between border-b border-slate-800 pb-4">
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-800 pb-4 gap-4">
       <div>
-        <h1 class="text-2xl font-black text-amber-500 flex items-center gap-2">
-          <i class="fa-solid fa-dragon"></i> Phantasialand Live
+        <h1 class="text-2xl sm:text-3xl font-black text-amber-500 flex items-center gap-2.5 tracking-tight">
+          <i class="fa-solid fa-dragon animate-pulse"></i> Phantasialand Live
         </h1>
-        <p class="text-xs text-slate-400">Live-Wartezeiten & 24h-Verlauf</p>
+        <p class="text-xs text-slate-400 mt-0.5">Live-Wartezeiten, custom Ausblendung & Smart Notifications</p>
       </div>
 
-      <div class="flex items-center gap-2">
-        <button onclick="toggleNotifications()" id="notifyBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-9 h-9 rounded-xl text-xs transition flex items-center justify-center active:scale-95 shadow-lg" title="Benachrichtigungen">
+      <div class="flex items-center gap-2 self-end sm:self-auto">
+        <button onclick="toggleNotifications()" id="notifyBtn" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 w-10 h-10 rounded-xl text-sm transition flex items-center justify-center active:scale-95 shadow-lg" title="Push-Benachrichtigungen aktivieren">
           <i class="fa-regular fa-bell" id="notifyIcon"></i>
         </button>
-        <button onclick="loadPhantasialandData()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95 shadow-lg shadow-amber-900/20">
+        <button onclick="loadPhantasialandData()" class="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 active:scale-95 shadow-lg shadow-amber-500/10">
           <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
         </button>
       </div>
     </header>
 
-    <!-- Gesamt-Auslastung -->
-    <div id="loadScoreBox" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+    <!-- Park-Auslastung -->
+    <div id="loadScoreBox" class="hidden bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 shadow-xl backdrop-blur-md">
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
-          <i class="fa-solid fa-gauge-high text-amber-400"></i> Park-Auslastung
+          <i class="fa-solid fa-gauge-high text-amber-400"></i>
+          Park-Auslastung
+          <span id="activeCountBadge" class="text-[10px] font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700/50">-- Bahnen</span>
         </span>
-        <span id="loadScoreLabel" class="text-xs font-black">--</span>
+        <span id="loadScoreLabel" class="text-xs font-black tracking-wide">--</span>
       </div>
-      <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-        <div id="loadScoreBar" class="h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+      <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
+        <div id="loadScoreBar" class="h-full rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
       </div>
-      <p id="loadScoreText" class="text-[10px] text-slate-500 mt-2"></p>
+      <div class="flex justify-between items-center mt-2 text-[10px] text-slate-500">
+        <p id="loadScoreText">Berechne Auslastung...</p>
+        <span id="hiddenRidesNote" class="text-amber-500/80 font-medium hidden"></span>
+      </div>
     </div>
 
-    <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
+    <!-- Status Banner -->
+    <div id="statusBox" class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
       <div class="flex items-center gap-2.5 min-w-0">
-        <i class="fa-solid fa-clock text-amber-400 shrink-0"></i>
-        <span id="statusText" class="truncate">Lade Stand der Daten...</span>
+        <i class="fa-solid fa-circle-dot text-amber-400 animate-ping text-[8px] shrink-0"></i>
+        <span id="statusText" class="truncate font-medium">Lade Daten...</span>
       </div>
-      <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0"></span>
+      <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0 font-mono"></span>
     </div>
 
-    <div id="ridesContainer" class="space-y-3">
+    <!-- Filter & Sortier-Werkzeuge -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+      <div class="flex flex-col sm:flex-row gap-2.5 items-center justify-between">
+        
+        <!-- Suche -->
+        <div class="relative w-full sm:w-64">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+          <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion oder Thema suchen..." 
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition">
+        </div>
+
+        <!-- Sortierung -->
+        <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+          <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-sort text-amber-500/80 mr-1"></i>Sortierung:</span>
+          <select id="sortSelect" onchange="renderUI()" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500/50 transition cursor-pointer">
+            <option value="waitTime">⏳ Wartezeit (Höchste zuerst)</option>
+            <option value="area">🏰 Nach Themenbereich</option>
+            <option value="type">🎢 Nach Attraktionsart</option>
+            <option value="alphabetical">🔤 Name (A-Z)</option>
+          </select>
+        </div>
+
       </div>
 
+      <!-- Filter Toggles & Actions -->
+      <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[11px]">
+        <div class="flex items-center gap-2">
+          <button id="toggleHiddenViewBtn" onclick="toggleShowHiddenOnly()" class="px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-eye-slash text-xs" id="toggleHiddenIcon"></i>
+            <span id="toggleHiddenText">Ausgeblendete anzeigen</span>
+          </button>
+        </div>
+
+        <button id="resetHiddenBtn" onclick="resetHiddenRides()" class="hidden text-amber-400 hover:text-amber-300 transition font-medium flex items-center gap-1">
+          <i class="fa-solid fa-rotate-left text-[10px]"></i> Alle wieder einblenden
+        </button>
+      </div>
+    </div>
+
+    <!-- Container für Attraktionen -->
+    <div id="ridesContainer" class="space-y-3"></div>
+
+  </div>
+
+  <!-- Custom Modal: Glocke / Schwellenwert Schieberegler -->
+  <div id="thresholdModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+          <i class="fa-solid fa-bell text-amber-400"></i> Wartezeit-Alarm einstellen
+        </h3>
+        <button onclick="closeThresholdModal()" class="text-slate-500 hover:text-slate-300 text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div>
+        <p class="text-xs text-slate-400 mb-1">Attraktion:</p>
+        <p id="modalRideName" class="font-black text-amber-400 text-base truncate"></p>
+      </div>
+
+      <!-- Slider Display -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-center space-y-1">
+        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Benachrichtigung ab weniger als</span>
+        <div class="text-3xl font-black text-amber-400 font-mono" id="modalSliderValue">15 Min</div>
+      </div>
+
+      <!-- Range Input -->
+      <div class="space-y-2">
+        <input type="range" id="thresholdSlider" min="0" max="120" step="5" value="15" 
+          oninput="updateModalSliderDisplay(this.value)"
+          class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer border border-slate-700/50">
+        <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+          <span>0 Min (Sofort)</span>
+          <span>60 Min</span>
+          <span>120 Min</span>
+        </div>
+      </div>
+
+      <!-- Presets -->
+      <div class="space-y-1.5">
+        <span class="text-[10px] text-slate-400 font-semibold">Schnellauswahl:</span>
+        <div class="grid grid-cols-4 gap-2">
+          <button onclick="setModalSliderValue(10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 rounded-lg text-xs font-bold transition">10 Min</button>
+          <button onclick="setModalSliderValue(20)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 rounded-lg text-xs font-bold transition">20 Min</button>
+          <button onclick="setModalSliderValue(30)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 rounded-lg text-xs font-bold transition">30 Min</button>
+          <button onclick="setModalSliderValue(45)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 rounded-lg text-xs font-bold transition">45 Min</button>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-2 pt-2 border-t border-slate-800">
+        <button onclick="removeThresholdFromModal()" id="modalDeleteBtn" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-trash"></i> Löschen
+        </button>
+        <button onclick="saveThresholdFromModal()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-2.5 rounded-xl text-xs font-black transition active:scale-95 shadow-lg shadow-amber-500/10">
+          Alarm Speichern
+        </button>
+      </div>
+
+    </div>
   </div>
 
   <script>
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 60;
+    
+    let globalRidesData = [];
+    let globalHistoryData = [];
     let chartInstances = {};
     let lastLoadTimestamp = null;
     let liveTimerInterval = null;
     let autoRefreshInterval = null;
-    let notifiedThresholds = new Set(); // verhindert Spam: pro Session nur 1x pro Bahn benachrichtigen
+    let notifiedThresholds = new Set();
+    let currentModalRideName = null;
+    let showHiddenOnlyMode = false;
 
-    // ---------- FAVORITEN (gespeichert im Browser, überlebt Neuladen) ----------
-    function getFavorites() {
-      try {
-        return JSON.parse(localStorage.getItem('pp_favorites') || '[]');
-      } catch {
-        return [];
+    // --- METADATEN-MAPPING FÜR PHANTASIALAND ATTRAKTIONEN ---
+    const RIDE_METADATA = {
+      'Taron': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-bolt' },
+      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', icon: 'fa-dragon' },
+      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', icon: 'fa-plane' },
+      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', icon: 'fa-train' },
+      'Raik': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-stopwatch' },
+      'Winja\'s Fear': { area: 'Fantasy', type: 'Achterbahn', icon: 'fa-masks-theater' },
+      'Winja\'s Force': { area: 'Fantasy', type: 'Achterbahn', icon: 'fa-masks-theater' },
+      'Chiapas': { area: 'Mexico', type: 'Wasserbahn', icon: 'fa-water' },
+      'River Quest': { area: 'Mystery', type: 'Wasserbahn', icon: 'fa-water' },
+      'Mystery Castle': { area: 'Mystery', type: 'Thrill', icon: 'fa-chess-rook' },
+      'Talocan': { area: 'Mexico', type: 'Thrill', icon: 'fa-fire' },
+      'Maus au Chocolat': { area: 'Berlin', type: 'Familie & Darkride', icon: 'fa-bullseye' },
+      'Geister Rikscha': { area: 'China Town', type: 'Darkride', icon: 'fa-ghost' },
+      'Crazy Bats': { area: 'Fantasy', type: 'VR / Coaster', icon: 'fa-vr-cardboard' },
+      'Hollywood Tour': { area: 'Fantasy', type: 'Darkride', icon: 'fa-film' },
+      'Feng Ju Palace': { area: 'China Town', type: 'Mad House', icon: 'fa-synagogue' },
+      'Wellenvflug': { area: 'Berlin', type: 'Familie', icon: 'fa-wind' },
+      'Tikal': { area: 'Mexico', type: 'Familie', icon: 'fa-cubes' },
+      'Avaras': { area: 'Fantasy', type: 'Familie', icon: 'fa-child' },
+      'Würmling Express': { area: 'Fantasy', type: 'Familie', icon: 'fa-train-subway' }
+    };
+
+    function getRideMeta(name) {
+      for (const [key, meta] of Object.entries(RIDE_METADATA)) {
+        if (name.toLowerCase().includes(key.toLowerCase())) return meta;
       }
+      return { area: 'Sonstige Themenwelt', type: 'Attraktion', icon: 'fa-ticket' };
     }
 
+    // ---------- LOCAL STORAGE SPEICHERUNG ----------
+    function getFavorites() {
+      try { return JSON.parse(localStorage.getItem('pp_favorites') || '[]'); } catch { return []; }
+    }
     function toggleFavorite(rideName) {
       let favs = getFavorites();
-      if (favs.includes(rideName)) {
-        favs = favs.filter(f => f !== rideName);
-      } else {
-        favs.push(rideName);
-      }
+      favs = favs.includes(rideName) ? favs.filter(f => f !== rideName) : [...favs, rideName];
       localStorage.setItem('pp_favorites', JSON.stringify(favs));
-      loadPhantasialandData(); // neu rendern, damit Sortierung/Stern sich aktualisiert
+      renderUI();
     }
 
-    // ---------- SCHWELLENWERTE für Benachrichtigungen ----------
+    function getHiddenRides() {
+      try { return JSON.parse(localStorage.getItem('pp_hidden_rides') || '[]'); } catch { return []; }
+    }
+    function toggleHideRide(rideName) {
+      let hidden = getHiddenRides();
+      hidden = hidden.includes(rideName) ? hidden.filter(h => h !== rideName) : [...hidden, rideName];
+      localStorage.setItem('pp_hidden_rides', JSON.stringify(hidden));
+      renderUI();
+    }
+    function resetHiddenRides() {
+      localStorage.setItem('pp_hidden_rides', JSON.stringify([]));
+      showHiddenOnlyMode = false;
+      renderUI();
+    }
+
     function getThresholds() {
-      try {
-        return JSON.parse(localStorage.getItem('pp_thresholds') || '{}');
-      } catch {
-        return {};
-      }
+      try { return JSON.parse(localStorage.getItem('pp_thresholds') || '{}'); } catch { return {}; }
     }
 
-    function hasThreshold(rideName) {
-      const t = getThresholds();
-      return t[rideName] !== undefined;
-    }
+    // ---------- SLIDER MODAL LOGIK ----------
+    function openThresholdModal(rideName) {
+      currentModalRideName = rideName;
+      const thresholds = getThresholds();
+      const currentVal = thresholds[rideName] !== undefined ? thresholds[rideName] : 15;
 
-    function openThresholdPrompt(rideName) {
-      const current = getThresholds();
-      const existing = current[rideName];
-      const input = prompt(
-        `Ab welcher Wartezeit (in Minuten) soll "${rideName}" dich benachrichtigen?\n(Leer lassen oder abbrechen, um die Warnung zu entfernen)`,
-        existing !== undefined ? existing : ''
-      );
+      document.getElementById('modalRideName').textContent = rideName;
+      document.getElementById('thresholdSlider').value = currentVal;
+      updateModalSliderDisplay(currentVal);
 
-      if (input === null) return; // Abbrechen
-
-      if (input.trim() === '') {
-        delete current[rideName];
+      const deleteBtn = document.getElementById('modalDeleteBtn');
+      if (thresholds[rideName] !== undefined) {
+        deleteBtn.classList.remove('hidden');
       } else {
-        const val = parseInt(input, 10);
-        if (!isNaN(val) && val >= 0) {
-          current[rideName] = val;
-        }
+        deleteBtn.classList.add('hidden');
       }
-      localStorage.setItem('pp_thresholds', JSON.stringify(current));
-      loadPhantasialandData();
+
+      document.getElementById('thresholdModal').classList.remove('hidden');
     }
 
+    function closeThresholdModal() {
+      document.getElementById('thresholdModal').classList.add('hidden');
+      currentModalRideName = null;
+    }
+
+    function updateModalSliderDisplay(val) {
+      document.getElementById('modalSliderValue').textContent = `${val} Min`;
+    }
+
+    function setModalSliderValue(val) {
+      document.getElementById('thresholdSlider').value = val;
+      updateModalSliderDisplay(val);
+    }
+
+    function saveThresholdFromModal() {
+      if (!currentModalRideName) return;
+      const val = parseInt(document.getElementById('thresholdSlider').value, 10);
+      const thresholds = getThresholds();
+      thresholds[currentModalRideName] = val;
+      localStorage.setItem('pp_thresholds', JSON.stringify(thresholds));
+      closeThresholdModal();
+      renderUI();
+    }
+
+    function removeThresholdFromModal() {
+      if (!currentModalRideName) return;
+      const thresholds = getThresholds();
+      delete thresholds[currentModalRideName];
+      localStorage.setItem('pp_thresholds', JSON.stringify(thresholds));
+      closeThresholdModal();
+      renderUI();
+    }
+
+    // ---------- NOTIFICATIONS ----------
     function checkThresholds(rides) {
       const thresholds = getThresholds();
+      const hidden = getHiddenRides();
+
       rides.forEach(ride => {
+        // Ignoriere ausgeblendete Bahnen bei Benachrichtigungen
+        if (hidden.includes(ride.name)) return;
+
         const limit = thresholds[ride.name];
         if (limit === undefined) return;
 
@@ -135,30 +331,26 @@
           if (!notifiedThresholds.has(key)) {
             sendNotification(
               `🎢 ${ride.name}`,
-              `Nur noch ${ride.waitTime} Min Wartezeit! (Grenze: ${limit} Min)`
+              `Günstige Wartezeit: Nur ${ride.waitTime} Min! (Schwelle: ${limit} Min)`
             );
             notifiedThresholds.add(key);
           }
         } else {
-          // Wartezeit wieder über der Grenze -> beim nächsten Unterschreiten erneut benachrichtigen
           notifiedThresholds.delete(key);
         }
       });
     }
 
-    // ---------- BROWSER-BENACHRICHTIGUNGEN ----------
-    // Hinweis: Funktioniert zuverlässig, solange die Seite geöffnet/im Hintergrund-Tab ist.
-    // Für Benachrichtigungen bei komplett geschlossener App wäre echtes Web-Push (Service Worker + Server) nötig.
     function updateNotifyIcon() {
       const icon = document.getElementById('notifyIcon');
       if (!('Notification' in window)) {
-        icon.className = 'fa-solid fa-bell-slash';
+        icon.className = 'fa-solid fa-bell-slash text-slate-600';
         return;
       }
       if (Notification.permission === 'granted') {
-        icon.className = 'fa-solid fa-bell text-amber-400';
+        icon.className = 'fa-solid fa-bell text-amber-400 animate-bounce';
       } else {
-        icon.className = 'fa-regular fa-bell';
+        icon.className = 'fa-regular fa-bell text-slate-400';
       }
     }
 
@@ -168,58 +360,63 @@
         return;
       }
       if (Notification.permission === 'granted') {
-        alert('Benachrichtigungen sind bereits aktiviert. Setze pro Attraktion über die Glocke einen Schwellenwert, um informiert zu werden.');
+        alert('Benachrichtigungen sind aktiv! Du wirst bei unterschrittenen Schwellenwerten gewarnt.');
         return;
       }
       const permission = await Notification.requestPermission();
       updateNotifyIcon();
       if (permission === 'granted') {
-        sendNotification('🔔 Benachrichtigungen aktiv', 'Du wirst informiert, sobald eine Attraktion deinen Schwellenwert unterschreitet.');
+        sendNotification('🔔 Benachrichtigungen aktiv', 'Du wirst benachrichtigt, wenn Wartezeiten deinen Schwellenwert unterschreiten.');
       }
     }
 
     function sendNotification(title, body) {
       if ('Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification(title, { body });
-        } catch (e) {
-          console.error('Notification-Fehler:', e);
-        }
+        try { new Notification(title, { body }); } catch (e) { console.error('Notification error:', e); }
       }
     }
 
-    // ---------- GESAMT-AUSLASTUNG DES PARKS ----------
+    // ---------- AUSLASTUNG BERECHNEN (NUR SICHTBARE BAHNEN) ----------
     function updateLoadScore(rides) {
       const box = document.getElementById('loadScoreBox');
-      const openRides = rides.filter(r => r.isOpen);
+      const hidden = getHiddenRides();
+      
+      // EXKLUSIVE BERECHNUNG: Nur sichtbare & geöffnete Bahnen fließen ein!
+      const visibleOpenRides = rides.filter(r => !hidden.includes(r.name) && r.isOpen);
+      const totalVisibleRides = rides.filter(r => !hidden.includes(r.name));
 
-      if (openRides.length === 0) {
+      if (visibleOpenRides.length === 0) {
         box.classList.add('hidden');
         return;
       }
 
-      const avgWait = openRides.reduce((sum, r) => sum + r.waitTime, 0) / openRides.length;
-      // Skala: 0-60 Min Durchschnitt -> 0-100% Auslastung (gedeckelt bei 100)
-      const percent = Math.min(100, Math.round((avgWait / 60) * 100));
+      const avgWait = visibleOpenRides.reduce((sum, r) => sum + r.waitTime, 0) / visibleOpenRides.length;
+      const percent = Math.min(100, Math.round((avgWait / 55) * 100));
 
-      let color = '#10b981'; // emerald
+      let color = '#10b981';
       let label = 'Entspannt';
-      if (percent > 70) {
-        color = '#ef4444'; label = 'Sehr voll'; // red
-      } else if (percent > 40) {
-        color = '#f59e0b'; label = 'Mäßig voll'; // amber
-      }
+      if (percent > 70) { color = '#ef4444'; label = 'Sehr voll'; }
+      else if (percent > 40) { color = '#f59e0b'; label = 'Mäßig voll'; }
 
       box.classList.remove('hidden');
       document.getElementById('loadScoreBar').style.width = `${percent}%`;
       document.getElementById('loadScoreBar').style.backgroundColor = color;
       document.getElementById('loadScoreLabel').textContent = `${label} (${percent}%)`;
       document.getElementById('loadScoreLabel').style.color = color;
+      document.getElementById('activeCountBadge').textContent = `${visibleOpenRides.length} / ${totalVisibleRides.length} aktiv`;
       document.getElementById('loadScoreText').textContent =
-        `Ø Wartezeit: ${Math.round(avgWait)} Min über ${openRides.length} geöffnete Attraktionen`;
+        `Ø Wartezeit: ${Math.round(avgWait)} Min über ${visibleOpenRides.length} berechnete Attraktionen`;
+
+      const hiddenNote = document.getElementById('hiddenRidesNote');
+      if (hidden.length > 0) {
+        hiddenNote.textContent = `(${hidden.length} Bahnen ausgeblendet)`;
+        hiddenNote.classList.remove('hidden');
+      } else {
+        hiddenNote.classList.add('hidden');
+      }
     }
 
-    // ---------- LIVE-TIMER ("vor X Sekunden aktualisiert") ----------
+    // ---------- TIMER & AUTO REFRESH ----------
     function startLiveTimer() {
       lastLoadTimestamp = Date.now();
       if (liveTimerInterval) clearInterval(liveTimerInterval);
@@ -229,104 +426,154 @@
         const secondsAgo = Math.floor((Date.now() - lastLoadTimestamp) / 1000);
         const el = document.getElementById('liveTimer');
         if (!el) return;
-
-        if (secondsAgo < 60) {
-          el.textContent = `vor ${secondsAgo}s aktualisiert`;
-        } else {
-          const minutesAgo = Math.floor(secondsAgo / 60);
-          el.textContent = `vor ${minutesAgo} Min aktualisiert`;
-        }
+        el.textContent = secondsAgo < 60 ? `vor ${secondsAgo}s` : `vor ${Math.floor(secondsAgo / 60)}m`;
       }, 1000);
     }
 
-    // ---------- AUTO-REFRESH ----------
     function startAutoRefresh() {
       if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-      autoRefreshInterval = setInterval(() => {
-        loadPhantasialandData();
-      }, AUTO_REFRESH_SECONDS * 1000);
+      autoRefreshInterval = setInterval(loadPhantasialandData, AUTO_REFRESH_SECONDS * 1000);
     }
 
+    // ---------- API DATEN LADEN ----------
     async function loadPhantasialandData() {
       const statusText = document.getElementById('statusText');
-      const container = document.getElementById('ridesContainer');
       const icon = document.getElementById('refreshIcon');
 
       icon.classList.add('fa-spin');
-      statusText.innerHTML = `Rufe aktuelle Zeiten ab...`;
+      statusText.innerHTML = `Rufe aktuelle Live-Daten ab...`;
 
-      let history = [];
-
-      // --- SCHRITT 1: Daten vom Server holen ---
-      // Nur echte Netzwerk-/Server-Fehler landen hier im catch.
       try {
         const response = await fetch(`${SERVER_URL}/api/park?park=${PHANTASIALAND_ID}`);
-
-        if (!response.ok) {
-          throw new Error(`HTTP Fehler ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
-        history = data.history || [];
+        globalHistoryData = data.history || [];
 
       } catch (err) {
-        console.error("Fehler beim Verbindungsaufbau:", err);
-        statusText.innerHTML = `❌ Verbindung getrennt. Bitte 'Aktualisieren' tippen.`;
-        icon.classList.remove('fa-spin');
-        return; // Hier abbrechen, da wir ohne Daten nichts rendern können
-      }
-
-      if (history.length === 0) {
-        statusText.innerHTML = `⏳ Erste Messung läuft, bitte gleich nochmal tippen...`;
-        container.innerHTML = `
-          <div class="col-span-full py-12 text-center text-slate-400 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-            <i class="fa-solid fa-hourglass-half text-3xl text-amber-400 animate-spin"></i>
-            <p class="text-xs font-bold">Verbindung hergestellt...</p>
-            <p class="text-[11px] text-slate-500">Erste Datenpunkte werden vom Phantasialand gesammelt.</p>
-          </div>
-        `;
+        console.error("Verbindungsfehler:", err);
+        statusText.innerHTML = `❌ Verbindungsfehler. Bitte erneut versuchen.`;
         icon.classList.remove('fa-spin');
         return;
       }
 
-      // Garantiert den neuesten Datenpunkt nehmen
-      const latestEntry = history[history.length - 1];
-      const latestRides = latestEntry.rides || [];
+      if (globalHistoryData.length === 0) {
+        statusText.innerHTML = `⏳ Erste Messung läuft, bitte gleich noch einmal versuchen...`;
+        icon.classList.remove('fa-spin');
+        return;
+      }
+
+      const latestEntry = globalHistoryData[globalHistoryData.length - 1];
+      globalRidesData = latestEntry.rides || [];
       const timeRecorded = latestEntry.time || 'Unbekannt';
 
-      if (latestRides.length === 0) {
-        statusText.innerHTML = `🌙 Phantasialand: Derzeit keine Live-Daten verfügbar.`;
-        container.innerHTML = '';
-        icon.classList.remove('fa-spin');
+      statusText.innerHTML = `🟢 Stand <b>${timeRecorded} Uhr</b> (${globalRidesData.length} Attraktionen)`;
+      startLiveTimer();
+
+      checkThresholds(globalRidesData);
+      renderUI();
+
+      icon.classList.remove('fa-spin');
+    }
+
+    function toggleShowHiddenOnly() {
+      showHiddenOnlyMode = !showHiddenOnlyMode;
+      renderUI();
+    }
+
+    // ---------- UI RENDERING (SORTIERUNG, FILTER, RENDER) ----------
+    function renderUI() {
+      const container = document.getElementById('ridesContainer');
+      const hidden = getHiddenRides();
+      const favorites = getFavorites();
+      const thresholds = getThresholds();
+      const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+      const sortMode = document.getElementById('sortSelect').value;
+
+      // Update Auslastungsanzeige
+      updateLoadScore(globalRidesData);
+
+      // Reset Button Sichtbarkeit
+      const resetBtn = document.getElementById('resetHiddenBtn');
+      if (hidden.length > 0) resetBtn.classList.remove('hidden');
+      else resetBtn.classList.add('hidden');
+
+      // Toggle Hidden Button Text
+      const toggleHiddenText = document.getElementById('toggleHiddenText');
+      const toggleHiddenIcon = document.getElementById('toggleHiddenIcon');
+      if (showHiddenOnlyMode) {
+        toggleHiddenText.textContent = `Alle anzeigen (${hidden.length} versteckt)`;
+        toggleHiddenIcon.className = 'fa-solid fa-eye text-amber-400';
+      } else {
+        toggleHiddenText.textContent = hidden.length > 0 ? `Nur Versteckte (${hidden.length})` : 'Keine Versteckten';
+        toggleHiddenIcon.className = 'fa-solid fa-eye-slash text-slate-500';
+      }
+
+      if (globalRidesData.length === 0) return;
+
+      // 1. Filtern nach Suche und Ausblendungs-Modus
+      let filteredRides = globalRidesData.filter(ride => {
+        const matchesSearch = ride.name.toLowerCase().includes(searchQuery) || 
+                              getRideMeta(ride.name).area.toLowerCase().includes(searchQuery);
+        
+        const isHidden = hidden.includes(ride.name);
+
+        if (showHiddenOnlyMode) {
+          return matchesSearch && isHidden;
+        } else {
+          return matchesSearch; // Zeigt alle, aber wir stylen versteckte anders
+        }
+      });
+
+      // 2. Sortieren
+      filteredRides.sort((a, b) => {
+        const aHidden = hidden.includes(a.name) ? 1 : 0;
+        const bHidden = hidden.includes(b.name) ? 1 : 0;
+
+        // Ausgeblendete immer nach ganz unten schieben (wenn in normaler Ansicht)
+        if (!showHiddenOnlyMode && aHidden !== bHidden) return aHidden - bHidden;
+
+        const aFav = favorites.includes(a.name) ? 1 : 0;
+        const bFav = favorites.includes(b.name) ? 1 : 0;
+        if (aFav !== bFav) return bFav - aFav;
+
+        if (sortMode === 'waitTime') {
+          return b.isOpen - a.isOpen || b.waitTime - a.waitTime;
+        } else if (sortMode === 'area') {
+          const areaA = getRideMeta(a.name).area;
+          const areaB = getRideMeta(b.name).area;
+          return areaA.localeCompare(areaB) || b.waitTime - a.waitTime;
+        } else if (sortMode === 'type') {
+          const typeA = getRideMeta(a.name).type;
+          const typeB = getRideMeta(b.name).type;
+          return typeA.localeCompare(typeB) || b.waitTime - a.waitTime;
+        } else if (sortMode === 'alphabetical') {
+          return a.name.localeCompare(b.name);
+        }
+      });
+
+      if (filteredRides.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 text-center text-slate-500 bg-slate-900/50 border border-slate-800 rounded-2xl">
+            <i class="fa-solid fa-filter-circle-xmark text-3xl mb-2 text-slate-600"></i>
+            <p class="text-xs font-bold">Keine Attraktionen gefunden</p>
+          </div>
+        `;
         return;
       }
 
-      // Uhrzeit der letzten Aktualisierung direkt im Banner anzeigen
-      statusText.innerHTML = `🟢 Live-Daten • Stand von <b>${timeRecorded} Uhr</b> (${latestRides.length} Bahnen geladen)`;
-      startLiveTimer();
-
-      // Auslastungs-Score berechnen und anzeigen
-      updateLoadScore(latestRides);
-
-      // Sortieren: Favoriten zuerst, dann geöffnete Bahnen, dann nach Wartezeit
-      const favorites = getFavorites();
-      latestRides.sort((a, b) => {
-        const aFav = favorites.includes(a.name) ? 1 : 0;
-        const bFav = favorites.includes(b.name) ? 1 : 0;
-        return bFav - aFav || b.isOpen - a.isOpen || b.waitTime - a.waitTime;
-      });
-
-      // Schwellenwerte prüfen -> ggf. Benachrichtigung auslösen
-      checkThresholds(latestRides);
-
-      // --- SCHRITT 2: UI rendern ---
-      container.innerHTML = latestRides.map((ride, index) => {
+      // 3. Karten Generieren
+      container.innerHTML = filteredRides.map((ride, index) => {
         const isOpen = ride.isOpen;
         const wait = ride.waitTime;
         const isFav = favorites.includes(ride.name);
+        const isHidden = hidden.includes(ride.name);
+        const hasThresh = thresholds[ride.name] !== undefined;
+        const threshVal = thresholds[ride.name];
+        const meta = getRideMeta(ride.name);
         const rideKey = escapeHtml(ride.name).replace(/'/g, "\\'");
 
-        let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
+        let badgeColor = 'bg-slate-800/80 text-slate-500 border-slate-700/50';
         if (isOpen) {
           if (wait <= 15) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
           else if (wait <= 40) badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
@@ -334,94 +581,121 @@
         }
 
         return `
-          <div class="bg-slate-900 border ${isFav ? 'border-amber-500/40' : 'border-slate-800'} rounded-xl p-4 transition hover:border-slate-700">
+          <div class="bg-slate-900 border ${isHidden ? 'opacity-40 border-slate-800/50 bg-slate-950/50' : isFav ? 'border-amber-500/40 shadow-lg shadow-amber-500/5' : 'border-slate-800/90'} rounded-2xl p-4 transition duration-200 hover:border-slate-700">
+            
             <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer select-none" onclick="toggleChart('${index}')">
+              
+              <!-- Linker Bereich: Info & Toggle Details -->
+              <div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer select-none" onclick="toggleChart('${index}')">
+                <div class="w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-amber-400 text-xs shrink-0">
+                  <i class="fa-solid ${meta.icon}"></i>
+                </div>
+                
                 <div class="min-w-0 flex-1">
-                  <h3 class="font-bold text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
-                  <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
-                    <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
-                    ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-amber-400 font-bold">Verlauf <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <h3 class="font-black text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
+                    ${isHidden ? '<span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">Versteckt</span>' : ''}
+                  </div>
+
+                  <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 flex-wrap">
+                    <span class="text-slate-400 font-medium">${meta.area}</span>
+                    <span>•</span>
+                    <span class="${isOpen ? 'text-emerald-400' : 'text-slate-500'} font-semibold flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
+                      ${isOpen ? 'Geöffnet' : 'Geschlossen'}
+                    </span>
+                    <span>•</span>
+                    <span class="text-amber-400/90 font-bold hover:underline">Verlauf <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
+                  </div>
                 </div>
               </div>
 
-              <div class="flex items-center gap-2 shrink-0">
-                <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isFav ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'} transition" title="Favorit">
+              <!-- Rechter Bereich: Aktionen & Wartezeit Badge -->
+              <div class="flex items-center gap-1.5 shrink-0">
+                
+                <!-- Sichtbarkeit Button -->
+                <button onclick="toggleHideRide('${rideKey}')" class="w-8 h-8 flex items-center justify-center rounded-xl ${isHidden ? 'text-amber-400 bg-amber-500/10' : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800'} transition" title="${isHidden ? 'Wieder einblenden' : 'Ausblenden (aus Statistik entfernen)'}">
+                  <i class="fa-solid ${isHidden ? 'fa-eye' : 'fa-eye-slash'} text-xs"></i>
+                </button>
+
+                <!-- Favorit Button -->
+                <button onclick="toggleFavorite('${rideKey}')" class="w-8 h-8 flex items-center justify-center rounded-xl ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800'} transition" title="Favorit">
                   <i class="fa-solid fa-star text-xs"></i>
                 </button>
-                <button onclick="openThresholdPrompt('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${hasThreshold(ride.name) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'} transition" title="Warnung ab Wartezeit">
+
+                <!-- Glocke / Alarm Button -->
+                <button onclick="openThresholdModal('${rideKey}')" class="w-8 h-8 flex items-center justify-center rounded-xl ${hasThresh ? 'text-amber-400 bg-amber-500/10 relative' : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800'} transition" title="Alarm einstellen">
                   <i class="fa-solid fa-bell text-xs"></i>
+                  ${hasThresh ? `<span class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 text-[8px] font-black px-1 rounded-full">${threshVal}m</span>` : ''}
                 </button>
-                <div class="px-3.5 py-1.5 rounded-lg border ${badgeColor} text-xs font-black">
-                  ${isOpen ? `${wait} Min` : '---'}
+
+                <!-- Wartezeit Badge -->
+                <div class="px-3 py-1.5 rounded-xl border ${badgeColor} text-xs font-black min-w-[62px] text-center font-mono">
+                  ${isOpen ? `${wait}m` : '---'}
                 </div>
+
               </div>
+
             </div>
 
-            <div id="chartContainer-${index}" class="hidden mt-4 pt-4 border-t border-slate-800/80">
-              <p class="text-[10px] text-slate-400 mb-2 font-semibold">Wartezeitenverlauf heute (in Minuten):</p>
-              <div class="h-36 w-full">
+            <!-- Ausklappbarer Verlaufschart -->
+            <div id="chartContainer-${index}" class="hidden mt-3 pt-3 border-t border-slate-800/80">
+              <div class="flex justify-between items-center mb-2">
+                <p class="text-[10px] text-slate-400 font-semibold">Tagesverlauf (Wartezeit in Min):</p>
+                <span class="text-[9px] text-slate-500 font-mono">${meta.type}</span>
+              </div>
+              <div class="h-32 w-full">
                 <canvas id="chart-${index}"></canvas>
               </div>
             </div>
+
           </div>
         `;
       }).join('');
 
-      // --- SCHRITT 3: Diagramme zeichnen ---
-      // Eigener try/catch, damit ein Chart-Fehler NIE die Statusanzeige überschreibt.
+      // 4. Charts nach Rendern zeichnen
       try {
-        if (typeof Chart === 'undefined') {
-          console.error("Chart.js wurde nicht geladen (Bibliothek fehlt).");
-        } else {
-          latestRides.forEach((ride, index) => {
-            const labels = history.map(h => h.time);
-            const points = history.map(h => {
+        if (typeof Chart !== 'undefined') {
+          filteredRides.forEach((ride, index) => {
+            const labels = globalHistoryData.map(h => h.time);
+            const points = globalHistoryData.map(h => {
               if (!h.rides) return 0;
-              const foundRide = h.rides.find(r => r.name === ride.name);
-              return (foundRide && foundRide.isOpen) ? foundRide.waitTime : 0;
+              const found = h.rides.find(r => r.name === ride.name);
+              return (found && found.isOpen) ? found.waitTime : 0;
             });
-
             renderChart(index, labels, points);
           });
         }
-      } catch (chartErr) {
-        console.error("Fehler beim Zeichnen der Diagramme:", chartErr);
-        // Status bleibt trotzdem auf "Live-Daten", da die Zeiten ja korrekt angezeigt wurden.
+      } catch (e) {
+        console.error("Chart Rendering Fehler:", e);
       }
-
-      icon.classList.remove('fa-spin');
     }
 
     function toggleChart(index) {
       const container = document.getElementById(`chartContainer-${index}`);
-      if (container) {
-        container.classList.toggle('hidden');
-      }
+      if (container) container.classList.toggle('hidden');
     }
 
     function renderChart(index, labels, points) {
       const ctx = document.getElementById(`chart-${index}`);
       if (!ctx) return;
 
-      if (chartInstances[index]) {
-        chartInstances[index].destroy();
-      }
+      if (chartInstances[index]) chartInstances[index].destroy();
 
       chartInstances[index] = new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [{
-            label: 'Wartezeit (Min)',
+            label: 'Wartezeit',
             data: points,
             borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+            backgroundColor: 'rgba(245, 158, 11, 0.12)',
             borderWidth: 2,
             fill: true,
             tension: 0.3,
-            pointRadius: 2
+            pointRadius: 0,
+            pointHoverRadius: 4
           }]
         },
         options: {
@@ -429,15 +703,8 @@
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: '#64748b', font: { size: 9 } }
-            },
-            y: {
-              beginAtZero: true,
-              grid: { color: '#1e293b' },
-              ticks: { color: '#64748b', font: { size: 9 } }
-            }
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
           }
         }
       });
