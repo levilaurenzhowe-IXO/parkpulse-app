@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Phantasialand Pulse</title>
-  
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -51,101 +51,119 @@
       icon.classList.add('fa-spin');
       statusText.innerHTML = `Rufe aktuelle Zeiten ab...`;
 
+      let history = [];
+
+      // --- SCHRITT 1: Daten vom Server holen ---
+      // Nur echte Netzwerk-/Server-Fehler landen hier im catch.
       try {
         const response = await fetch(`${SERVER_URL}/api/park?park=${PHANTASIALAND_ID}`);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP Fehler ${response.status}`);
         }
 
         const data = await response.json();
-        const history = data.history || [];
-
-        if (history.length === 0) {
-          statusText.innerHTML = `⏳ Erste Messung läuft, bitte gleich nochmal tippen...`;
-          container.innerHTML = `
-            <div class="col-span-full py-12 text-center text-slate-400 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-              <i class="fa-solid fa-hourglass-half text-3xl text-amber-400 animate-spin"></i>
-              <p class="text-xs font-bold">Verbindung hergestellt...</p>
-              <p class="text-[11px] text-slate-500">Erste Datenpunkte werden vom Phantasialand gesammelt.</p>
-            </div>
-          `;
-          return;
-        }
-
-        // Garantiert den neuesten Datenpunkt nehmen
-        const latestEntry = history[history.length - 1];
-        const latestRides = latestEntry.rides || [];
-        const timeRecorded = latestEntry.time || 'Unbekannt';
-
-        if (latestRides.length === 0) {
-          statusText.innerHTML = `🌙 Phantasialand: Derzeit keine Live-Daten verfügbar.`;
-          container.innerHTML = '';
-          return;
-        }
-
-        // Hier wird die Uhrzeit direkt im Banner angezeigt:
-        statusText.innerHTML = `🟢 Live-Daten • Stand von <b>${timeRecorded} Uhr</b> (${latestRides.length} Bahnen geladen)`;
-
-        // Sortieren: Geöffnete Bahnen nach oben, dann nach Wartezeit
-        latestRides.sort((a, b) => b.isOpen - a.isOpen || b.waitTime - a.waitTime);
-
-        // UI Rendern
-        container.innerHTML = latestRides.map((ride, index) => {
-          const isOpen = ride.isOpen;
-          const wait = ride.waitTime;
-
-          let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
-          if (isOpen) {
-            if (wait <= 15) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-            else if (wait <= 40) badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-            else badgeColor = 'bg-red-500/10 text-red-400 border-red-500/30';
-          }
-
-          return `
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 transition hover:border-slate-700">
-              <div class="flex items-center justify-between gap-3 cursor-pointer select-none" onclick="toggleChart('${index}')">
-                <div class="min-w-0 flex-1">
-                  <h3 class="font-bold text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
-                  <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
-                    <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
-                    ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-amber-400 font-bold">Verlauf anzeigen <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
-                  </span>
-                </div>
-                
-                <div class="px-3.5 py-1.5 rounded-lg border ${badgeColor} text-xs font-black shrink-0">
-                  ${isOpen ? `${wait} Min` : '---'}
-                </div>
-              </div>
-
-              <div id="chartContainer-${index}" class="hidden mt-4 pt-4 border-t border-slate-800/80">
-                <p class="text-[10px] text-slate-400 mb-2 font-semibold">Wartezeitenverlauf heute (in Minuten):</p>
-                <div class="h-36 w-full">
-                  <canvas id="chart-${index}"></canvas>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('');
-
-        // Diagramme zeichnen
-        latestRides.forEach((ride, index) => {
-          const labels = history.map(h => h.time);
-          const points = history.map(h => {
-            if (!h.rides) return 0;
-            const foundRide = h.rides.find(r => r.name === ride.name);
-            return (foundRide && foundRide.isOpen) ? foundRide.waitTime : 0;
-          });
-
-          renderChart(index, labels, points);
-        });
+        history = data.history || [];
 
       } catch (err) {
-        console.error("Fehler beim Laden:", err);
+        console.error("Fehler beim Verbindungsaufbau:", err);
         statusText.innerHTML = `❌ Verbindung getrennt. Bitte 'Aktualisieren' tippen.`;
-      } finally {
         icon.classList.remove('fa-spin');
+        return; // Hier abbrechen, da wir ohne Daten nichts rendern können
       }
+
+      if (history.length === 0) {
+        statusText.innerHTML = `⏳ Erste Messung läuft, bitte gleich nochmal tippen...`;
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-400 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+            <i class="fa-solid fa-hourglass-half text-3xl text-amber-400 animate-spin"></i>
+            <p class="text-xs font-bold">Verbindung hergestellt...</p>
+            <p class="text-[11px] text-slate-500">Erste Datenpunkte werden vom Phantasialand gesammelt.</p>
+          </div>
+        `;
+        icon.classList.remove('fa-spin');
+        return;
+      }
+
+      // Garantiert den neuesten Datenpunkt nehmen
+      const latestEntry = history[history.length - 1];
+      const latestRides = latestEntry.rides || [];
+      const timeRecorded = latestEntry.time || 'Unbekannt';
+
+      if (latestRides.length === 0) {
+        statusText.innerHTML = `🌙 Phantasialand: Derzeit keine Live-Daten verfügbar.`;
+        container.innerHTML = '';
+        icon.classList.remove('fa-spin');
+        return;
+      }
+
+      // Uhrzeit der letzten Aktualisierung direkt im Banner anzeigen
+      statusText.innerHTML = `🟢 Live-Daten • Stand von <b>${timeRecorded} Uhr</b> (${latestRides.length} Bahnen geladen)`;
+
+      // Sortieren: Geöffnete Bahnen nach oben, dann nach Wartezeit
+      latestRides.sort((a, b) => b.isOpen - a.isOpen || b.waitTime - a.waitTime);
+
+      // --- SCHRITT 2: UI rendern ---
+      container.innerHTML = latestRides.map((ride, index) => {
+        const isOpen = ride.isOpen;
+        const wait = ride.waitTime;
+
+        let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
+        if (isOpen) {
+          if (wait <= 15) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+          else if (wait <= 40) badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+          else badgeColor = 'bg-red-500/10 text-red-400 border-red-500/30';
+        }
+
+        return `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 transition hover:border-slate-700">
+            <div class="flex items-center justify-between gap-3 cursor-pointer select-none" onclick="toggleChart('${index}')">
+              <div class="min-w-0 flex-1">
+                <h3 class="font-bold text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
+                <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
+                  ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-amber-400 font-bold">Verlauf anzeigen <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
+                </span>
+              </div>
+
+              <div class="px-3.5 py-1.5 rounded-lg border ${badgeColor} text-xs font-black shrink-0">
+                ${isOpen ? `${wait} Min` : '---'}
+              </div>
+            </div>
+
+            <div id="chartContainer-${index}" class="hidden mt-4 pt-4 border-t border-slate-800/80">
+              <p class="text-[10px] text-slate-400 mb-2 font-semibold">Wartezeitenverlauf heute (in Minuten):</p>
+              <div class="h-36 w-full">
+                <canvas id="chart-${index}"></canvas>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // --- SCHRITT 3: Diagramme zeichnen ---
+      // Eigener try/catch, damit ein Chart-Fehler NIE die Statusanzeige überschreibt.
+      try {
+        if (typeof Chart === 'undefined') {
+          console.error("Chart.js wurde nicht geladen (Bibliothek fehlt).");
+        } else {
+          latestRides.forEach((ride, index) => {
+            const labels = history.map(h => h.time);
+            const points = history.map(h => {
+              if (!h.rides) return 0;
+              const foundRide = h.rides.find(r => r.name === ride.name);
+              return (foundRide && foundRide.isOpen) ? foundRide.waitTime : 0;
+            });
+
+            renderChart(index, labels, points);
+          });
+        }
+      } catch (chartErr) {
+        console.error("Fehler beim Zeichnen der Diagramme:", chartErr);
+        // Status bleibt trotzdem auf "Live-Daten", da die Zeiten ja korrekt angezeigt wurden.
+      }
+
+      icon.classList.remove('fa-spin');
     }
 
     function toggleChart(index) {
