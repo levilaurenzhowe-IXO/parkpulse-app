@@ -28,6 +28,22 @@
       border: none;
       box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
     }
+    /* Tab-Unterstrich Animation */
+    .tab-btn { position: relative; }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+    }
+    /* Einfaches Tabellen-Scroll-Design */
+    .stats-table-wrap::-webkit-scrollbar { height: 6px; }
+    .stats-table-wrap::-webkit-scrollbar-track { background: #000; }
+    .stats-table-wrap::-webkit-scrollbar-thumb { background: #f59e0b; border-radius: 3px; }
   </style>
 </head>
 <body class="bg-black text-slate-100 min-h-screen p-2 sm:p-5 font-sans selection:bg-amber-500/30">
@@ -53,119 +69,229 @@
       </div>
     </header>
 
-    <!-- Dezente & einklappbare Park-Auslastung (Max. 25.000 Besucher) -->
-    <div class="bg-slate-950 border border-amber-500/40 rounded-xl overflow-hidden shadow-xl shadow-amber-500/5">
-      <!-- Toggle Bar -->
-      <button onclick="toggleHeaderCrowdBox()" class="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-900/80 transition">
-        <div class="flex items-center gap-2 min-w-0 flex-1">
-          <i class="fa-solid fa-users text-amber-400 text-xs shrink-0"></i>
+    <!-- Tab-Navigation -->
+    <div class="flex items-center gap-1 border-b border-slate-800">
+      <button onclick="switchTab('live')" id="tabBtnLive" class="tab-btn active px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-400 transition">
+        <i class="fa-solid fa-bolt mr-1.5"></i>Live
+      </button>
+      <button onclick="switchTab('stats')" id="tabBtnStats" class="tab-btn px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-300 transition">
+        <i class="fa-solid fa-chart-column mr-1.5"></i>Statistik
+      </button>
+    </div>
+
+    <!-- ================= LIVE-TAB ================= -->
+    <div id="tabContentLive" class="space-y-3">
+
+      <!-- Dezente & einklappbare Park-Auslastung (Max. 25.000 Besucher) -->
+      <div class="bg-slate-950 border border-amber-500/40 rounded-xl overflow-hidden shadow-xl shadow-amber-500/5">
+        <!-- Toggle Bar -->
+        <button onclick="toggleHeaderCrowdBox()" class="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-900/80 transition">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <i class="fa-solid fa-users text-amber-400 text-xs shrink-0"></i>
+            
+            <!-- Gelber Auslastungs-Balken basierend auf 25.000 Max. Besucher -->
+            <div class="w-20 sm:w-44 h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 shrink-0">
+              <div id="loadScoreBar" class="h-full bg-amber-400 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+            </div>
+
+            <span id="loadScoreLabel" class="text-xs font-black text-amber-400 font-mono shrink-0">--%</span>
+            <span id="loadScoreText" class="text-[10px] text-slate-400 truncate hidden sm:inline">Berechne Auslastung...</span>
+          </div>
+
+          <div class="flex items-center gap-2 pl-2">
+            <span id="activeCountBadge" class="text-[10px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 shrink-0">-- Bahnen</span>
+            <i id="headerCrowdChevron" class="fa-solid fa-chevron-down text-xs text-amber-400 transition-transform duration-200"></i>
+          </div>
+        </button>
+
+        <!-- Einklappbarer Inhalt mit erweiterten Werten -->
+        <div id="headerCrowdContent" class="hidden p-3 space-y-3 border-t border-slate-800/80 bg-slate-950/90">
           
-          <!-- Gelber Auslastungs-Balken basierend auf 25.000 Max. Besucher -->
-          <div class="w-20 sm:w-44 h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 shrink-0">
-            <div id="loadScoreBar" class="h-full bg-amber-400 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+            <div class="bg-black p-2 rounded-lg border border-slate-800">
+              <span class="block text-[9px] text-slate-500 uppercase font-semibold">In Schlangen</span>
+              <span id="totalQueuePeople" class="text-xs font-black text-amber-400">0 Pers.</span>
+            </div>
+            <div class="bg-black p-2 rounded-lg border border-slate-800">
+              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Schlangen-Länge</span>
+              <span id="totalQueueMeters" class="text-xs font-black text-cyan-400">0 m</span>
+            </div>
+            <div class="bg-black p-2 rounded-lg border border-slate-800">
+              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Freigänger/Gastro</span>
+              <span id="totalWalkingPeople" class="text-xs font-black text-emerald-400">0 Pers.</span>
+            </div>
+            <div class="bg-black p-2 rounded-lg border border-amber-500/30">
+              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Geschätzte Gäste</span>
+              <span id="totalParkGuests" class="text-xs font-black text-amber-300">0 / 25.000</span>
+            </div>
           </div>
 
-          <span id="loadScoreLabel" class="text-xs font-black text-amber-400 font-mono shrink-0">--%</span>
-          <span id="loadScoreText" class="text-[10px] text-slate-400 truncate hidden sm:inline">Berechne Auslastung...</span>
+          <!-- Besucher-Tagesgraph -->
+          <div class="pt-1 space-y-1">
+            <div class="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-chart-line text-amber-400"></i> Geschätzte Besucherzahl über den Tag
+              </span>
+              <span id="currentGuestCountBadge" class="text-amber-400 font-mono font-bold">--</span>
+            </div>
+            <div class="h-28 w-full bg-black border border-slate-800 rounded-lg p-1.5">
+              <canvas id="parkGuestsChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Status Banner -->
+      <div id="statusBox" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="fa-solid fa-circle-dot text-amber-400 animate-ping text-[8px] shrink-0"></i>
+          <span id="statusText" class="truncate font-medium">Lade Daten...</span>
+        </div>
+        <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0 font-mono"></span>
+      </div>
+
+      <!-- Filter & Sortier-Werkzeuge -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-2">
+        <div class="flex flex-col sm:flex-row gap-2 items-center justify-between">
+          
+          <!-- Suche -->
+          <div class="relative w-full sm:w-64">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+            <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion suchen..." 
+              class="w-full bg-black border border-slate-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+          </div>
+
+          <!-- Sortierung / Gruppierung -->
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-layer-group text-amber-400 mr-1"></i>Gruppierung:</span>
+            <select id="sortSelect" onchange="renderUI()" class="w-full sm:w-auto bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+              <option value="waitTime">⏳ Nach Wartezeit (Höchste zuerst)</option>
+              <option value="queuePeople">👥 Nach Personen in Schlange</option>
+              <option value="area">🏰 Nach Themenbereich</option>
+              <option value="type">🎢 Nach Attraktionsart</option>
+            </select>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Hauptcontainer für Attraktionen -->
+      <div id="ridesContainer" class="space-y-2"></div>
+
+      <!-- Unterer separater Bereich für ausgeblendete Attraktionen -->
+      <div id="hiddenRidesSection" class="hidden mt-6 pt-3 border-t border-slate-800">
+        <button onclick="toggleHiddenSectionCollapse()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-slate-400 hover:text-slate-200 transition">
+          <span class="text-xs font-bold flex items-center gap-2">
+            <i class="fa-solid fa-eye-slash text-amber-400"></i>
+            Ausgeblendete Attraktionen
+            <span id="hiddenCountBadge" class="bg-black text-slate-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">0</span>
+          </span>
+          <div class="flex items-center gap-3">
+            <span onclick="event.stopPropagation(); resetHiddenRides();" class="text-[11px] text-amber-400 hover:underline font-semibold">Alle wieder einblenden</span>
+            <i id="hiddenSectionChevron" class="fa-solid fa-chevron-down text-xs transition-transform duration-200"></i>
+          </div>
+        </button>
+
+        <div id="hiddenRidesContainer" class="hidden space-y-2 mt-2 pl-2 sm:pl-3 border-l-2 border-slate-800"></div>
+      </div>
+
+    </div>
+    <!-- ================= ENDE LIVE-TAB ================= -->
+
+    <!-- ================= STATISTIK-TAB ================= -->
+    <div id="tabContentStats" class="hidden space-y-4">
+
+      <!-- Zeitraum-Auswahl -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2">
+        <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-calendar-days text-amber-400 mr-1"></i>Zeitraum:</span>
+        <select id="statsDaysSelect" onchange="loadDailyStats()" class="bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+          <option value="7">Letzte 7 Tage</option>
+          <option value="14">Letzte 14 Tage</option>
+          <option value="30" selected>Letzte 30 Tage</option>
+          <option value="90">Letzte 90 Tage</option>
+        </select>
+      </div>
+
+      <div id="statsLoadingBox" class="py-10 text-center text-slate-500">
+        <i class="fa-solid fa-spinner fa-spin text-2xl text-amber-400 mb-2"></i>
+        <p class="text-xs font-bold">Lade Statistiken...</p>
+      </div>
+
+      <div id="statsEmptyBox" class="hidden py-10 text-center text-slate-500 bg-slate-950 border border-slate-800 rounded-xl">
+        <i class="fa-solid fa-hourglass-half text-2xl text-amber-400 mb-2"></i>
+        <p class="text-xs font-bold">Noch keine historischen Daten vorhanden</p>
+        <p class="text-[11px] text-slate-600 mt-1">Der Server sammelt seit kurzem Daten - mit der Zeit füllt sich diese Ansicht automatisch.</p>
+      </div>
+
+      <div id="statsContent" class="hidden space-y-5">
+
+        <!-- 1. Besucherzahlen pro Tag -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-users"></i> Geschätzte Besucherzahl pro Tag
+            </h2>
+            <span id="dailyGuestsPeakBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800">--</span>
+          </div>
+          <div class="h-52 w-full bg-black border border-slate-800 rounded-lg p-2">
+            <canvas id="dailyGuestsChart"></canvas>
+          </div>
         </div>
 
-        <div class="flex items-center gap-2 pl-2">
-          <span id="activeCountBadge" class="text-[10px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 shrink-0">-- Bahnen</span>
-          <i id="headerCrowdChevron" class="fa-solid fa-chevron-down text-xs text-amber-400 transition-transform duration-200"></i>
-        </div>
-      </button>
-
-      <!-- Einklappbarer Inhalt mit erweiterten Werten -->
-      <div id="headerCrowdContent" class="hidden p-3 space-y-3 border-t border-slate-800/80 bg-slate-950/90">
-        
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
-          <div class="bg-black p-2 rounded-lg border border-slate-800">
-            <span class="block text-[9px] text-slate-500 uppercase font-semibold">In Schlangen</span>
-            <span id="totalQueuePeople" class="text-xs font-black text-amber-400">0 Pers.</span>
+        <!-- 2. Durchschnittliche Wartezeit pro Tag -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-stopwatch"></i> Ø Wartezeit pro Tag (alle Attraktionen)
+            </h2>
+            <span id="dailyWaitAvgBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800">--</span>
           </div>
-          <div class="bg-black p-2 rounded-lg border border-slate-800">
-            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Schlangen-Länge</span>
-            <span id="totalQueueMeters" class="text-xs font-black text-cyan-400">0 m</span>
-          </div>
-          <div class="bg-black p-2 rounded-lg border border-slate-800">
-            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Freigänger/Gastro</span>
-            <span id="totalWalkingPeople" class="text-xs font-black text-emerald-400">0 Pers.</span>
-          </div>
-          <div class="bg-black p-2 rounded-lg border border-amber-500/30">
-            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Geschätzte Gäste</span>
-            <span id="totalParkGuests" class="text-xs font-black text-amber-300">0 / 25.000</span>
+          <div class="h-52 w-full bg-black border border-slate-800 rounded-lg p-2">
+            <canvas id="dailyWaitChart"></canvas>
           </div>
         </div>
 
-        <!-- Besucher-Tagesgraph -->
-        <div class="pt-1 space-y-1">
-          <div class="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-            <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-chart-line text-amber-400"></i> Geschätzte Besucherzahl über den Tag
-            </span>
-            <span id="currentGuestCountBadge" class="text-amber-400 font-mono font-bold">--</span>
+        <!-- 3. Der "Durchschnittstag" - alle Tage übereinandergelegt -->
+        <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-star"></i> Der durchschnittliche Tag
+            </h2>
+            <span id="averageDaySampleBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800">--</span>
           </div>
-          <div class="h-28 w-full bg-black border border-slate-800 rounded-lg p-1.5">
-            <canvas id="parkGuestsChart"></canvas>
+          <p class="text-[10px] text-slate-500 mb-2">Alle gesammelten Tage übereinandergelegt und je Uhrzeit gemittelt - so sieht ein typischer Parktag im gewählten Zeitraum aus.</p>
+          <div class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
+            <canvas id="averageDayChart"></canvas>
           </div>
+        </div>
+
+        <!-- 4. Wartezeiten-Tabelle pro Tag und Attraktion -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-table"></i> Ø Wartezeit pro Attraktion & Tag
+            </h2>
+            <div class="relative w-full sm:w-56">
+              <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]"></i>
+              <input type="text" id="statsTableSearch" oninput="renderPerRideTable()" placeholder="Attraktion filtern..."
+                class="w-full bg-black border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-[11px] text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+            </div>
+          </div>
+          <div class="stats-table-wrap overflow-x-auto">
+            <table class="w-full text-[10px] font-mono border-collapse">
+              <thead>
+                <tr id="statsTableHeader" class="text-amber-400 border-b border-slate-800"></tr>
+              </thead>
+              <tbody id="statsTableBody"></tbody>
+            </table>
+          </div>
+          <p class="text-[9px] text-slate-600 mt-2">Werte in Minuten, gerundet. "--" bedeutet: An diesem Tag keine Daten für diese Attraktion.</p>
         </div>
 
       </div>
     </div>
-
-    <!-- Status Banner -->
-    <div id="statusBox" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
-      <div class="flex items-center gap-2 min-w-0">
-        <i class="fa-solid fa-circle-dot text-amber-400 animate-ping text-[8px] shrink-0"></i>
-        <span id="statusText" class="truncate font-medium">Lade Daten...</span>
-      </div>
-      <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0 font-mono"></span>
-    </div>
-
-    <!-- Filter & Sortier-Werkzeuge -->
-    <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-2">
-      <div class="flex flex-col sm:flex-row gap-2 items-center justify-between">
-        
-        <!-- Suche -->
-        <div class="relative w-full sm:w-64">
-          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-          <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion suchen..." 
-            class="w-full bg-black border border-slate-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
-        </div>
-
-        <!-- Sortierung / Gruppierung -->
-        <div class="flex items-center gap-2 w-full sm:w-auto">
-          <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-layer-group text-amber-400 mr-1"></i>Gruppierung:</span>
-          <select id="sortSelect" onchange="renderUI()" class="w-full sm:w-auto bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-            <option value="waitTime">⏳ Nach Wartezeit (Höchste zuerst)</option>
-            <option value="queuePeople">👥 Nach Personen in Schlange</option>
-            <option value="area">🏰 Nach Themenbereich</option>
-            <option value="type">🎢 Nach Attraktionsart</option>
-          </select>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Hauptcontainer für Attraktionen -->
-    <div id="ridesContainer" class="space-y-2"></div>
-
-    <!-- Unterer separater Bereich für ausgeblendete Attraktionen -->
-    <div id="hiddenRidesSection" class="hidden mt-6 pt-3 border-t border-slate-800">
-      <button onclick="toggleHiddenSectionCollapse()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-slate-400 hover:text-slate-200 transition">
-        <span class="text-xs font-bold flex items-center gap-2">
-          <i class="fa-solid fa-eye-slash text-amber-400"></i>
-          Ausgeblendete Attraktionen
-          <span id="hiddenCountBadge" class="bg-black text-slate-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">0</span>
-        </span>
-        <div class="flex items-center gap-3">
-          <span onclick="event.stopPropagation(); resetHiddenRides();" class="text-[11px] text-amber-400 hover:underline font-semibold">Alle wieder einblenden</span>
-          <i id="hiddenSectionChevron" class="fa-solid fa-chevron-down text-xs transition-transform duration-200"></i>
-        </div>
-      </button>
-
-      <div id="hiddenRidesContainer" class="hidden space-y-2 mt-2 pl-2 sm:pl-3 border-l-2 border-slate-800"></div>
-    </div>
+    <!-- ================= ENDE STATISTIK-TAB ================= -->
 
   </div>
 
@@ -233,10 +359,14 @@
     
     let globalRidesData = [];
     let globalHistoryData = [];
+    let globalDailyStats = null; // Antwort von /api/daily-stats
     let chartInstances = {};
     let queueChartInstances = {};
     let sparklineInstances = {};
     let parkGuestsChartInstance = null;
+    let dailyGuestsChartInstance = null;
+    let dailyWaitChartInstance = null;
+    let averageDayChartInstance = null;
     let lastLoadTimestamp = null;
     let liveTimerInterval = null;
     let autoRefreshInterval = null;
@@ -244,6 +374,8 @@
     let currentModalRideName = null;
     let isHiddenSectionExpanded = false;
     let currentlyExpandedCardId = null;
+    let currentTab = 'live';
+    let statsAlreadyLoaded = false;
 
     const RIDE_DATABASE = {
       'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
@@ -317,6 +449,37 @@
       const chevron = document.getElementById('headerCrowdChevron');
       content.classList.toggle('hidden');
       chevron.classList.toggle('rotate-180');
+    }
+
+    // ---------- TAB-NAVIGATION ----------
+    function switchTab(tab) {
+      currentTab = tab;
+      const liveContent = document.getElementById('tabContentLive');
+      const statsContent = document.getElementById('tabContentStats');
+      const tabBtnLive = document.getElementById('tabBtnLive');
+      const tabBtnStats = document.getElementById('tabBtnStats');
+
+      if (tab === 'live') {
+        liveContent.classList.remove('hidden');
+        statsContent.classList.add('hidden');
+        tabBtnLive.classList.add('active', 'text-amber-400');
+        tabBtnLive.classList.remove('text-slate-500');
+        tabBtnStats.classList.remove('active', 'text-amber-400');
+        tabBtnStats.classList.add('text-slate-500');
+      } else {
+        liveContent.classList.add('hidden');
+        statsContent.classList.remove('hidden');
+        tabBtnStats.classList.add('active', 'text-amber-400');
+        tabBtnStats.classList.remove('text-slate-500');
+        tabBtnLive.classList.remove('active', 'text-amber-400');
+        tabBtnLive.classList.add('text-slate-500');
+
+        // Statistik-Daten nur beim ersten Öffnen laden (spart Requests),
+        // danach nur noch beim Wechsel des Zeitraums (siehe statsDaysSelect)
+        if (!statsAlreadyLoaded) {
+          loadDailyStats();
+        }
+      }
     }
 
     function getFavorites() {
@@ -1191,6 +1354,317 @@
           }
         }
       });
+    }
+
+    // =========================================================
+    // ================ STATISTIK-TAB LOGIK =====================
+    // =========================================================
+
+    // Rechnet aus einer Ø-Wartezeit über alle offenen Attraktionen eine grobe
+    // Besucherzahl-Schätzung hoch. Nutzt denselben Kapazitäts-Ansatz wie im
+    // Live-Tab, aber vereinfacht (ohne Einzelattraktions-Aufschlüsselung),
+    // da der Server nur aggregierte Ø-Werte liefert, keine Einzelfahrgeschäfte
+    // pro Zeitpunkt für den historischen Bereich.
+    function estimateGuestsFromAvgWait(avgWait) {
+      if (avgWait === null || avgWait === undefined || isNaN(avgWait)) return 0;
+      // Durchschnittliche Kapazität über alle Attraktionen im RIDE_DATABASE
+      const capacities = Object.values(RIDE_DATABASE).map(r => r.capacity);
+      const avgCapacity = capacities.reduce((a, b) => a + b, 0) / capacities.length;
+      const avgRideCount = 20; // grobe Annahme: ~20 gleichzeitig geöffnete Hauptattraktionen
+      const queuePeoplePerRide = (avgCapacity / 60) * avgWait;
+      const totalQueuePeople = queuePeoplePerRide * avgRideCount;
+      const walkingPeople = totalQueuePeople * 0.55;
+      return Math.round(totalQueuePeople + walkingPeople);
+    }
+
+    function formatDateShort(isoDate) {
+      // "2026-08-07" -> "07.08."
+      const parts = isoDate.split('-');
+      if (parts.length !== 3) return isoDate;
+      return `${parts[2]}.${parts[1]}.`;
+    }
+
+    async function loadDailyStats() {
+      const loadingBox = document.getElementById('statsLoadingBox');
+      const emptyBox = document.getElementById('statsEmptyBox');
+      const content = document.getElementById('statsContent');
+      const days = document.getElementById('statsDaysSelect').value;
+
+      loadingBox.classList.remove('hidden');
+      emptyBox.classList.add('hidden');
+      content.classList.add('hidden');
+
+      try {
+        const response = await fetch(`${SERVER_URL}/api/daily-stats?park=${PHANTASIALAND_ID}&days=${days}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        globalDailyStats = data;
+        statsAlreadyLoaded = true;
+
+        loadingBox.classList.add('hidden');
+
+        if (!data.dailySummary || data.dailySummary.length === 0) {
+          emptyBox.classList.remove('hidden');
+          return;
+        }
+
+        content.classList.remove('hidden');
+
+        renderDailyGuestsChart();
+        renderDailyWaitChart();
+        renderAverageDayChart();
+        renderPerRideTable();
+
+      } catch (err) {
+        console.error('Fehler beim Laden der Statistik:', err);
+        loadingBox.classList.add('hidden');
+        emptyBox.classList.remove('hidden');
+        document.getElementById('statsEmptyBox').innerHTML = `
+          <i class="fa-solid fa-triangle-exclamation text-2xl text-red-400 mb-2"></i>
+          <p class="text-xs font-bold text-red-400">Fehler beim Laden der Statistik</p>
+          <p class="text-[11px] text-slate-600 mt-1">Bitte versuche es später erneut.</p>
+        `;
+      }
+    }
+
+    // 1. Besucherzahlen pro Tag
+    function renderDailyGuestsChart() {
+      const ctx = document.getElementById('dailyGuestsChart');
+      if (!ctx || !globalDailyStats) return;
+      if (dailyGuestsChartInstance) dailyGuestsChartInstance.destroy();
+
+      const summary = globalDailyStats.dailySummary;
+      const labels = summary.map(d => formatDateShort(d.recorded_date));
+      const guestEstimates = summary.map(d => estimateGuestsFromAvgWait(d.avg_wait));
+
+      const peak = Math.max(...guestEstimates, 0);
+      document.getElementById('dailyGuestsPeakBadge').textContent = `Peak: ~${peak.toLocaleString('de-DE')}`;
+
+      dailyGuestsChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Geschätzte Besucher',
+            data: guestEstimates,
+            backgroundColor: 'rgba(245, 158, 11, 0.6)',
+            borderColor: '#f59e0b',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `~${context.raw.toLocaleString('de-DE')} Gäste (geschätzt)`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            y: {
+              beginAtZero: true,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Durchschnittliche Wartezeit pro Tag
+    function renderDailyWaitChart() {
+      const ctx = document.getElementById('dailyWaitChart');
+      if (!ctx || !globalDailyStats) return;
+      if (dailyWaitChartInstance) dailyWaitChartInstance.destroy();
+
+      const summary = globalDailyStats.dailySummary;
+      const labels = summary.map(d => formatDateShort(d.recorded_date));
+      const avgWaits = summary.map(d => d.avg_wait !== null ? Math.round(d.avg_wait * 10) / 10 : 0);
+      const peakWaits = summary.map(d => d.peak_wait || 0);
+
+      const overallAvg = avgWaits.filter(v => v > 0);
+      const avgOfAvg = overallAvg.length > 0 ? (overallAvg.reduce((a, b) => a + b, 0) / overallAvg.length).toFixed(1) : '--';
+      document.getElementById('dailyWaitAvgBadge').textContent = `Ø gesamt: ${avgOfAvg} Min`;
+
+      dailyWaitChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Ø Wartezeit',
+              data: avgWaits,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointBackgroundColor: '#f59e0b'
+            },
+            {
+              label: 'Spitzenwert',
+              data: peakWaits,
+              borderColor: '#ef4444',
+              borderDash: [4, 4],
+              backgroundColor: 'transparent',
+              borderWidth: 1.5,
+              fill: false,
+              tension: 0.3,
+              pointRadius: 2,
+              pointBackgroundColor: '#ef4444'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              display: true,
+              labels: { color: '#94a3b8', font: { size: 9 }, boxWidth: 10 }
+            },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${context.raw} Min`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            y: {
+              beginAtZero: true,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // 3. Der Durchschnittstag - alle Tage nach Uhrzeit gemittelt
+    function renderAverageDayChart() {
+      const ctx = document.getElementById('averageDayChart');
+      if (!ctx || !globalDailyStats) return;
+      if (averageDayChartInstance) averageDayChartInstance.destroy();
+
+      const avgDay = globalDailyStats.averageDay || [];
+      const labels = avgDay.map(d => d.recorded_time);
+      const values = avgDay.map(d => d.avg_wait !== null ? Math.round(d.avg_wait * 10) / 10 : 0);
+      const daysCounted = avgDay.length > 0 ? Math.max(...avgDay.map(d => d.days_counted || 0)) : 0;
+
+      document.getElementById('averageDaySampleBadge').textContent = `Basis: ${daysCounted} Tag(e)`;
+
+      averageDayChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Ø Wartezeit (typischer Tag)',
+            data: values,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `Ø ${context.raw} Min Wartezeit`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 12 }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // 4. Tabelle: Ø Wartezeit pro Attraktion und Tag
+    function renderPerRideTable() {
+      if (!globalDailyStats) return;
+
+      const perRideDaily = globalDailyStats.perRideDaily || [];
+      const searchQuery = (document.getElementById('statsTableSearch').value || '').toLowerCase().trim();
+
+      // Eindeutige, sortierte Liste der Tage und Attraktionen ermitteln
+      const daysSet = new Set();
+      const ridesSet = new Set();
+      const dataMap = {}; // dataMap[rideName][date] = avgWait
+
+      perRideDaily.forEach(row => {
+        daysSet.add(row.recorded_date);
+        ridesSet.add(row.ride_name);
+        if (!dataMap[row.ride_name]) dataMap[row.ride_name] = {};
+        dataMap[row.ride_name][row.recorded_date] = row.avg_wait;
+      });
+
+      const sortedDays = Array.from(daysSet).sort();
+      const sortedRides = Array.from(ridesSet)
+        .filter(r => r.toLowerCase().includes(searchQuery))
+        .sort();
+
+      // Tabellen-Header aufbauen
+      const headerRow = document.getElementById('statsTableHeader');
+      headerRow.innerHTML = `
+        <th class="text-left py-1.5 px-2 sticky left-0 bg-slate-950">Attraktion</th>
+        ${sortedDays.map(d => `<th class="text-center py-1.5 px-2 whitespace-nowrap">${formatDateShort(d)}</th>`).join('')}
+      `;
+
+      // Tabellen-Body aufbauen
+      const tbody = document.getElementById('statsTableBody');
+
+      if (sortedRides.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${sortedDays.length + 1}" class="text-center py-4 text-slate-500">Keine Attraktionen gefunden</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = sortedRides.map((rideName, idx) => {
+        const rowBg = idx % 2 === 0 ? 'bg-black' : 'bg-slate-950/50';
+        const cells = sortedDays.map(day => {
+          const val = dataMap[rideName][day];
+          if (val === undefined || val === null) {
+            return `<td class="text-center py-1.5 px-2 text-slate-700">--</td>`;
+          }
+          const rounded = Math.round(val);
+          let colorClass = 'text-emerald-400';
+          if (rounded > 35) colorClass = 'text-red-400';
+          else if (rounded > 15) colorClass = 'text-yellow-300';
+          return `<td class="text-center py-1.5 px-2 ${colorClass} font-bold">${rounded}</td>`;
+        }).join('');
+
+        return `
+          <tr class="${rowBg} border-b border-slate-900">
+            <td class="py-1.5 px-2 text-slate-200 font-semibold sticky left-0 ${rowBg} truncate max-w-[140px]">${escapeHtml(rideName)}</td>
+            ${cells}
+          </tr>
+        `;
+      }).join('');
     }
 
     function escapeHtml(str) {
