@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParkPulse Live Dashboard</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-8 font-sans">
+
+  <div class="max-w-2xl mx-auto space-y-6">
+
+    <header class="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-black text-blue-400 flex items-center gap-2">
+          <i class="fa-solid fa-roller-coaster"></i> ParkPulse Live
+        </h1>
+        <p class="text-xs text-slate-400">Automatische Live-Synchronisation aktiv</p>
+      </div>
+
+      <button onclick="loadParkData()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95">
+        <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
+      </button>
+    </header>
+
+    <div class="flex flex-wrap gap-2">
+      <button onclick="selectPark('60', 'Kings Island')" id="btn-60" class="park-btn px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white transition">
+        🇺🇸 Kings Island
+      </button>
+      <button onclick="selectPark('64', 'Cedar Point')" id="btn-64" class="park-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+        🇺🇸 Cedar Point
+      </button>
+      <button onclick="selectPark('56', 'Phantasialand')" id="btn-56" class="park-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+        🇩🇪 Phantasialand
+      </button>
+    </div>
+
+    <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <i class="fa-solid fa-server text-blue-400 shrink-0"></i>
+        <span id="statusText" class="truncate">Lade Daten vom Server...</span>
+      </div>
+      <span id="autoRefreshBadge" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 shrink-0">
+        Auto-Sync: 60s
+      </span>
+    </div>
+
+    <div id="ridesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      </div>
+
+  </div>
+
+  <script>
+    const SERVER_URL = 'https://parkpulse-server.onrender.com';
+
+    let selectedParkId = '60';
+    let selectedParkName = 'Kings Island';
+    let autoRefreshTimer = null;
+
+    function selectPark(id, name) {
+      selectedParkId = id;
+      selectedParkName = name;
+
+      document.querySelectorAll('.park-btn').forEach(btn => {
+        btn.className = 'park-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition';
+      });
+      const activeBtn = document.getElementById(`btn-${id}`);
+      if (activeBtn) activeBtn.className = 'park-btn px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white transition';
+
+      loadParkData();
+    }
+
+    async function loadParkData() {
+      const statusText = document.getElementById('statusText');
+      const container = document.getElementById('ridesContainer');
+      const icon = document.getElementById('refreshIcon');
+
+      icon.classList.add('fa-spin');
+
+      try {
+        const response = await fetch(`${SERVER_URL}/api/live?park=${selectedParkId}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            statusText.innerHTML = `⏳ Server sammelt erste Daten für <b>${selectedParkName}</b>...`;
+            container.innerHTML = `
+              <div class="col-span-full py-10 text-center text-slate-400 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                <i class="fa-solid fa-clock-rotate-left text-3xl text-blue-400 animate-spin"></i>
+                <p class="text-xs font-bold">Erster Datenabruf läuft...</p>
+              </div>
+            `;
+            return;
+          }
+          throw new Error(`Server Status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const ridesList = data.rides || [];
+        const timeRecorded = data.time || 'Unbekannt';
+
+        if (ridesList.length === 0) {
+          statusText.innerHTML = `🌙 <b>${selectedParkName}</b>: Keine Attraktionen gefunden.`;
+          container.innerHTML = '';
+          return;
+        }
+
+        statusText.innerHTML = `🟢 <b>${selectedParkName}</b>: ${ridesList.length} Attraktionen (Messung von ${timeRecorded} Uhr).`;
+
+        // Sortieren: Geöffnet zuerst, dann nach Wartezeit
+        ridesList.sort((a, b) => b.isOpen - a.isOpen || b.waitTime - a.waitTime);
+
+        // HTML Rendern
+        container.innerHTML = ridesList.map(ride => {
+          const isOpen = ride.isOpen;
+          const wait = ride.waitTime;
+
+          let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
+          if (isOpen) {
+            if (wait <= 15) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+            else if (wait <= 40) badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+            else badgeColor = 'bg-red-500/10 text-red-400 border-red-500/30';
+          }
+
+          return `
+            <div class="bg-slate-900 border border-slate-800/80 p-3.5 rounded-xl flex items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <h3 class="font-bold text-sm text-slate-200 truncate">${escapeHtml(ride.name)}</h3>
+                <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
+                  ${isOpen ? 'Geöffnet' : 'Geschlossen'}
+                </span>
+              </div>
+              
+              <div class="px-3 py-1.5 rounded-lg border ${badgeColor} text-xs font-black shrink-0">
+                ${isOpen ? `${wait} Min` : '---'}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        console.error("Fehler:", err);
+        statusText.innerHTML = `⚠️ Server wächt gerade auf... Bitte kurz warten.`;
+      } finally {
+        icon.classList.remove('fa-spin');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // Beim Laden der Seite starten
+    window.onload = () => {
+      loadParkData();
+      
+      // Automatisch alle 60 Sekunden im Hintergrund aktualisieren
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(loadParkData, 60000);
+    };
+  </script>
+</body>
+</html>
