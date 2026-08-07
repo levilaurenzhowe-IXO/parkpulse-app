@@ -190,7 +190,7 @@
   <script>
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
     const PHANTASIALAND_ID = '56';
-    const AUTO_REFRESH_SECONDS = 60;
+    const AUTO_REFRESH_SECONDS = 300; // Auto-Update alle 5 Minuten (300 Sekunden)
     
     let globalRidesData = [];
     let globalHistoryData = [];
@@ -204,7 +204,6 @@
     let isHiddenSectionExpanded = false;
 
     // --- VOLLSTÄNDIGE DATENBANK ALLER 33 PHANTASIALAND ATTRAKTIONEN ---
-    // Icons sind hier exakt nach Kategorie vereinheitlicht!
     const RIDE_DATABASE = {
       'Black Mamba': {
         area: 'Deep in Africa',
@@ -704,7 +703,7 @@
       }
     }
 
-    // ---------- TIMER & AUTO REFRESH ----------
+    // ---------- TIMER & AUTO REFRESH (ALLE 5 MINUTEN) ----------
     function startLiveTimer() {
       lastLoadTimestamp = Date.now();
       if (liveTimerInterval) clearInterval(liveTimerInterval);
@@ -778,34 +777,48 @@
       }
     }
 
-    // ---------- TENDENZ-BERECHNUNG (VERGLEICH ZUM VORHERIGEN MESSWERT) ----------
+    // ---------- TENDENZ-BERECHNUNG (15-MINUTEN-VERGLEICH MIT 5-MINUTEN-QUICK-ALERT) ----------
     function getWaitTrend(rideName, currentWait, isOpen) {
       if (!isOpen || globalHistoryData.length < 2) {
         return { icon: 'fa-minus', color: 'text-slate-600' };
       }
+
+      // 1. Sofort-Prüfung: Gab es direkt nach 5 Minuten (1 Datenpunkt zurück) eine Änderung?
+      const latestPrev = globalHistoryData[globalHistoryData.length - 2];
+      if (latestPrev && latestPrev.rides) {
+        const ride5m = latestPrev.rides.find(r => r.name === rideName);
+        if (ride5m && ride5m.isOpen && currentWait !== ride5m.waitTime) {
+          const diff5m = currentWait - ride5m.waitTime;
+          return diff5m > 0 
+            ? { icon: 'fa-arrow-up', color: 'text-red-400' }
+            : { icon: 'fa-arrow-down', color: 'text-emerald-400' };
+        }
+      }
       
-      const prevEntry = globalHistoryData[globalHistoryData.length - 2];
-      if (!prevEntry || !prevEntry.rides) {
+      // 2. Standard-Prüfung: Vergleich mit dem Stand von vor 15 Minuten (~3 Datenpunkte zurück)
+      const targetIndex = Math.max(0, globalHistoryData.length - 4);
+      const prev15m = globalHistoryData[targetIndex];
+      if (!prev15m || !prev15m.rides) {
         return { icon: 'fa-minus', color: 'text-slate-600' };
       }
 
-      const prevRide = prevEntry.rides.find(r => r.name === rideName);
-      if (!prevRide || !prevRide.isOpen) {
+      const ride15m = prev15m.rides.find(r => r.name === rideName);
+      if (!ride15m || !ride15m.isOpen) {
         return { icon: 'fa-minus', color: 'text-slate-600' };
       }
 
-      const diff = currentWait - prevRide.waitTime;
+      const diff = currentWait - ride15m.waitTime;
       if (diff > 0) {
-        return { icon: 'fa-arrow-up', color: 'text-red-400' }; // Wartezeit gestiegen
+        return { icon: 'fa-arrow-up', color: 'text-red-400' };
       } else if (diff < 0) {
-        return { icon: 'fa-arrow-down', color: 'text-emerald-400' }; // Wartezeit gesunken
+        return { icon: 'fa-arrow-down', color: 'text-emerald-400' };
       } else {
-        return { icon: 'fa-minus', color: 'text-slate-500' }; // Unverändert
+        return { icon: 'fa-minus', color: 'text-slate-500' };
       }
     }
 
     // ---------- HELFER: ATTRAKTIONS-KARTE RENDERN ----------
-    function createRideCardHtml(ride, index, isHiddenInSection = false) {
+    function createRideCardHtml(ride, cardId, isHiddenInSection = false) {
       const favorites = getFavorites();
       const thresholds = getThresholds();
       const isOpen = ride.isOpen;
@@ -830,7 +843,7 @@
           <div class="flex items-center justify-between gap-3">
             
             <!-- Linker Bereich: Icon mit Statuspunkt & Titel (Klick öffnet Details) -->
-            <div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer select-none" onclick="toggleChart('${index}')">
+            <div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer select-none" onclick="toggleChart('${cardId}')">
               
               <!-- Kategorie-Icon mit Status-Punkt oben links -->
               <div class="relative w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-amber-400 text-base shrink-0">
@@ -839,15 +852,15 @@
                 <span class="absolute -top-1 -left-1 w-3 h-3 rounded-full border-2 border-slate-900 ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
               </div>
               
-              <!-- Titel & Themenbereich (Ohne grünen Text/Punkt) -->
+              <!-- Titel & Themenbereich -->
               <div class="min-w-0 flex-1">
                 <h3 class="font-black text-sm sm:text-base text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
                 <p class="text-[11px] text-slate-400 font-medium truncate mt-0.5">${meta.area}</p>
               </div>
 
-              <!-- Miniatur-Trendgraph (Sparkline) direkt auf der Kachel -->
+              <!-- Miniatur-Trendgraph (Sparkline) - Skala 0 bis 100 Min -->
               <div class="hidden sm:block w-20 h-8 shrink-0 opacity-70">
-                <canvas id="sparkline-${index}"></canvas>
+                <canvas id="sparkline-${cardId}"></canvas>
               </div>
 
             </div>
@@ -885,7 +898,7 @@
           </div>
 
           <!-- Ausklappbarer Info & Ausführlicher Tagesverlauf Bereich -->
-          <div id="chartContainer-${index}" class="hidden mt-4 pt-3.5 border-t border-slate-800/80 space-y-3">
+          <div id="chartContainer-${cardId}" class="hidden mt-4 pt-3.5 border-t border-slate-800/80 space-y-3">
             
             <!-- Technische Fakten -->
             <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 text-xs space-y-1.5">
@@ -897,14 +910,14 @@
               </div>
             </div>
 
-            <!-- Ausführlicher Tagesverlauf -->
+            <!-- Ausführlicher Tagesverlauf - Skala 0 bis 100 Min -->
             <div>
               <div class="flex justify-between items-center mb-1.5">
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tagesverlauf (Wartezeit in Min):</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tagesverlauf (Skala 0 - 100 Min):</p>
                 <span class="text-[10px] text-amber-500/90 font-mono font-semibold">${meta.type}</span>
               </div>
               <div class="h-36 w-full">
-                <canvas id="chart-${index}"></canvas>
+                <canvas id="chart-${cardId}"></canvas>
               </div>
             </div>
 
@@ -948,7 +961,9 @@
         }
       });
 
-      // --- RENDERN DER SICHTBAREN ATTRAKTIONEN (MIT GRUPPEN-ÜBERSCHRIFTEN) ---
+      const renderedItems = [];
+
+      // --- RENDERN DER SICHTBAREN ATTRAKTIONEN ---
       if (visibleRides.length === 0) {
         mainContainer.innerHTML = `
           <div class="py-12 text-center text-slate-500 bg-slate-900/50 border border-slate-800 rounded-2xl">
@@ -967,7 +982,11 @@
             return b.isOpen - a.isOpen || b.waitTime - a.waitTime;
           });
 
-          htmlBuffer = visibleRides.map((ride, idx) => createRideCardHtml(ride, `v_${idx}`)).join('');
+          htmlBuffer = visibleRides.map((ride, idx) => {
+            const cardId = `v_${idx}`;
+            renderedItems.push({ cardId, rideName: ride.name });
+            return createRideCardHtml(ride, cardId);
+          }).join('');
 
         } else if (sortMode === 'area' || sortMode === 'type') {
           const groups = {};
@@ -1002,7 +1021,9 @@
                 <div class="space-y-3">
                   ${groupRides.map(ride => {
                     cardCounter++;
-                    return createRideCardHtml(ride, `g_${cardCounter}`);
+                    const cardId = `g_${cardCounter}`;
+                    renderedItems.push({ cardId, rideName: ride.name });
+                    return createRideCardHtml(ride, cardId);
                   }).join('')}
                 </div>
               </div>
@@ -1018,9 +1039,11 @@
         hiddenSection.classList.remove('hidden');
         hiddenBadge.textContent = hiddenRides.length;
 
-        hiddenContainer.innerHTML = hiddenRides.map((ride, idx) => 
-          createRideCardHtml(ride, `h_${idx}`, true)
-        ).join('');
+        hiddenContainer.innerHTML = hiddenRides.map((ride, idx) => {
+          const cardId = `h_${idx}`;
+          renderedItems.push({ cardId, rideName: ride.name });
+          return createRideCardHtml(ride, cardId, true);
+        }).join('');
       } else {
         hiddenSection.classList.add('hidden');
       }
@@ -1028,28 +1051,16 @@
       // --- CHARTS & SPARKELINES ZEICHNEN ---
       try {
         if (typeof Chart !== 'undefined') {
-          const allRendered = [...visibleRides, ...hiddenRides];
-          allRendered.forEach((ride, index) => {
+          renderedItems.forEach(item => {
             const labels = globalHistoryData.map(h => h.time);
             const points = globalHistoryData.map(h => {
               if (!h.rides) return 0;
-              const found = h.rides.find(r => r.name === ride.name);
+              const found = h.rides.find(r => r.name === item.rideName);
               return (found && found.isOpen) ? found.waitTime : 0;
             });
 
-            // Ausführliche Charts
-            const detailCanvases = document.querySelectorAll(`canvas[id^="chart-"]`);
-            detailCanvases.forEach(canvas => {
-              const cardIdx = canvas.id;
-              renderChart(cardIdx, labels, points);
-            });
-
-            // Sparklines (Miniatur-Graphen)
-            const sparkCanvases = document.querySelectorAll(`canvas[id^="sparkline-"]`);
-            sparkCanvases.forEach(canvas => {
-              const cardIdx = canvas.id;
-              renderSparkline(cardIdx, points);
-            });
+            renderChart(`chart-${item.cardId}`, labels, points);
+            renderSparkline(`sparkline-${item.cardId}`, points);
           });
         }
       } catch (e) {
@@ -1057,11 +1068,12 @@
       }
     }
 
-    function toggleChart(index) {
-      const container = document.getElementById(`chartContainer-${index}`);
+    function toggleChart(cardId) {
+      const container = document.getElementById(`chartContainer-${cardId}`);
       if (container) container.classList.toggle('hidden');
     }
 
+    // --- SPARKLINE CHARTS (MINIATUR, STARR 0 BIS 100 MIN) ---
     function renderSparkline(elementId, points) {
       const ctx = document.getElementById(elementId);
       if (!ctx) return;
@@ -1087,12 +1099,13 @@
           plugins: { legend: { display: false }, tooltip: { enabled: false } },
           scales: {
             x: { display: false },
-            y: { display: false, beginAtZero: true }
+            y: { display: false, beginAtZero: true, min: 0, max: 100 }
           }
         }
       });
     }
 
+    // --- AUSFÜHRLICHE CHARTS (STARR 0 BIS 100 MIN) ---
     function renderChart(elementId, labels, points) {
       const ctx = document.getElementById(elementId);
       if (!ctx) return;
@@ -1104,7 +1117,7 @@
         data: {
           labels: labels,
           datasets: [{
-            label: 'Wartezeit',
+            label: 'Wartezeit (Min)',
             data: points,
             borderColor: '#f59e0b',
             backgroundColor: 'rgba(245, 158, 11, 0.12)',
@@ -1121,7 +1134,13 @@
           plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
-            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
+            y: { 
+              beginAtZero: true, 
+              min: 0,
+              max: 100,
+              grid: { color: '#1e293b' }, 
+              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 } 
+            }
           }
         }
       });
