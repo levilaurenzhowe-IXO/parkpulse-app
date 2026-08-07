@@ -87,6 +87,19 @@
         </div>
       </div>
 
+      <!-- Neuer Besucher-Tagesgraph -->
+      <div class="pt-2 border-t border-slate-800/60 space-y-1">
+        <div class="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+          <span class="flex items-center gap-1">
+            <i class="fa-solid fa-chart-line text-purple-400"></i> Geschätzte Besucherzahl über den Tag
+          </span>
+          <span id="currentGuestCountBadge" class="text-purple-400 font-mono font-bold">--</span>
+        </div>
+        <div class="h-24 w-full bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
+          <canvas id="parkGuestsChart"></canvas>
+        </div>
+      </div>
+
       <div class="flex justify-between items-center text-[10px] text-slate-500 pt-0.5">
         <p id="loadScoreText">Berechne Auslastung...</p>
         <span id="hiddenRidesNote" class="text-amber-500/80 font-medium hidden"></span>
@@ -214,6 +227,7 @@
     let globalHistoryData = [];
     let chartInstances = {};
     let sparklineInstances = {};
+    let parkGuestsChartInstance = null;
     let lastLoadTimestamp = null;
     let liveTimerInterval = null;
     let autoRefreshInterval = null;
@@ -221,22 +235,24 @@
     let currentModalRideName = null;
     let isHiddenSectionExpanded = false;
 
-    // DATENBANK DER ATTRAKTIONEN INKL. EXAKTER STUNDEN-KAPAZITÄT (REIN-FREI-ZEIT-BLOG DATEN)
+    // KORRIGIERTE DATENBANK MIT EXAKTEN REIN-FREI-ZEIT-BLOG KAPAZITÄTSDATEN
     const RIDE_DATABASE = {
-      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
-      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Minenbahn für die ganze Familie mit Canyon-Setting.', capacity: 2300, duration: '3 min', opened: '1996', speed: '55 km/h' },
-      'Crazy Bats': { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Längste Dunkelachterbahn der Welt.', capacity: 1200, duration: '4 min', opened: '1988', speed: '47 km/h' },
-      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Flying Coaster mit Launch durch Steampunk-Welt Rookburgh.', capacity: 1400, duration: '2 min', opened: '2020', speed: '78 km/h' },
-      'Raik': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Familienfreundlicher Boomerang-Coaster in Klugheim.', capacity: 720, duration: '1 min', opened: '2016', speed: '62 km/h' },
-      'Taron': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zweifach-Launch durch Klugheims Felslandschaft.', capacity: 1200, duration: '1 min', opened: '2016', speed: '117 km/h' },
-      "Winja's Fear & Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zwei Indoor-Spinning-Coaster in Wuze Town.', capacity: 1440, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
+      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Minenbahn für die ganze Familie mit einer der höchsten Kapazitäten im Park.', capacity: 2400, duration: '3 min', opened: '1996', speed: '55 km/h' },
+      'Crazy Bats': { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Indoor-Coaster und längste Dunkelachterbahn der Welt.', capacity: 1600, duration: '4 min', opened: '1988', speed: '47 km/h' },
+      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Flying Launch Coaster durch Steampunk-Welt Rookburgh.', capacity: 1200, duration: '2 min', opened: '2020', speed: '78 km/h' },
+      'Raik': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Family Boomerang-Coaster in Klugheim.', capacity: 900, duration: '1 min', opened: '2016', speed: '62 km/h' },
+      'Taron': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zweifach-Launch durch Klugheims Felslandschaft mit hoher Abfertigung (4 Züge).', capacity: 1600, duration: '1 min', opened: '2016', speed: '117 km/h' },
+      "Winja's Fear": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Indoor Spinning Coaster in Wuze Town.', capacity: 720, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      "Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Indoor Spinning Coaster in Wuze Town.', capacity: 720, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      "Winja's Fear & Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Kombinierte zwei Indoor Spinning Coaster.', capacity: 1440, duration: '2 min', opened: '2002', speed: '60 km/h' },
       'Chiapas': { area: 'Mexico', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Wasserbahn mit steilster Abfahrt der Welt.', capacity: 1600, duration: '6 min', opened: '2014', speed: 'Steilste Abfahrt' },
-      'Talocan': { area: 'Mexico', type: 'Thrill / Schwingfahrt', icon: 'fa-chess-rook', desc: 'Top Spin mit Feuer- und Wassereffekten.', capacity: 900, duration: '2 min', opened: '2007', speed: 'Surprise' },
-      'Mystery Castle': { area: 'Mystery', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Indoor-Falltower im düsteren Schloss.', capacity: 1400, duration: '1 min', opened: '1998', speed: 'Bungee-Launch' },
-      'River Quest': { area: 'Mystery', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Rafting-Fahrt mit steilen Abfahrten.', capacity: 1400, duration: '6 min', opened: '2002', speed: 'Spritzig' },
+      'Talocan': { area: 'Mexico', type: 'Thrill / Schwingfahrt', icon: 'fa-chess-rook', desc: 'Top Spin mit Feuer- und Wassereffekten.', capacity: 800, duration: '2 min', opened: '2007', speed: 'Surprise' },
+      'Mystery Castle': { area: 'Mystery', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Drop Tower im düsteren Schloss.', capacity: 900, duration: '1 min', opened: '1998', speed: 'Bungee-Launch' },
+      'River Quest': { area: 'Mystery', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Rapids Rafting-Fahrt mit steilen Abfahrten.', capacity: 900, duration: '6 min', opened: '2002', speed: 'Spritzig' },
       'Avoras': { area: 'Fantasy (Wuze Town)', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Kletterabenteuer im Wuze Tal.', capacity: 400, duration: '10 min', opened: '2024', speed: 'Aktiv' },
       'Deep in Africa – Adventure Trail': { area: 'Deep in Africa', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Interaktiver Pfad um Black Mamba.', capacity: 500, duration: '10 min', opened: '2022', speed: 'Interaktiv' },
-      'Maus au Chocolat': { area: 'Berlin', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: '3D-Mäusejagd in der Tortenfabrik.', capacity: 1200, duration: '7 min', opened: '2011', speed: '3D-Shooter' },
+      'Maus au Chocolat': { area: 'Berlin', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Interactive Dark Ride in 3D.', capacity: 1200, duration: '7 min', opened: '2011', speed: '3D-Shooter' },
       'Das Verrückte Hotel Tartüff': { area: 'Berlin', type: 'Laufgeschäft / Fun House', icon: 'fa-hotel', desc: 'Verrücktes Fun House im Berliner Stil.', capacity: 800, duration: '8 min', opened: '2012', speed: 'Selbstlauf' },
       'Pferdekarussell': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Nostalgisches Karussell auf dem Kaiserplatz.', capacity: 600, duration: '3 min', opened: '1998', speed: 'Gemütlich' },
       'Tikal': { area: 'Mexico', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Zwei Mini-Freifalltürme für Familien.', capacity: 400, duration: '2 min', opened: '2001', speed: 'Familientower' },
@@ -274,7 +290,7 @@
       const meta = getRideMeta(rideName);
       const capacity = meta.capacity || 500;
 
-      // Wenn Wartezeit 5 Min oder 0 Min -> bei kleineren Attraktionen meist fast leer -> pauschal 10 Menschen
+      // Wenn Wartezeit 5 Min oder weniger -> bei kleineren Attraktionen meist fast leer -> pauschal 10 Menschen
       if (waitTime <= 5) {
         return { people: 10, meters: 5 };
       }
@@ -430,7 +446,7 @@
       }
     }
 
-    // GLOBALE CROWD-RECHNUNG FÜR GESAMTEN PARK
+    // GLOBALE CROWD-RECHNUNG FÜR GESAMTEN PARK UND BESUCHER-GRAPH
     function updateLoadScore(rides) {
       const box = document.getElementById('loadScoreBox');
       const hidden = getHiddenRides();
@@ -443,7 +459,6 @@
         return;
       }
 
-      // Berechne Summen über alle geöffnete Bahnen
       let totalQueuePeople = 0;
       let totalQueueMeters = 0;
 
@@ -453,7 +468,6 @@
         totalQueueMeters += metrics.meters;
       });
 
-      // ZUSÄTZLICH: Freigänger auf Wegen, Restaurants, Shows (+55% der Schlangenmenge)
       const totalWalkingPeople = Math.round(totalQueuePeople * 0.55);
       const totalParkGuests = totalQueuePeople + totalWalkingPeople;
 
@@ -476,6 +490,7 @@
       document.getElementById('totalQueueMeters').textContent = `${totalQueueMeters.toLocaleString('de-DE')} m`;
       document.getElementById('totalWalkingPeople').textContent = `~${totalWalkingPeople.toLocaleString('de-DE')} Pers.`;
       document.getElementById('totalParkGuests').textContent = `~${totalParkGuests.toLocaleString('de-DE')} Pers.`;
+      document.getElementById('currentGuestCountBadge').textContent = `~${totalParkGuests.toLocaleString('de-DE')} Gäste`;
 
       document.getElementById('loadScoreText').textContent =
         `Ø Wartezeit: ${Math.round(avgWait)} Min über ${visibleOpenRides.length} geöffnete Attraktionen`;
@@ -487,6 +502,70 @@
       } else {
         hiddenNote.classList.add('hidden');
       }
+
+      // ZEICHNE DEN NATIONAWITEN PARK-BESUCHER GRAPHEN
+      renderParkGuestsChart();
+    }
+
+    // BESUCHERZAHLEN-TAGESGRAPH RENDERN
+    function renderParkGuestsChart() {
+      const ctx = document.getElementById('parkGuestsChart');
+      if (!ctx || globalHistoryData.length === 0) return;
+
+      if (parkGuestsChartInstance) parkGuestsChartInstance.destroy();
+
+      const hidden = getHiddenRides();
+
+      // Berechne für jeden Messpunkt in der Historie die Gesamtzahl der Besucher
+      const labels = globalHistoryData.map(h => h.time);
+      const guestPoints = globalHistoryData.map(h => {
+        if (!h.rides) return 0;
+        let qPeople = 0;
+        h.rides.forEach(r => {
+          if (!hidden.includes(r.name) && r.isOpen) {
+            qPeople += calculateQueueMetrics(r.name, r.waitTime, true).people;
+          }
+        });
+        return Math.round(qPeople * 1.55); // Schlangen + 55% Freigänger
+      });
+
+      parkGuestsChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Geschätzte Gäste',
+            data: guestPoints,
+            borderColor: '#a855f7',
+            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `~${context.raw.toLocaleString('de-DE')} Besucher`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            y: { 
+              beginAtZero: true, 
+              grid: { color: '#1e293b' }, 
+              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 1000 } 
+            }
+          }
+        }
+      });
     }
 
     // TIMERS & REFRESH
@@ -626,7 +705,6 @@
       const trend = getWaitTrend(ride.name, wait, isOpen);
       const colorClass = getWaitColorClass(wait, isOpen);
 
-      // Metriken berechnen
       const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
 
       return `
