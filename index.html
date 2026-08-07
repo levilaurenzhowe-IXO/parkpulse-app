@@ -21,16 +21,36 @@
         <p class="text-xs text-slate-400">Live-Wartezeiten & 24h-Verlauf</p>
       </div>
 
-      <button onclick="loadPhantasialandData()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95 shadow-lg shadow-amber-900/20">
-        <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
-      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleNotifications()" id="notifyBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-9 h-9 rounded-xl text-xs transition flex items-center justify-center active:scale-95 shadow-lg" title="Benachrichtigungen">
+          <i class="fa-regular fa-bell" id="notifyIcon"></i>
+        </button>
+        <button onclick="loadPhantasialandData()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95 shadow-lg shadow-amber-900/20">
+          <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
+        </button>
+      </div>
     </header>
+
+    <!-- Gesamt-Auslastung -->
+    <div id="loadScoreBox" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-gauge-high text-amber-400"></i> Park-Auslastung
+        </span>
+        <span id="loadScoreLabel" class="text-xs font-black">--</span>
+      </div>
+      <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div id="loadScoreBar" class="h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+      </div>
+      <p id="loadScoreText" class="text-[10px] text-slate-500 mt-2"></p>
+    </div>
 
     <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
       <div class="flex items-center gap-2.5 min-w-0">
         <i class="fa-solid fa-clock text-amber-400 shrink-0"></i>
         <span id="statusText" class="truncate">Lade Stand der Daten...</span>
       </div>
+      <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0"></span>
     </div>
 
     <div id="ridesContainer" class="space-y-3">
@@ -41,7 +61,191 @@
   <script>
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
     const PHANTASIALAND_ID = '56';
+    const AUTO_REFRESH_SECONDS = 60;
     let chartInstances = {};
+    let lastLoadTimestamp = null;
+    let liveTimerInterval = null;
+    let autoRefreshInterval = null;
+    let notifiedThresholds = new Set(); // verhindert Spam: pro Session nur 1x pro Bahn benachrichtigen
+
+    // ---------- FAVORITEN (gespeichert im Browser, überlebt Neuladen) ----------
+    function getFavorites() {
+      try {
+        return JSON.parse(localStorage.getItem('pp_favorites') || '[]');
+      } catch {
+        return [];
+      }
+    }
+
+    function toggleFavorite(rideName) {
+      let favs = getFavorites();
+      if (favs.includes(rideName)) {
+        favs = favs.filter(f => f !== rideName);
+      } else {
+        favs.push(rideName);
+      }
+      localStorage.setItem('pp_favorites', JSON.stringify(favs));
+      loadPhantasialandData(); // neu rendern, damit Sortierung/Stern sich aktualisiert
+    }
+
+    // ---------- SCHWELLENWERTE für Benachrichtigungen ----------
+    function getThresholds() {
+      try {
+        return JSON.parse(localStorage.getItem('pp_thresholds') || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function hasThreshold(rideName) {
+      const t = getThresholds();
+      return t[rideName] !== undefined;
+    }
+
+    function openThresholdPrompt(rideName) {
+      const current = getThresholds();
+      const existing = current[rideName];
+      const input = prompt(
+        `Ab welcher Wartezeit (in Minuten) soll "${rideName}" dich benachrichtigen?\n(Leer lassen oder abbrechen, um die Warnung zu entfernen)`,
+        existing !== undefined ? existing : ''
+      );
+
+      if (input === null) return; // Abbrechen
+
+      if (input.trim() === '') {
+        delete current[rideName];
+      } else {
+        const val = parseInt(input, 10);
+        if (!isNaN(val) && val >= 0) {
+          current[rideName] = val;
+        }
+      }
+      localStorage.setItem('pp_thresholds', JSON.stringify(current));
+      loadPhantasialandData();
+    }
+
+    function checkThresholds(rides) {
+      const thresholds = getThresholds();
+      rides.forEach(ride => {
+        const limit = thresholds[ride.name];
+        if (limit === undefined) return;
+
+        const key = ride.name;
+        if (ride.isOpen && ride.waitTime <= limit) {
+          if (!notifiedThresholds.has(key)) {
+            sendNotification(
+              `🎢 ${ride.name}`,
+              `Nur noch ${ride.waitTime} Min Wartezeit! (Grenze: ${limit} Min)`
+            );
+            notifiedThresholds.add(key);
+          }
+        } else {
+          // Wartezeit wieder über der Grenze -> beim nächsten Unterschreiten erneut benachrichtigen
+          notifiedThresholds.delete(key);
+        }
+      });
+    }
+
+    // ---------- BROWSER-BENACHRICHTIGUNGEN ----------
+    // Hinweis: Funktioniert zuverlässig, solange die Seite geöffnet/im Hintergrund-Tab ist.
+    // Für Benachrichtigungen bei komplett geschlossener App wäre echtes Web-Push (Service Worker + Server) nötig.
+    function updateNotifyIcon() {
+      const icon = document.getElementById('notifyIcon');
+      if (!('Notification' in window)) {
+        icon.className = 'fa-solid fa-bell-slash';
+        return;
+      }
+      if (Notification.permission === 'granted') {
+        icon.className = 'fa-solid fa-bell text-amber-400';
+      } else {
+        icon.className = 'fa-regular fa-bell';
+      }
+    }
+
+    async function toggleNotifications() {
+      if (!('Notification' in window)) {
+        alert('Dein Browser unterstützt leider keine Benachrichtigungen.');
+        return;
+      }
+      if (Notification.permission === 'granted') {
+        alert('Benachrichtigungen sind bereits aktiviert. Setze pro Attraktion über die Glocke einen Schwellenwert, um informiert zu werden.');
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      updateNotifyIcon();
+      if (permission === 'granted') {
+        sendNotification('🔔 Benachrichtigungen aktiv', 'Du wirst informiert, sobald eine Attraktion deinen Schwellenwert unterschreitet.');
+      }
+    }
+
+    function sendNotification(title, body) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(title, { body });
+        } catch (e) {
+          console.error('Notification-Fehler:', e);
+        }
+      }
+    }
+
+    // ---------- GESAMT-AUSLASTUNG DES PARKS ----------
+    function updateLoadScore(rides) {
+      const box = document.getElementById('loadScoreBox');
+      const openRides = rides.filter(r => r.isOpen);
+
+      if (openRides.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      const avgWait = openRides.reduce((sum, r) => sum + r.waitTime, 0) / openRides.length;
+      // Skala: 0-60 Min Durchschnitt -> 0-100% Auslastung (gedeckelt bei 100)
+      const percent = Math.min(100, Math.round((avgWait / 60) * 100));
+
+      let color = '#10b981'; // emerald
+      let label = 'Entspannt';
+      if (percent > 70) {
+        color = '#ef4444'; label = 'Sehr voll'; // red
+      } else if (percent > 40) {
+        color = '#f59e0b'; label = 'Mäßig voll'; // amber
+      }
+
+      box.classList.remove('hidden');
+      document.getElementById('loadScoreBar').style.width = `${percent}%`;
+      document.getElementById('loadScoreBar').style.backgroundColor = color;
+      document.getElementById('loadScoreLabel').textContent = `${label} (${percent}%)`;
+      document.getElementById('loadScoreLabel').style.color = color;
+      document.getElementById('loadScoreText').textContent =
+        `Ø Wartezeit: ${Math.round(avgWait)} Min über ${openRides.length} geöffnete Attraktionen`;
+    }
+
+    // ---------- LIVE-TIMER ("vor X Sekunden aktualisiert") ----------
+    function startLiveTimer() {
+      lastLoadTimestamp = Date.now();
+      if (liveTimerInterval) clearInterval(liveTimerInterval);
+
+      liveTimerInterval = setInterval(() => {
+        if (!lastLoadTimestamp) return;
+        const secondsAgo = Math.floor((Date.now() - lastLoadTimestamp) / 1000);
+        const el = document.getElementById('liveTimer');
+        if (!el) return;
+
+        if (secondsAgo < 60) {
+          el.textContent = `vor ${secondsAgo}s aktualisiert`;
+        } else {
+          const minutesAgo = Math.floor(secondsAgo / 60);
+          el.textContent = `vor ${minutesAgo} Min aktualisiert`;
+        }
+      }, 1000);
+    }
+
+    // ---------- AUTO-REFRESH ----------
+    function startAutoRefresh() {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      autoRefreshInterval = setInterval(() => {
+        loadPhantasialandData();
+      }, AUTO_REFRESH_SECONDS * 1000);
+    }
 
     async function loadPhantasialandData() {
       const statusText = document.getElementById('statusText');
@@ -99,14 +303,28 @@
 
       // Uhrzeit der letzten Aktualisierung direkt im Banner anzeigen
       statusText.innerHTML = `🟢 Live-Daten • Stand von <b>${timeRecorded} Uhr</b> (${latestRides.length} Bahnen geladen)`;
+      startLiveTimer();
 
-      // Sortieren: Geöffnete Bahnen nach oben, dann nach Wartezeit
-      latestRides.sort((a, b) => b.isOpen - a.isOpen || b.waitTime - a.waitTime);
+      // Auslastungs-Score berechnen und anzeigen
+      updateLoadScore(latestRides);
+
+      // Sortieren: Favoriten zuerst, dann geöffnete Bahnen, dann nach Wartezeit
+      const favorites = getFavorites();
+      latestRides.sort((a, b) => {
+        const aFav = favorites.includes(a.name) ? 1 : 0;
+        const bFav = favorites.includes(b.name) ? 1 : 0;
+        return bFav - aFav || b.isOpen - a.isOpen || b.waitTime - a.waitTime;
+      });
+
+      // Schwellenwerte prüfen -> ggf. Benachrichtigung auslösen
+      checkThresholds(latestRides);
 
       // --- SCHRITT 2: UI rendern ---
       container.innerHTML = latestRides.map((ride, index) => {
         const isOpen = ride.isOpen;
         const wait = ride.waitTime;
+        const isFav = favorites.includes(ride.name);
+        const rideKey = escapeHtml(ride.name).replace(/'/g, "\\'");
 
         let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
         if (isOpen) {
@@ -116,18 +334,28 @@
         }
 
         return `
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 transition hover:border-slate-700">
-            <div class="flex items-center justify-between gap-3 cursor-pointer select-none" onclick="toggleChart('${index}')">
-              <div class="min-w-0 flex-1">
-                <h3 class="font-bold text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
-                <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
-                  <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
-                  ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-amber-400 font-bold">Verlauf anzeigen <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
-                </span>
+          <div class="bg-slate-900 border ${isFav ? 'border-amber-500/40' : 'border-slate-800'} rounded-xl p-4 transition hover:border-slate-700">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer select-none" onclick="toggleChart('${index}')">
+                <div class="min-w-0 flex-1">
+                  <h3 class="font-bold text-sm text-slate-100 truncate">${escapeHtml(ride.name)}</h3>
+                  <span class="text-[10px] font-semibold ${isOpen ? 'text-emerald-400' : 'text-slate-500'} flex items-center gap-1 mt-0.5">
+                    <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
+                    ${isOpen ? 'Geöffnet' : 'Geschlossen'} • <span class="text-amber-400 font-bold">Verlauf <i class="fa-solid fa-chevron-down text-[8px]"></i></span>
+                  </span>
+                </div>
               </div>
 
-              <div class="px-3.5 py-1.5 rounded-lg border ${badgeColor} text-xs font-black shrink-0">
-                ${isOpen ? `${wait} Min` : '---'}
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isFav ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'} transition" title="Favorit">
+                  <i class="fa-solid fa-star text-xs"></i>
+                </button>
+                <button onclick="openThresholdPrompt('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${hasThreshold(ride.name) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'} transition" title="Warnung ab Wartezeit">
+                  <i class="fa-solid fa-bell text-xs"></i>
+                </button>
+                <div class="px-3.5 py-1.5 rounded-lg border ${badgeColor} text-xs font-black">
+                  ${isOpen ? `${wait} Min` : '---'}
+                </div>
               </div>
             </div>
 
@@ -220,7 +448,11 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    window.onload = loadPhantasialandData;
+    window.onload = function() {
+      updateNotifyIcon();
+      loadPhantasialandData();
+      startAutoRefresh();
+    };
   </script>
 </body>
 </html>
