@@ -28,8 +28,8 @@
 
     <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
       <div class="flex items-center gap-2.5 min-w-0">
-        <i class="fa-solid fa-chart-line text-amber-400 shrink-0"></i>
-        <span id="statusText" class="truncate">Verbinde mit Server...</span>
+        <i class="fa-solid fa-clock text-amber-400 shrink-0"></i>
+        <span id="statusText" class="truncate">Lade Stand der Daten...</span>
       </div>
     </div>
 
@@ -40,7 +40,7 @@
 
   <script>
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
-    const PHANTASIALAND_ID = '56'; // Fest auf Phantasialand eingestellt
+    const PHANTASIALAND_ID = '56';
     let chartInstances = {};
 
     async function loadPhantasialandData() {
@@ -49,42 +49,43 @@
       const icon = document.getElementById('refreshIcon');
 
       icon.classList.add('fa-spin');
-      statusText.innerHTML = `Lade Live-Daten fürs Phantasialand...`;
+      statusText.innerHTML = `Rufe aktuelle Zeiten ab...`;
 
       try {
         const response = await fetch(`${SERVER_URL}/api/park?park=${PHANTASIALAND_ID}`);
         
         if (!response.ok) {
-          throw new Error(`Server liefert Status ${response.status}`);
+          throw new Error(`HTTP Fehler ${response.status}`);
         }
 
         const data = await response.json();
         const history = data.history || [];
 
         if (history.length === 0) {
-          statusText.innerHTML = `⏳ Erste Messung läuft. Bitte in ca. 10 Sekunden nochmal aktualisieren...`;
+          statusText.innerHTML = `⏳ Erste Messung läuft, bitte gleich nochmal tippen...`;
           container.innerHTML = `
             <div class="col-span-full py-12 text-center text-slate-400 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-              <i class="fa-solid fa-clock-rotate-left text-3xl text-amber-400 animate-spin"></i>
-              <p class="text-xs font-bold">Erster Datenabruf läuft...</p>
-              <p class="text-[11px] text-slate-500">Dein Server holt gerade die aktuellen Zeiten aus dem Park.</p>
+              <i class="fa-solid fa-hourglass-half text-3xl text-amber-400 animate-spin"></i>
+              <p class="text-xs font-bold">Verbindung hergestellt...</p>
+              <p class="text-[11px] text-slate-500">Erste Datenpunkte werden vom Phantasialand gesammelt.</p>
             </div>
           `;
           return;
         }
 
-        // SICHERHEIT: Immer garantiert den ALLERNEUESTEN Eintrag nehmen
+        // Garantiert den neuesten Datenpunkt nehmen
         const latestEntry = history[history.length - 1];
         const latestRides = latestEntry.rides || [];
         const timeRecorded = latestEntry.time || 'Unbekannt';
 
         if (latestRides.length === 0) {
-          statusText.innerHTML = `🌙 Phantasialand: Aktuell keine Attraktionsdaten empfangen.`;
+          statusText.innerHTML = `🌙 Phantasialand: Derzeit keine Live-Daten verfügbar.`;
           container.innerHTML = '';
           return;
         }
 
-        statusText.innerHTML = `🟢 <b>${latestRides.length} Attraktionen</b> • Stand: <b>${timeRecorded} Uhr</b> (${history.length} Messungen gespeichert)`;
+        // Hier wird die Uhrzeit direkt im Banner angezeigt:
+        statusText.innerHTML = `🟢 Live-Daten • Stand von <b>${timeRecorded} Uhr</b> (${latestRides.length} Bahnen geladen)`;
 
         // Sortieren: Geöffnete Bahnen nach oben, dann nach Wartezeit
         latestRides.sort((a, b) => b.isOpen - a.isOpen || b.waitTime - a.waitTime);
@@ -127,7 +128,7 @@
           `;
         }).join('');
 
-        // Diagramme im Hintergrund vorbereiten
+        // Diagramme zeichnen
         latestRides.forEach((ride, index) => {
           const labels = history.map(h => h.time);
           const points = history.map(h => {
@@ -141,7 +142,7 @@
 
       } catch (err) {
         console.error("Fehler beim Laden:", err);
-        statusText.innerHTML = `⚠️ Server wacht gerade auf... Bitte warte kurz und klicke nochmal auf 'Aktualisieren'.`;
+        statusText.innerHTML = `❌ Verbindung getrennt. Bitte 'Aktualisieren' tippen.`;
       } finally {
         icon.classList.remove('fa-spin');
       }
@@ -201,7 +202,6 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Beim Laden der Seite sofort ausführen
     window.onload = loadPhantasialandData;
   </script>
 </body>
