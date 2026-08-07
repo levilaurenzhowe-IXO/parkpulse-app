@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phantasialand Pulse - Smart Crowd Estimator</title>
+  <title>Phantasialand Pulse - Smart Radar</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* Custom Slider & Styling */
     input[type=range]::-webkit-slider-thumb {
       -webkit-appearance: none;
       height: 20px;
@@ -29,107 +30,114 @@
     }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-2 sm:p-5 font-sans selection:bg-amber-500/30">
+<body class="bg-emerald-950/90 text-emerald-50 min-h-screen p-2 sm:p-5 font-sans selection:bg-emerald-500/30">
 
-  <div class="max-w-4xl mx-auto space-y-3.5">
+  <div class="max-w-4xl mx-auto space-y-3">
 
     <!-- Header -->
-    <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-800/80 pb-3 gap-3">
+    <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-emerald-800/60 pb-3 gap-3">
       <div>
-        <h1 class="text-xl sm:text-2xl font-black text-amber-500 flex items-center gap-2 tracking-tight">
-          <i class="fa-solid fa-dragon animate-pulse"></i> Phantasialand Live & Crowd Radar
+        <h1 class="text-xl sm:text-2xl font-black text-amber-400 flex items-center gap-2 tracking-tight">
+          <i class="fa-solid fa-dragon animate-pulse"></i> Phantasialand Live
         </h1>
-        <p class="text-[11px] text-slate-400 mt-0.5">Live-Wartezeiten, Schlangenlängen & Parkbesucher-Rechner</p>
+        <p class="text-[11px] text-emerald-300/70 mt-0.5">Live-Wartezeiten, Schlangenlängen & Parkbesucher-Rechner</p>
       </div>
 
       <div class="flex items-center gap-2 self-end sm:self-auto">
-        <button onclick="toggleNotifications()" id="notifyBtn" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 w-8 h-8 rounded-lg text-xs transition flex items-center justify-center active:scale-95 shadow" title="Push-Benachrichtigungen aktivieren">
+        <button onclick="toggleNotifications()" id="notifyBtn" class="bg-emerald-900/80 hover:bg-emerald-800 border border-emerald-800 text-emerald-200 w-8 h-8 rounded-lg text-xs transition flex items-center justify-center active:scale-95 shadow" title="Push-Benachrichtigungen aktivieren">
           <i class="fa-regular fa-bell" id="notifyIcon"></i>
         </button>
-        <button onclick="loadPhantasialandData()" class="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow shadow-amber-500/10">
+        <button onclick="loadPhantasialandData()" class="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-emerald-950 px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow shadow-amber-500/10">
           <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
         </button>
       </div>
     </header>
 
-    <!-- Park-Auslastung & Besucher-Kalkulator -->
-    <div id="loadScoreBox" class="hidden bg-slate-900/90 border border-slate-800/90 rounded-xl p-3 shadow-lg backdrop-blur-md space-y-2">
-      <div class="flex items-center justify-between">
-        <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+    <!-- Einklappbare Park-Auslastung & Besucher-Kalkulator -->
+    <div class="bg-emerald-900/40 border border-emerald-800/80 rounded-xl overflow-hidden shadow-lg backdrop-blur-md">
+      <!-- Toggle Bar -->
+      <button onclick="toggleHeaderCrowdBox()" class="w-full px-3 py-2.5 flex items-center justify-between bg-emerald-900/60 hover:bg-emerald-900/90 text-emerald-200 transition">
+        <span class="text-xs font-bold flex items-center gap-2">
           <i class="fa-solid fa-users-line text-amber-400"></i>
           Park-Auslastung & Besucher-Schätzung
-          <span id="activeCountBadge" class="text-[10px] font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700/50">-- Bahnen</span>
+          <span id="activeCountBadge" class="text-[10px] font-normal text-emerald-300/80 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800/60">-- Bahnen</span>
         </span>
-        <span id="loadScoreLabel" class="text-xs font-black tracking-wide">--</span>
-      </div>
+        <div class="flex items-center gap-3">
+          <span id="loadScoreLabel" class="text-xs font-black tracking-wide">--</span>
+          <i id="headerCrowdChevron" class="fa-solid fa-chevron-down text-xs transition-transform duration-200"></i>
+        </div>
+      </button>
 
-      <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
-        <div id="loadScoreBar" class="h-full rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
-      </div>
+      <!-- Einklappbarer Inhalt -->
+      <div id="headerCrowdContent" class="hidden p-3 space-y-3 border-t border-emerald-800/60">
+        <div class="w-full h-2 bg-emerald-950 rounded-full overflow-hidden p-0.5 border border-emerald-800/80">
+          <div id="loadScoreBar" class="h-full rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+        </div>
 
-      <!-- Parkbesucher-Berechnung Info-Grid -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-800/60 text-center font-mono">
-        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
-          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">In Schlangen</span>
-          <span id="totalQueuePeople" class="text-xs font-black text-amber-400">0 Pers.</span>
+        <!-- Besucher-Berechnung Info-Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+          <div class="bg-emerald-950/70 p-2 rounded-lg border border-emerald-800/60">
+            <span class="block text-[9px] text-emerald-400/80 font-sans uppercase font-semibold">In Schlangen</span>
+            <span id="totalQueuePeople" class="text-xs font-black text-amber-400">0 Pers.</span>
+          </div>
+          <div class="bg-emerald-950/70 p-2 rounded-lg border border-emerald-800/60">
+            <span class="block text-[9px] text-emerald-400/80 font-sans uppercase font-semibold">Schlangen-Länge</span>
+            <span id="totalQueueMeters" class="text-xs font-black text-cyan-300">0 m</span>
+          </div>
+          <div class="bg-emerald-950/70 p-2 rounded-lg border border-emerald-800/60">
+            <span class="block text-[9px] text-emerald-400/80 font-sans uppercase font-semibold">Freigänger/Gastro</span>
+            <span id="totalWalkingPeople" class="text-xs font-black text-emerald-300">0 Pers.</span>
+          </div>
+          <div class="bg-emerald-950/70 p-2 rounded-lg border border-emerald-800/60">
+            <span class="block text-[9px] text-emerald-400/80 font-sans uppercase font-semibold">Geschätzte Gäste</span>
+            <span id="totalParkGuests" class="text-xs font-black text-amber-300">0 Pers.</span>
+          </div>
         </div>
-        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
-          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">Schlangen-Länge</span>
-          <span id="totalQueueMeters" class="text-xs font-black text-cyan-400">0 m</span>
-        </div>
-        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
-          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">Freigänger/Gastro</span>
-          <span id="totalWalkingPeople" class="text-xs font-black text-emerald-400">0 Pers.</span>
-        </div>
-        <div class="bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
-          <span class="block text-[9px] text-slate-500 font-sans uppercase font-semibold">Geschätzte Park-Gäste</span>
-          <span id="totalParkGuests" class="text-xs font-black text-purple-400">0 Pers.</span>
-        </div>
-      </div>
 
-      <!-- Neuer Besucher-Tagesgraph -->
-      <div class="pt-2 border-t border-slate-800/60 space-y-1">
-        <div class="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-          <span class="flex items-center gap-1">
-            <i class="fa-solid fa-chart-line text-purple-400"></i> Geschätzte Besucherzahl über den Tag
-          </span>
-          <span id="currentGuestCountBadge" class="text-purple-400 font-mono font-bold">--</span>
+        <!-- Besucher-Tagesgraph -->
+        <div class="pt-1 space-y-1">
+          <div class="flex justify-between items-center text-[10px] text-emerald-300 font-bold uppercase tracking-wider">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-chart-line text-amber-400"></i> Geschätzte Besucherzahl über den Tag
+            </span>
+            <span id="currentGuestCountBadge" class="text-amber-400 font-mono font-bold">--</span>
+          </div>
+          <div class="h-28 w-full bg-emerald-950/80 border border-emerald-800/80 rounded-lg p-1.5">
+            <canvas id="parkGuestsChart"></canvas>
+          </div>
         </div>
-        <div class="h-24 w-full bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
-          <canvas id="parkGuestsChart"></canvas>
-        </div>
-      </div>
 
-      <div class="flex justify-between items-center text-[10px] text-slate-500 pt-0.5">
-        <p id="loadScoreText">Berechne Auslastung...</p>
-        <span id="hiddenRidesNote" class="text-amber-500/80 font-medium hidden"></span>
+        <div class="flex justify-between items-center text-[10px] text-emerald-400/70 pt-0.5">
+          <p id="loadScoreText">Berechne Auslastung...</p>
+          <span id="hiddenRidesNote" class="text-amber-400/90 font-medium hidden"></span>
+        </div>
       </div>
     </div>
 
     <!-- Status Banner -->
-    <div id="statusBox" class="bg-slate-900/60 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
+    <div id="statusBox" class="bg-emerald-900/30 border border-emerald-800/60 rounded-lg px-3 py-2 text-xs text-emerald-200 flex items-center justify-between gap-2 shadow-sm">
       <div class="flex items-center gap-2 min-w-0">
         <i class="fa-solid fa-circle-dot text-amber-400 animate-ping text-[8px] shrink-0"></i>
         <span id="statusText" class="truncate font-medium">Lade Daten...</span>
       </div>
-      <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0 font-mono"></span>
+      <span id="liveTimer" class="text-[10px] text-emerald-400/70 shrink-0 font-mono"></span>
     </div>
 
     <!-- Filter & Sortier-Werkzeuge -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-2">
+    <div class="bg-emerald-900/40 border border-emerald-800/80 rounded-xl p-2.5 space-y-2">
       <div class="flex flex-col sm:flex-row gap-2 items-center justify-between">
         
         <!-- Suche -->
         <div class="relative w-full sm:w-64">
-          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-          <input type="text" id="searchInput" oninput="renderUI()" placeholder="Suchen..." 
-            class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400/60 text-xs"></i>
+          <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion suchen..." 
+            class="w-full bg-emerald-950/80 border border-emerald-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-emerald-100 placeholder-emerald-500/80 focus:outline-none focus:border-amber-400/50 transition">
         </div>
 
         <!-- Sortierung / Gruppierung -->
         <div class="flex items-center gap-2 w-full sm:w-auto">
-          <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-layer-group text-amber-500/80 mr-1"></i>Gruppierung:</span>
-          <select id="sortSelect" onchange="renderUI()" class="w-full sm:w-auto bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/50 transition cursor-pointer">
+          <span class="text-[11px] font-bold text-emerald-300/80 shrink-0"><i class="fa-solid fa-layer-group text-amber-400/80 mr-1"></i>Gruppierung:</span>
+          <select id="sortSelect" onchange="renderUI()" class="w-full sm:w-auto bg-emerald-950/80 border border-emerald-800 text-emerald-100 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-400/50 transition cursor-pointer">
             <option value="waitTime">⏳ Nach Wartezeit (Höchste zuerst)</option>
             <option value="queuePeople">👥 Nach Personen in Schlange</option>
             <option value="area">🏰 Nach Themenbereich</option>
@@ -144,12 +152,12 @@
     <div id="ridesContainer" class="space-y-2"></div>
 
     <!-- Unterer separater Bereich für ausgeblendete Attraktionen -->
-    <div id="hiddenRidesSection" class="hidden mt-6 pt-3 border-t border-slate-800/80">
-      <button onclick="toggleHiddenSectionCollapse()" class="w-full bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 rounded-xl p-2.5 flex items-center justify-between text-slate-400 hover:text-slate-200 transition">
+    <div id="hiddenRidesSection" class="hidden mt-6 pt-3 border-t border-emerald-800/60">
+      <button onclick="toggleHiddenSectionCollapse()" class="w-full bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800/80 rounded-xl p-2.5 flex items-center justify-between text-emerald-300 hover:text-emerald-100 transition">
         <span class="text-xs font-bold flex items-center gap-2">
-          <i class="fa-solid fa-eye-slash text-amber-500/80"></i>
+          <i class="fa-solid fa-eye-slash text-amber-400/80"></i>
           Ausgeblendete Attraktionen
-          <span id="hiddenCountBadge" class="bg-slate-800 text-slate-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-700">0</span>
+          <span id="hiddenCountBadge" class="bg-emerald-950 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-emerald-800">0</span>
         </span>
         <div class="flex items-center gap-3">
           <span onclick="event.stopPropagation(); resetHiddenRides();" class="text-[11px] text-amber-400 hover:underline font-semibold">Alle wieder einblenden</span>
@@ -157,39 +165,39 @@
         </div>
       </button>
 
-      <div id="hiddenRidesContainer" class="hidden space-y-2 mt-2 pl-2 sm:pl-3 border-l-2 border-slate-800"></div>
+      <div id="hiddenRidesContainer" class="hidden space-y-2 mt-2 pl-2 sm:pl-3 border-l-2 border-emerald-800"></div>
     </div>
 
   </div>
 
   <!-- Custom Modal: Glocke / Schwellenwert Schieberegler -->
-  <div id="thresholdModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+  <div id="thresholdModal" class="fixed inset-0 bg-emerald-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-emerald-900 border border-emerald-800 w-full max-w-sm rounded-xl p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
       
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
-        <h3 class="font-bold text-xs text-slate-100 flex items-center gap-2">
+      <div class="flex items-center justify-between border-b border-emerald-800 pb-2.5">
+        <h3 class="font-bold text-xs text-emerald-100 flex items-center gap-2">
           <i class="fa-solid fa-bell text-amber-400"></i> Wartezeit-Alarm einstellen
         </h3>
-        <button onclick="closeThresholdModal()" class="text-slate-500 hover:text-slate-300 text-xs w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-800 transition">
+        <button onclick="closeThresholdModal()" class="text-emerald-400 hover:text-emerald-200 text-xs w-6 h-6 flex items-center justify-center rounded-lg hover:bg-emerald-800 transition">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
       <div>
-        <p class="text-[11px] text-slate-400">Attraktion:</p>
+        <p class="text-[11px] text-emerald-300/70">Attraktion:</p>
         <p id="modalRideName" class="font-black text-amber-400 text-sm truncate"></p>
       </div>
 
-      <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 text-center space-y-0.5">
-        <span class="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Benachrichtigung ab weniger als</span>
+      <div class="bg-emerald-950 border border-emerald-800 rounded-lg p-3 text-center space-y-0.5">
+        <span class="text-[9px] uppercase tracking-wider text-emerald-400/70 font-bold">Benachrichtigung ab weniger als</span>
         <div class="text-2xl font-black text-amber-400 font-mono" id="modalSliderValue">15 Min</div>
       </div>
 
       <div class="space-y-1.5">
         <input type="range" id="thresholdSlider" min="0" max="120" step="5" value="15" 
           oninput="updateModalSliderDisplay(this.value)"
-          class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer border border-slate-700/50">
-        <div class="flex justify-between text-[9px] text-slate-500 font-mono">
+          class="w-full h-1.5 bg-emerald-950 rounded-lg appearance-none cursor-pointer border border-emerald-800">
+        <div class="flex justify-between text-[9px] text-emerald-400/60 font-mono">
           <span>0 Min</span>
           <span>60 Min</span>
           <span>120 Min</span>
@@ -197,20 +205,20 @@
       </div>
 
       <div class="space-y-1">
-        <span class="text-[10px] text-slate-400 font-semibold">Schnellauswahl:</span>
+        <span class="text-[10px] text-emerald-300/80 font-semibold">Schnellauswahl:</span>
         <div class="grid grid-cols-4 gap-1.5">
-          <button onclick="setModalSliderValue(10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-xs font-bold transition">10 M</button>
-          <button onclick="setModalSliderValue(20)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-xs font-bold transition">20 M</button>
-          <button onclick="setModalSliderValue(30)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-xs font-bold transition">30 M</button>
-          <button onclick="setModalSliderValue(45)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-xs font-bold transition">45 M</button>
+          <button onclick="setModalSliderValue(10)" class="bg-emerald-950 hover:bg-emerald-800 text-emerald-200 py-1 rounded text-xs font-bold border border-emerald-800/80 transition">10 M</button>
+          <button onclick="setModalSliderValue(20)" class="bg-emerald-950 hover:bg-emerald-800 text-emerald-200 py-1 rounded text-xs font-bold border border-emerald-800/80 transition">20 M</button>
+          <button onclick="setModalSliderValue(30)" class="bg-emerald-950 hover:bg-emerald-800 text-emerald-200 py-1 rounded text-xs font-bold border border-emerald-800/80 transition">30 M</button>
+          <button onclick="setModalSliderValue(45)" class="bg-emerald-950 hover:bg-emerald-800 text-emerald-200 py-1 rounded text-xs font-bold border border-emerald-800/80 transition">45 M</button>
         </div>
       </div>
 
-      <div class="flex gap-2 pt-2 border-t border-slate-800">
+      <div class="flex gap-2 pt-2 border-t border-emerald-800">
         <button onclick="removeThresholdFromModal()" id="modalDeleteBtn" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1">
           <i class="fa-solid fa-trash"></i> Löschen
         </button>
-        <button onclick="saveThresholdFromModal()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-2 rounded-lg text-xs font-black transition active:scale-95 shadow shadow-amber-500/10">
+        <button onclick="saveThresholdFromModal()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-emerald-950 py-2 rounded-lg text-xs font-black transition active:scale-95 shadow shadow-amber-500/10">
           Alarm Speichern
         </button>
       </div>
@@ -226,6 +234,7 @@
     let globalRidesData = [];
     let globalHistoryData = [];
     let chartInstances = {};
+    let queueChartInstances = {};
     let sparklineInstances = {};
     let parkGuestsChartInstance = null;
     let lastLoadTimestamp = null;
@@ -235,43 +244,43 @@
     let currentModalRideName = null;
     let isHiddenSectionExpanded = false;
 
-    // KORRIGIERTE DATENBANK MIT EXAKTEN REIN-FREI-ZEIT-BLOG KAPAZITÄTSDATEN
+    // DATENBANK DER ATTRAKTIONEN INKL. EXAKTER STUNDEN-KAPAZITÄT
     const RIDE_DATABASE = {
-      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
-      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Minenbahn für die ganze Familie mit einer der höchsten Kapazitäten im Park.', capacity: 2400, duration: '3 min', opened: '1996', speed: '55 km/h' },
-      'Crazy Bats': { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Indoor-Coaster und längste Dunkelachterbahn der Welt.', capacity: 1600, duration: '4 min', opened: '1988', speed: '47 km/h' },
-      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Flying Launch Coaster durch Steampunk-Welt Rookburgh.', capacity: 1200, duration: '2 min', opened: '2020', speed: '78 km/h' },
-      'Raik': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Family Boomerang-Coaster in Klugheim.', capacity: 900, duration: '1 min', opened: '2016', speed: '62 km/h' },
-      'Taron': { area: 'Klugheim', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Zweifach-Launch durch Klugheims Felslandschaft mit hoher Abfertigung (4 Züge).', capacity: 1600, duration: '1 min', opened: '2016', speed: '117 km/h' },
-      "Winja's Fear": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Indoor Spinning Coaster in Wuze Town.', capacity: 720, duration: '2 min', opened: '2002', speed: '60 km/h' },
-      "Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Indoor Spinning Coaster in Wuze Town.', capacity: 720, duration: '2 min', opened: '2002', speed: '60 km/h' },
-      "Winja's Fear & Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', icon: 'fa-roller-coaster', desc: 'Kombinierte zwei Indoor Spinning Coaster.', capacity: 1440, duration: '2 min', opened: '2002', speed: '60 km/h' },
-      'Chiapas': { area: 'Mexico', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Wasserbahn mit steilster Abfahrt der Welt.', capacity: 1600, duration: '6 min', opened: '2014', speed: 'Steilste Abfahrt' },
-      'Talocan': { area: 'Mexico', type: 'Thrill / Schwingfahrt', icon: 'fa-chess-rook', desc: 'Top Spin mit Feuer- und Wassereffekten.', capacity: 800, duration: '2 min', opened: '2007', speed: 'Surprise' },
-      'Mystery Castle': { area: 'Mystery', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Drop Tower im düsteren Schloss.', capacity: 900, duration: '1 min', opened: '1998', speed: 'Bungee-Launch' },
-      'River Quest': { area: 'Mystery', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Rapids Rafting-Fahrt mit steilen Abfahrten.', capacity: 900, duration: '6 min', opened: '2002', speed: 'Spritzig' },
-      'Avoras': { area: 'Fantasy (Wuze Town)', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Kletterabenteuer im Wuze Tal.', capacity: 400, duration: '10 min', opened: '2024', speed: 'Aktiv' },
-      'Deep in Africa – Adventure Trail': { area: 'Deep in Africa', type: 'Kletter- & Erlebnispfad', icon: 'fa-route', desc: 'Interaktiver Pfad um Black Mamba.', capacity: 500, duration: '10 min', opened: '2022', speed: 'Interaktiv' },
-      'Maus au Chocolat': { area: 'Berlin', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Interactive Dark Ride in 3D.', capacity: 1200, duration: '7 min', opened: '2011', speed: '3D-Shooter' },
-      'Das Verrückte Hotel Tartüff': { area: 'Berlin', type: 'Laufgeschäft / Fun House', icon: 'fa-hotel', desc: 'Verrücktes Fun House im Berliner Stil.', capacity: 800, duration: '8 min', opened: '2012', speed: 'Selbstlauf' },
-      'Pferdekarussell': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Nostalgisches Karussell auf dem Kaiserplatz.', capacity: 600, duration: '3 min', opened: '1998', speed: 'Gemütlich' },
-      'Tikal': { area: 'Mexico', type: 'Thrill / Drop-Tower', icon: 'fa-chess-rook', desc: 'Zwei Mini-Freifalltürme für Familien.', capacity: 400, duration: '2 min', opened: '2001', speed: 'Familientower' },
-      "Mopti's Monkey Depot": { area: 'Deep in Africa', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kletterspaß für Kinder.', capacity: 300, duration: 'Aktiv', opened: '2024', speed: 'Kinder-Areal' },
-      'Würmling Express': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Einschienenbahn mit Ausblick aufs Wuze Tal.', capacity: 500, duration: '6 min', opened: '2010', speed: 'Aussicht' },
-      'Wakobato': { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Ruhige Bootsfahrt auf dem Mondsee.', capacity: 600, duration: '9 min', opened: '2009', speed: 'Ruhig' },
-      "Wirtls Taubenturm": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Mitmach-Turm zum Hochziehen.', capacity: 300, duration: '2 min', opened: '2007', speed: 'Mitmach-Fun' },
-      "Wözl's Wassertreter": { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', icon: 'fa-water', desc: 'Tretbootfahrt über den Mondsee.', capacity: 200, duration: 'Flexibel', opened: '2004', speed: 'Tretboot' },
-      'Tittle Tattle Tree': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Schwerelos in der Wuze-Halle.', capacity: 500, duration: '3 min', opened: '2002', speed: 'Indoor-Vertikal' },
-      'Geister Rikscha': { area: 'China Town', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Geisterfahrt durch chinesische Mythen.', capacity: 1500, duration: '8 min', opened: '1981', speed: 'Kult-Darkride' },
-      'Feng Ju Palace': { area: 'China Town', type: 'Themenfahrt / Darkride', icon: 'fa-ghost', desc: 'Illusionsfahrt mit drehender Perspektive.', capacity: 750, duration: '8 min', opened: '2002', speed: 'Mad House' },
-      "Wolke's Luftpost": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Tret-Karussell im Wuze Tal.', capacity: 250, duration: '2 min', opened: '2010', speed: 'Mitmach-Karussell' },
-      'Bolles Flugschule': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Flugkarussell für Kinder.', capacity: 250, duration: '3 min', opened: '2009', speed: 'Flugkarussell' },
-      'Bolles Riesenrad': { area: 'Berlin', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kinder-Riesenrad in Berlin.', capacity: 200, duration: '4 min', opened: '2009', speed: 'Minirad' },
-      'Die fröhliche Bienchenjagd': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Buntes Kinder-Hüpfkarussell.', capacity: 200, duration: '2 min', opened: '2010', speed: 'Hüpf-Karussell' },
-      'Der lustige Papagei': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Schaukelfahrt für Kinder.', capacity: 200, duration: '2 min', opened: '2010', speed: 'Schaukel' },
-      'Bumper Klumpen': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Kinder-Autoscooter in Wuze-Schuhen.', capacity: 250, duration: '3 min', opened: '2003', speed: 'Autoscooter' },
-      "Wözl's Duck Washer": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Entenkarussell für Kinder.', capacity: 200, duration: '2 min', opened: '2003', speed: 'Kinder-Spin' },
-      "Wupi's Wabi Wipper": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', icon: 'fa-horse', desc: 'Mini-Freifall für Kinder.', capacity: 200, duration: '2 min', opened: '2003', speed: 'Kinder-Freefall' }
+      'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
+      'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', desc: 'Minenbahn für die ganze Familie mit einer der höchsten Kapazitäten im Park.', capacity: 2400, duration: '3 min', opened: '1996', speed: '55 km/h' },
+      'Crazy Bats': { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', desc: 'Indoor-Coaster und längste Dunkelachterbahn der Welt.', capacity: 1600, duration: '4 min', opened: '1988', speed: '47 km/h' },
+      'F.L.Y.': { area: 'Rookburgh', type: 'Achterbahn', desc: 'Flying Launch Coaster durch Steampunk-Welt Rookburgh.', capacity: 1200, duration: '2 min', opened: '2020', speed: '78 km/h' },
+      'Raik': { area: 'Klugheim', type: 'Achterbahn', desc: 'Family Boomerang-Coaster in Klugheim.', capacity: 900, duration: '1 min', opened: '2016', speed: '62 km/h' },
+      'Taron': { area: 'Klugheim', type: 'Achterbahn', desc: 'Zweifach-Launch durch Klugheims Felslandschaft mit hoher Abfertigung (4 Züge).', capacity: 1600, duration: '1 min', opened: '2016', speed: '117 km/h' },
+      "Winja's Fear": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', desc: 'Indoor Spinning Coaster in Wuze Town.', capacity: 720, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      "Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', desc: 'Indoor Spinning Coaster in Wuze Town.', capacity: 720, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      "Winja's Fear & Winja's Force": { area: 'Fantasy (Wuze Town)', type: 'Achterbahn', desc: 'Kombinierte zwei Indoor Spinning Coaster.', capacity: 1440, duration: '2 min', opened: '2002', speed: '60 km/h' },
+      'Chiapas': { area: 'Mexico', type: 'Wasserfahrt', desc: 'Wasserbahn mit steilster Abfahrt der Welt.', capacity: 1600, duration: '6 min', opened: '2014', speed: 'Steilste Abfahrt' },
+      'Talocan': { area: 'Mexico', type: 'Thrill / Schwingfahrt', desc: 'Top Spin mit Feuer- und Wassereffekten.', capacity: 800, duration: '2 min', opened: '2007', speed: 'Surprise' },
+      'Mystery Castle': { area: 'Mystery', type: 'Thrill / Drop-Tower', desc: 'Drop Tower im düsteren Schloss.', capacity: 900, duration: '1 min', opened: '1998', speed: 'Bungee-Launch' },
+      'River Quest': { area: 'Mystery', type: 'Wasserfahrt', desc: 'Rapids Rafting-Fahrt mit steilen Abfahrten.', capacity: 900, duration: '6 min', opened: '2002', speed: 'Spritzig' },
+      'Avoras': { area: 'Fantasy (Wuze Town)', type: 'Kletter- & Erlebnispfad', desc: 'Kletterabenteuer im Wuze Tal.', capacity: 400, duration: '10 min', opened: '2024', speed: 'Aktiv' },
+      'Deep in Africa – Adventure Trail': { area: 'Deep in Africa', type: 'Kletter- & Erlebnispfad', desc: 'Interaktiver Pfad um Black Mamba.', capacity: 500, duration: '10 min', opened: '2022', speed: 'Interaktiv' },
+      'Maus au Chocolat': { area: 'Berlin', type: 'Themenfahrt / Darkride', desc: 'Interactive Dark Ride in 3D.', capacity: 1200, duration: '7 min', opened: '2011', speed: '3D-Shooter' },
+      'Das Verrückte Hotel Tartüff': { area: 'Berlin', type: 'Laufgeschäft / Fun House', desc: 'Verrücktes Fun House im Berliner Stil.', capacity: 800, duration: '8 min', opened: '2012', speed: 'Selbstlauf' },
+      'Pferdekarussell': { area: 'Berlin', type: 'Familie & Kinder', desc: 'Nostalgisches Karussell auf dem Kaiserplatz.', capacity: 600, duration: '3 min', opened: '1998', speed: 'Gemütlich' },
+      'Tikal': { area: 'Mexico', type: 'Thrill / Drop-Tower', desc: 'Zwei Mini-Freifalltürme für Familien.', capacity: 400, duration: '2 min', opened: '2001', speed: 'Familientower' },
+      "Mopti's Monkey Depot": { area: 'Deep in Africa', type: 'Familie & Kinder', desc: 'Kletterspaß für Kinder.', capacity: 300, duration: 'Aktiv', opened: '2024', speed: 'Kinder-Areal' },
+      'Würmling Express': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Einschienenbahn mit Ausblick aufs Wuze Tal.', capacity: 500, duration: '6 min', opened: '2010', speed: 'Aussicht' },
+      'Wakobato': { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', desc: 'Ruhige Bootsfahrt auf dem Mondsee.', capacity: 600, duration: '9 min', opened: '2009', speed: 'Ruhig' },
+      "Wirtls Taubenturm": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Mitmach-Turm zum Hochziehen.', capacity: 300, duration: '2 min', opened: '2007', speed: 'Mitmach-Fun' },
+      "Wözl's Wassertreter": { area: 'Fantasy (Wuze Town)', type: 'Wasserfahrt', desc: 'Tretbootfahrt über den Mondsee.', capacity: 200, duration: 'Flexibel', opened: '2004', speed: 'Tretboot' },
+      'Tittle Tattle Tree': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Schwerelos in der Wuze-Halle.', capacity: 500, duration: '3 min', opened: '2002', speed: 'Indoor-Vertikal' },
+      'Geister Rikscha': { area: 'China Town', type: 'Themenfahrt / Darkride', desc: 'Geisterfahrt durch chinesische Mythen.', capacity: 1500, duration: '8 min', opened: '1981', speed: 'Kult-Darkride' },
+      'Feng Ju Palace': { area: 'China Town', type: 'Themenfahrt / Darkride', desc: 'Illusionsfahrt mit drehender Perspektive.', capacity: 750, duration: '8 min', opened: '2002', speed: 'Mad House' },
+      "Wolke's Luftpost": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Tret-Karussell im Wuze Tal.', capacity: 250, duration: '2 min', opened: '2010', speed: 'Mitmach-Karussell' },
+      'Bolles Flugschule': { area: 'Berlin', type: 'Familie & Kinder', desc: 'Flugkarussell für Kinder.', capacity: 250, duration: '3 min', opened: '2009', speed: 'Flugkarussell' },
+      'Bolles Riesenrad': { area: 'Berlin', type: 'Familie & Kinder', desc: 'Kinder-Riesenrad in Berlin.', capacity: 200, duration: '4 min', opened: '2009', speed: 'Minirad' },
+      'Die fröhliche Bienchenjagd': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Buntes Kinder-Hüpfkarussell.', capacity: 200, duration: '2 min', opened: '2010', speed: 'Hüpf-Karussell' },
+      'Der lustige Papagei': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Schaukelfahrt für Kinder.', capacity: 200, duration: '2 min', opened: '2010', speed: 'Schaukel' },
+      'Bumper Klumpen': { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Kinder-Autoscooter in Wuze-Schuhen.', capacity: 250, duration: '3 min', opened: '2003', speed: 'Autoscooter' },
+      "Wözl's Duck Washer": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Entenkarussell für Kinder.', capacity: 200, duration: '2 min', opened: '2003', speed: 'Kinder-Spin' },
+      "Wupi's Wabi Wipper": { area: 'Fantasy (Wuze Town)', type: 'Familie & Kinder', desc: 'Mini-Freifall für Kinder.', capacity: 200, duration: '2 min', opened: '2003', speed: 'Kinder-Freefall' }
     };
 
     function getRideMeta(name) {
@@ -280,26 +289,19 @@
           return meta;
         }
       }
-      return { area: 'Sonstige Themenwelt', type: 'Attraktion', icon: 'fa-ticket', desc: 'Spannendes Erlebnis im Phantasialand.', capacity: 500, duration: 'k. A.', opened: 'k. A.', speed: 'k. A.' };
+      return { area: 'Sonstige Themenwelt', type: 'Attraktion', desc: 'Spannendes Erlebnis im Phantasialand.', capacity: 500, duration: 'k. A.', opened: 'k. A.', speed: 'k. A.' };
     }
 
-    // FORMEL-LOGIK: SCHLANGENMENSCHEN & METER BERECHNEN
     function calculateQueueMetrics(rideName, waitTime, isOpen) {
       if (!isOpen) return { people: 0, meters: 0 };
-
       const meta = getRideMeta(rideName);
       const capacity = meta.capacity || 500;
 
-      // Wenn Wartezeit 5 Min oder weniger -> bei kleineren Attraktionen meist fast leer -> pauschal 10 Menschen
       if (waitTime <= 5) {
         return { people: 10, meters: 5 };
       }
-
-      // Formal: (Kapazität / 60) * Minuten
       const people = Math.round((capacity / 60) * waitTime);
-      // 2 Menschen pro Meter Schlange
       const meters = Math.round(people / 2);
-
       return { people, meters };
     }
 
@@ -307,7 +309,14 @@
       if (!isOpen) return 'text-slate-600';
       if (wait <= 15) return 'text-emerald-400';
       if (wait <= 35) return 'text-amber-400';
-      return 'text-red-500';
+      return 'text-red-400';
+    }
+
+    function toggleHeaderCrowdBox() {
+      const content = document.getElementById('headerCrowdContent');
+      const chevron = document.getElementById('headerCrowdChevron');
+      content.classList.toggle('hidden');
+      chevron.classList.toggle('rotate-180');
     }
 
     // LOCAL STORAGE
@@ -414,13 +423,13 @@
     function updateNotifyIcon() {
       const icon = document.getElementById('notifyIcon');
       if (!('Notification' in window)) {
-        icon.className = 'fa-solid fa-bell-slash text-slate-600';
+        icon.className = 'fa-solid fa-bell-slash text-emerald-600';
         return;
       }
       if (Notification.permission === 'granted') {
         icon.className = 'fa-solid fa-bell text-amber-400 animate-bounce';
       } else {
-        icon.className = 'fa-regular fa-bell text-slate-400';
+        icon.className = 'fa-regular fa-bell text-emerald-300';
       }
     }
 
@@ -446,18 +455,13 @@
       }
     }
 
-    // GLOBALE CROWD-RECHNUNG FÜR GESAMTEN PARK UND BESUCHER-GRAPH
+    // GLOBALE CROWD-RECHNUNG
     function updateLoadScore(rides) {
-      const box = document.getElementById('loadScoreBox');
       const hidden = getHiddenRides();
-      
       const visibleOpenRides = rides.filter(r => !hidden.includes(r.name) && r.isOpen);
       const totalVisibleRides = rides.filter(r => !hidden.includes(r.name));
 
-      if (visibleOpenRides.length === 0) {
-        box.classList.add('hidden');
-        return;
-      }
+      if (visibleOpenRides.length === 0) return;
 
       let totalQueuePeople = 0;
       let totalQueueMeters = 0;
@@ -474,12 +478,11 @@
       const avgWait = visibleOpenRides.reduce((sum, r) => sum + r.waitTime, 0) / visibleOpenRides.length;
       const percent = Math.min(100, Math.round((avgWait / 55) * 100));
 
-      let color = '#10b981';
+      let color = '#34d399';
       let label = 'Entspannt';
-      if (percent > 70) { color = '#ef4444'; label = 'Sehr voll'; }
-      else if (percent > 40) { color = '#f59e0b'; label = 'Mäßig voll'; }
+      if (percent > 70) { color = '#f87171'; label = 'Sehr voll'; }
+      else if (percent > 40) { color = '#fbbf24'; label = 'Mäßig voll'; }
 
-      box.classList.remove('hidden');
       document.getElementById('loadScoreBar').style.width = `${percent}%`;
       document.getElementById('loadScoreBar').style.backgroundColor = color;
       document.getElementById('loadScoreLabel').textContent = `${label} (${percent}%)`;
@@ -503,11 +506,9 @@
         hiddenNote.classList.add('hidden');
       }
 
-      // ZEICHNE DEN NATIONAWITEN PARK-BESUCHER GRAPHEN
       renderParkGuestsChart();
     }
 
-    // BESUCHERZAHLEN-TAGESGRAPH RENDERN
     function renderParkGuestsChart() {
       const ctx = document.getElementById('parkGuestsChart');
       if (!ctx || globalHistoryData.length === 0) return;
@@ -515,8 +516,6 @@
       if (parkGuestsChartInstance) parkGuestsChartInstance.destroy();
 
       const hidden = getHiddenRides();
-
-      // Berechne für jeden Messpunkt in der Historie die Gesamtzahl der Besucher
       const labels = globalHistoryData.map(h => h.time);
       const guestPoints = globalHistoryData.map(h => {
         if (!h.rides) return 0;
@@ -526,7 +525,7 @@
             qPeople += calculateQueueMetrics(r.name, r.waitTime, true).people;
           }
         });
-        return Math.round(qPeople * 1.55); // Schlangen + 55% Freigänger
+        return Math.round(qPeople * 1.55);
       });
 
       parkGuestsChartInstance = new Chart(ctx, {
@@ -536,8 +535,8 @@
           datasets: [{
             label: 'Geschätzte Gäste',
             data: guestPoints,
-            borderColor: '#a855f7',
-            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+            borderColor: '#fbbf24',
+            backgroundColor: 'rgba(251, 191, 36, 0.12)',
             borderWidth: 2,
             fill: true,
             tension: 0.3,
@@ -557,11 +556,11 @@
             }
           },
           scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            x: { grid: { display: false }, ticks: { color: '#6ee7b7', font: { size: 9 } } },
             y: { 
               beginAtZero: true, 
-              grid: { color: '#1e293b' }, 
-              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 1000 } 
+              grid: { color: 'rgba(6, 78, 59, 0.5)' }, 
+              ticks: { color: '#6ee7b7', font: { size: 9 }, stepSize: 1000 } 
             }
           }
         }
@@ -642,56 +641,71 @@
       }
     }
 
-    // TENDENZ (15-MINUTEN-VERGLEICH / 3 MESSUNGEN HER)
+    // TENDENZ BERECKENEN
     function getWaitTrend(rideName, currentWait, isOpen) {
       if (!isOpen || globalHistoryData.length < 2) {
-        return { icon: 'fa-minus', color: 'text-slate-600', deltaStr: '' };
+        return { icon: 'fa-minus', color: 'text-emerald-700', deltaStr: '' };
       }
 
       const targetIndex = Math.max(0, globalHistoryData.length - 4);
       const prev15m = globalHistoryData[targetIndex];
-      if (!prev15m || !prev15m.rides) return { icon: 'fa-minus', color: 'text-slate-600', deltaStr: '' };
+      if (!prev15m || !prev15m.rides) return { icon: 'fa-minus', color: 'text-emerald-700', deltaStr: '' };
 
       const ride15m = prev15m.rides.find(r => r.name === rideName);
-      if (!ride15m || !ride15m.isOpen) return { icon: 'fa-minus', color: 'text-slate-600', deltaStr: '' };
+      if (!ride15m || !ride15m.isOpen) return { icon: 'fa-minus', color: 'text-emerald-700', deltaStr: '' };
 
       const diff = currentWait - ride15m.waitTime;
       if (diff > 0) return { icon: 'fa-arrow-up', color: 'text-red-400', deltaStr: `+${diff}` };
       else if (diff < 0) return { icon: 'fa-arrow-down', color: 'text-emerald-400', deltaStr: `${diff}` };
-      else return { icon: 'fa-minus', color: 'text-slate-500', deltaStr: '' };
+      else return { icon: 'fa-minus', color: 'text-emerald-600', deltaStr: '' };
     }
 
+    // BERECHNET HISTORIE UND PROGNOSE FÜR DIE GANZE BISHERIGE VERGANGENHEIT
     function calculateSmartHistoryAndForecast(rideName) {
       const historyLabels = globalHistoryData.map(h => h.time);
+      
       const actualPoints = globalHistoryData.map(h => {
         if (!h.rides) return 0;
         const found = h.rides.find(r => r.name === rideName);
         return (found && found.isOpen) ? found.waitTime : 0;
       });
 
+      const queuePoints = actualPoints.map(w => {
+        return calculateQueueMetrics(rideName, w, w > 0).people;
+      });
+
+      // Linearer Trend über die vergangen Datenpunkte zur Extrapolation
       let trendRate = 0;
-      if (actualPoints.length >= 4) {
-        const pCurrent = actualPoints[actualPoints.length - 1];
-        const p15mAgo = actualPoints[actualPoints.length - 4];
-        trendRate = (pCurrent - p15mAgo) / 3;
-      } else if (actualPoints.length >= 2) {
-        trendRate = actualPoints[actualPoints.length - 1] - actualPoints[actualPoints.length - 2];
+      const n = actualPoints.length;
+      if (n >= 2) {
+        const last = actualPoints[n - 1];
+        const prev = actualPoints[Math.max(0, n - 4)];
+        trendRate = (last - prev) / Math.min(3, n - 1);
       }
 
       const forecastPoints = [];
+      const forecastQueuePoints = [];
       const forecastLabels = [];
-      const lastVal = actualPoints.length > 0 ? actualPoints[actualPoints.length - 1] : 0;
+      const lastVal = n > 0 ? actualPoints[n - 1] : 0;
 
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 1; i <= 4; i++) {
         let predictedVal = Math.max(0, Math.round(lastVal + (trendRate * i)));
         forecastPoints.push(predictedVal);
+        forecastQueuePoints.push(calculateQueueMetrics(rideName, predictedVal, true).people);
         forecastLabels.push(`+${i*5}m`);
       }
 
-      return { historyLabels, actualPoints, forecastPoints, forecastLabels };
+      return {
+        historyLabels,
+        actualPoints,
+        queuePoints,
+        forecastPoints,
+        forecastQueuePoints,
+        forecastLabels
+      };
     }
 
-    // SCHMALE KARTE RENDERN INKL. SCHLANGENLÄNGE
+    // MODERNISIERTE KACHEL INKL. INTUITIVER BELEGUNG
     function createRideCardHtml(ride, cardId, isHiddenInSection = false) {
       const favorites = getFavorites();
       const thresholds = getThresholds();
@@ -708,110 +722,122 @@
       const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
 
       return `
-        <div class="bg-slate-900 border ${isHiddenInSection ? 'border-slate-800/60 bg-slate-950/40' : isFav ? 'border-amber-500/40 shadow shadow-amber-500/5' : 'border-slate-800/90'} rounded-xl p-2.5 transition duration-200 hover:border-slate-700">
+        <div class="bg-emerald-900/40 border ${isHiddenInSection ? 'border-emerald-800/40 bg-emerald-950/30' : isFav ? 'border-amber-400/50 shadow shadow-amber-500/5' : 'border-emerald-800/70'} rounded-xl p-2.5 transition duration-200 hover:border-emerald-700 cursor-pointer select-none" onclick="toggleChart(event, '${cardId}')">
           
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          <div class="flex items-center justify-between gap-2.5">
             
-            <!-- 1. Linker Bereich: Icon & Name & Schlangenmeter-Indikator -->
-            <div class="flex items-center gap-2.5 w-full sm:w-52 shrink-0 cursor-pointer select-none" onclick="toggleChart('${cardId}')">
-              <div class="relative w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-amber-400 text-sm shrink-0">
-                <i class="fa-solid ${meta.icon}"></i>
-                <span class="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full border border-slate-900 ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
-              </div>
-              
-              <div class="min-w-0 flex-1">
-                <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
-                <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
-                  <span class="truncate">${meta.area}</span>
-                  ${isOpen ? `
-                    <span class="text-[9px] font-mono text-cyan-400/90 bg-cyan-950/40 px-1 rounded border border-cyan-800/40 shrink-0">
-                      ~${queueMetrics.people}P / ${queueMetrics.meters}m
-                    </span>
-                  ` : ''}
-                </div>
-              </div>
+            <!-- 1. GANZ LINKS: GROSSE ZAHL (Ohne 'm') mit Trendpfeil -->
+            <div class="flex items-center gap-1 font-mono min-w-[52px] justify-center shrink-0">
+              <span class="text-2xl sm:text-3xl font-black tracking-tight leading-none ${colorClass}">
+                ${isOpen ? wait : '--'}
+              </span>
+              ${isOpen ? `<i class="fa-solid ${trend.icon} ${trend.color} text-[10px] self-start mt-0.5"></i>` : ''}
             </div>
 
-            <!-- 2. Mittlerer Bereich: Zierlicher, integrierter Mini-Zeitstrahl -->
-            <div class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800/70 rounded-lg px-2 py-1 flex items-center h-9 my-1 sm:my-0">
-              <div class="w-full h-full relative">
-                <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
+            <!-- 2. RECHTS DANEBEN: NAME, THEMENBEREICH, SCHLANGENLÄNGE & PERSONEN -->
+            <div class="min-w-0 flex-1 pl-1">
+              <div class="flex items-center gap-1.5 truncate">
+                <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
+                <h3 class="font-black text-xs sm:text-sm text-emerald-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
               </div>
-            </div>
-
-            <!-- 3. Rechter Bereich: Gefärbte Minutenzahl, Pfeil & Buttons -->
-            <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 border-t sm:border-t-0 border-slate-800/60 pt-1.5 sm:pt-0">
               
-              <div class="flex items-baseline gap-1 font-mono min-w-[55px] justify-end">
-                <span class="text-2xl font-black tracking-tight leading-none ${colorClass}">
-                  ${isOpen ? wait : '---'}
-                </span>
-                <span class="text-[10px] text-slate-500 font-bold">m</span>
-
+              <div class="flex items-center gap-2 text-[10px] text-emerald-300/70 mt-0.5 truncate">
+                <span class="truncate font-medium">${meta.area}</span>
                 ${isOpen ? `
-                  <div class="flex flex-col items-start leading-none ml-0.5">
-                    <i class="fa-solid ${trend.icon} ${trend.color} text-[10px]"></i>
-                  </div>
+                  <span class="text-[9px] font-mono text-cyan-300 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-800/80 shrink-0 font-semibold">
+                    ~${queueMetrics.meters}m | ~${queueMetrics.people}P
+                  </span>
                 ` : ''}
               </div>
+            </div>
 
-              <!-- Aktion-Buttons -->
-              <div class="flex items-center gap-0.5 pl-1.5 border-l border-slate-800">
-                <button onclick="toggleHideRide('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isHiddenInSection ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'} transition" title="${isHiddenInSection ? 'Wieder einblenden' : 'Ausblenden'}">
-                  <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[11px]"></i>
-                </button>
+            <!-- 3. MITTEL-RECHTS: DÜNNER, MODERNES GRAFIK-ELEMENT FÜR VERGANGENHEIT + PROGNOSE -->
+            <div class="hidden sm:block w-36 h-8 bg-emerald-950/80 border border-emerald-800/60 rounded-lg p-1 shrink-0">
+              <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
+            </div>
 
-                <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'} transition" title="Favorit">
-                  <i class="fa-solid fa-star text-[11px]"></i>
-                </button>
+            <!-- 4. GANZ RECHTS: DIE 3 AKTIONS-BUTTONS (Event-Stop-Propagation) -->
+            <div class="flex items-center gap-0.5 pl-1 border-l border-emerald-800/60 shrink-0" onclick="event.stopPropagation()">
+              <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400/60 hover:text-emerald-200 hover:bg-emerald-800/50'} transition" title="Favorit">
+                <i class="fa-solid fa-star text-[11px]"></i>
+              </button>
 
-                <button onclick="openThresholdModal('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${hasThresh ? 'text-amber-400 bg-amber-500/10 relative' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'} transition" title="Alarm einstellen">
-                  <i class="fa-solid fa-bell text-[11px]"></i>
-                  ${hasThresh ? `<span class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 text-[8px] font-black px-1 rounded-full">${threshVal}</span>` : ''}
-                </button>
-              </div>
+              <button onclick="openThresholdModal('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${hasThresh ? 'text-amber-400 bg-amber-500/10 relative' : 'text-emerald-400/60 hover:text-emerald-200 hover:bg-emerald-800/50'} transition" title="Alarm einstellen">
+                <i class="fa-solid fa-bell text-[11px]"></i>
+                ${hasThresh ? `<span class="absolute -top-1 -right-1 bg-amber-400 text-emerald-950 text-[8px] font-black px-1 rounded-full">${threshVal}</span>` : ''}
+              </button>
 
+              <button onclick="toggleHideRide('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isHiddenInSection ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400/60 hover:text-emerald-200 hover:bg-emerald-800/50'} transition" title="${isHiddenInSection ? 'Wieder einblenden' : 'Ausblenden'}">
+                <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[11px]"></i>
+              </button>
             </div>
 
           </div>
 
-          <!-- Ausklappbarer Info & Detail-Verlauf Bereich -->
-          <div id="chartContainer-${cardId}" class="hidden mt-3 pt-2.5 border-t border-slate-800/80 space-y-2">
+          <!-- AUSKLAPPBARER BEREICH FÜR INFOS & DUAL-GRAPHEN -->
+          <div id="chartContainer-${cardId}" class="hidden mt-3 pt-3 border-t border-emerald-800/60 space-y-3 cursor-default" onclick="event.stopPropagation()">
             
-            <div class="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 text-xs space-y-1">
-              <p class="text-slate-300 text-[11px] font-medium leading-relaxed">${meta.desc}</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1.5 font-mono text-[10px]">
-                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
-                  <span class="text-slate-500 block">Kapazität:</span>
-                  <strong class="text-amber-400">${meta.capacity} P/Std</strong>
-                </div>
-                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
-                  <span class="text-slate-500 block">Menschen in Schlange:</span>
-                  <strong class="text-cyan-400">~${queueMetrics.people} Pers.</strong>
-                </div>
-                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
-                  <span class="text-slate-500 block">Schlangenlänge:</span>
-                  <strong class="text-emerald-400">~${queueMetrics.meters} Meter</strong>
-                </div>
-                <div class="bg-slate-900 p-1.5 rounded border border-slate-800">
-                  <span class="text-slate-500 block">Fahrzeit & Tempo:</span>
-                  <strong class="text-slate-200">${meta.duration} / ${meta.speed}</strong>
+              <!-- LINKS: INFOS & KAPAZITÄTEN UNTEREINANDER -->
+              <div class="bg-emerald-950/80 border border-emerald-800/80 rounded-lg p-2.5 space-y-2 text-xs">
+                <p class="text-emerald-200 text-[11px] font-medium leading-relaxed border-b border-emerald-800/60 pb-1.5">${meta.desc}</p>
+                
+                <div class="space-y-1.5 font-mono text-[10px]">
+                  <div class="flex justify-between items-center bg-emerald-900/40 p-1.5 rounded border border-emerald-800/40">
+                    <span class="text-emerald-400/80">Stunden-Kapazität:</span>
+                    <strong class="text-amber-400">${meta.capacity} Pers/Std</strong>
+                  </div>
+                  <div class="flex justify-between items-center bg-emerald-900/40 p-1.5 rounded border border-emerald-800/40">
+                    <span class="text-emerald-400/80">Menschen in Schlange:</span>
+                    <strong class="text-cyan-300">~${queueMetrics.people} Personen</strong>
+                  </div>
+                  <div class="flex justify-between items-center bg-emerald-900/40 p-1.5 rounded border border-emerald-800/40">
+                    <span class="text-emerald-400/80">Länge der Warteschlange:</span>
+                    <strong class="text-emerald-300">~${queueMetrics.meters} Meter</strong>
+                  </div>
+                  <div class="flex justify-between items-center bg-emerald-900/40 p-1.5 rounded border border-emerald-800/40">
+                    <span class="text-emerald-400/80">Fahrzeit & Tempo:</span>
+                    <strong class="text-emerald-100">${meta.duration} / ${meta.speed}</strong>
+                  </div>
+                  <div class="flex justify-between items-center bg-emerald-900/40 p-1.5 rounded border border-emerald-800/40">
+                    <span class="text-emerald-400/80">Eröffnungsjahr:</span>
+                    <strong class="text-emerald-100">${meta.opened}</strong>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <div class="flex justify-between items-center mb-1">
-                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                  <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Verlauf</span>
-                  <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 15m Prognose (Trend)</span>
-                </p>
-                <span class="text-[9px] text-amber-500/90 font-mono font-semibold">${meta.type}</span>
+              <!-- RECHTS: 2 GRAPHEN UNTEREINANDER (WARTEZEIT + SCHLANGENMENSCHEN OVER TIME) -->
+              <div class="md:col-span-2 space-y-2">
+                
+                <!-- Graph 1: Wartezeit & Prognose -->
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <p class="text-[9px] text-emerald-300 font-bold uppercase tracking-wider flex items-center gap-2">
+                      <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Wartezeit (Ist)</span>
+                      <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Trend-Prognose (+20m)</span>
+                    </p>
+                    <span class="text-[9px] text-amber-400 font-mono font-semibold">${meta.type}</span>
+                  </div>
+                  <div class="h-28 w-full bg-emerald-950/80 border border-emerald-800/80 rounded-lg p-1.5">
+                    <canvas id="chart-${cardId}"></canvas>
+                  </div>
+                </div>
+
+                <!-- Graph 2: Menschen in der Schlange im Tagesverlauf -->
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <p class="text-[9px] text-cyan-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <i class="fa-solid fa-users text-cyan-400"></i> Menschen in Warteschlange über den Tag
+                    </p>
+                  </div>
+                  <div class="h-24 w-full bg-emerald-950/80 border border-emerald-800/80 rounded-lg p-1.5">
+                    <canvas id="queueChart-${cardId}"></canvas>
+                  </div>
+                </div>
+
               </div>
-              <div class="h-28 w-full">
-                <canvas id="chart-${cardId}"></canvas>
-              </div>
+
             </div>
 
           </div>
@@ -857,8 +883,8 @@
 
       if (visibleRides.length === 0) {
         mainContainer.innerHTML = `
-          <div class="py-8 text-center text-slate-500 bg-slate-900/50 border border-slate-800 rounded-xl">
-            <i class="fa-solid fa-filter-circle-xmark text-2xl mb-1 text-slate-600"></i>
+          <div class="py-8 text-center text-emerald-400/60 bg-emerald-900/30 border border-emerald-800 rounded-xl">
+            <i class="fa-solid fa-filter-circle-xmark text-2xl mb-1 text-emerald-600"></i>
             <p class="text-xs font-bold">Keine Attraktionen entsprechen deinen Filtern</p>
           </div>
         `;
@@ -909,12 +935,12 @@
 
             htmlBuffer += `
               <div class="pt-1.5">
-                <div class="flex items-center gap-2 mb-1.5 px-1 border-b border-slate-800 pb-1">
+                <div class="flex items-center gap-2 mb-1.5 px-1 border-b border-emerald-800/60 pb-1">
                   <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <i class="fa-solid ${sortMode === 'area' ? 'fa-castle' : 'fa-icons'} text-amber-500/70"></i>
+                    <i class="fa-solid ${sortMode === 'area' ? 'fa-castle' : 'fa-icons'} text-amber-500/80"></i>
                     ${groupName}
                   </h2>
-                  <span class="text-[9px] text-slate-500 font-mono bg-slate-900 px-1.5 py-0.2 rounded border border-slate-800">${groupRides.length}</span>
+                  <span class="text-[9px] text-emerald-300/70 font-mono bg-emerald-950 px-1.5 py-0.2 rounded border border-emerald-800">${groupRides.length}</span>
                 </div>
                 <div class="space-y-2">
                   ${groupRides.map(ride => {
@@ -952,6 +978,7 @@
             const dataObj = calculateSmartHistoryAndForecast(item.rideName);
             renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
             renderDetailedChart(`chart-${item.cardId}`, dataObj);
+            renderQueueChart(`queueChart-${item.cardId}`, dataObj);
           });
         }
       } catch (e) {
@@ -959,7 +986,7 @@
       }
     }
 
-    function toggleChart(cardId) {
+    function toggleChart(event, cardId) {
       const container = document.getElementById(`chartContainer-${cardId}`);
       if (container) container.classList.toggle('hidden');
     }
@@ -971,7 +998,6 @@
       if (sparklineInstances[elementId]) sparklineInstances[elementId].destroy();
 
       const { actualPoints, forecastPoints } = dataObj;
-
       const fullLabels = Array.from({ length: actualPoints.length + forecastPoints.length }, (_, i) => i);
       const paddedActual = [...actualPoints];
       
@@ -989,8 +1015,8 @@
             {
               label: 'Realität',
               data: paddedActual,
-              borderColor: '#f59e0b',
-              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              borderColor: '#fbbf24',
+              backgroundColor: 'rgba(251, 191, 36, 0.15)',
               borderWidth: 1.5,
               fill: true,
               tension: 0.3,
@@ -999,9 +1025,9 @@
             {
               label: 'Prognose',
               data: paddedForecast,
-              borderColor: '#10b981',
+              borderColor: '#34d399',
               borderDash: [3, 3],
-              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              backgroundColor: 'rgba(52, 211, 153, 0.08)',
               borderWidth: 1.5,
               fill: true,
               tension: 0.3,
@@ -1045,8 +1071,8 @@
             {
               label: 'Wartezeit (Ist)',
               data: paddedActual,
-              borderColor: '#f59e0b',
-              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              borderColor: '#fbbf24',
+              backgroundColor: 'rgba(251, 191, 36, 0.12)',
               borderWidth: 2,
               fill: true,
               tension: 0.3,
@@ -1054,11 +1080,11 @@
               pointHoverRadius: 4
             },
             {
-              label: 'Trend-Prognose (+15m)',
+              label: 'Trend-Prognose (+20m)',
               data: paddedForecast,
-              borderColor: '#10b981',
+              borderColor: '#34d399',
               borderDash: [4, 4],
-              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              backgroundColor: 'rgba(52, 211, 153, 0.08)',
               borderWidth: 2,
               fill: true,
               tension: 0.3,
@@ -1079,11 +1105,80 @@
             }
           },
           scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            x: { grid: { display: false }, ticks: { color: '#6ee7b7', font: { size: 9 } } },
             y: { 
               beginAtZero: true, 
-              grid: { color: '#1e293b' }, 
-              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 15 } 
+              grid: { color: 'rgba(6, 78, 59, 0.5)' }, 
+              ticks: { color: '#6ee7b7', font: { size: 9 }, stepSize: 15 } 
+            }
+          }
+        }
+      });
+    }
+
+    function renderQueueChart(elementId, dataObj) {
+      const ctx = document.getElementById(elementId);
+      if (!ctx) return;
+
+      if (queueChartInstances[elementId]) queueChartInstances[elementId].destroy();
+
+      const { historyLabels, queuePoints, forecastQueuePoints, forecastLabels } = dataObj;
+      const fullLabels = [...historyLabels, ...forecastLabels];
+      const paddedActual = [...queuePoints];
+      
+      const paddedForecast = new Array(queuePoints.length - 1).fill(null);
+      if (queuePoints.length > 0) {
+        paddedForecast.push(queuePoints[queuePoints.length - 1]);
+      }
+      paddedForecast.push(...forecastQueuePoints);
+
+      queueChartInstances[elementId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: fullLabels,
+          datasets: [
+            {
+              label: 'Menschen in Schlange (Ist)',
+              data: paddedActual,
+              borderColor: '#67e8f9',
+              backgroundColor: 'rgba(103, 232, 249, 0.12)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+              pointHoverRadius: 4
+            },
+            {
+              label: 'Prognose',
+              data: paddedForecast,
+              borderColor: '#34d399',
+              borderDash: [4, 4],
+              backgroundColor: 'rgba(52, 211, 153, 0.08)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+              pointHoverRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `~${context.raw} Personen in Schlange`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#6ee7b7', font: { size: 9 } } },
+            y: { 
+              beginAtZero: true, 
+              grid: { color: 'rgba(6, 78, 59, 0.5)' }, 
+              ticks: { color: '#6ee7b7', font: { size: 9 } } 
             }
           }
         }
