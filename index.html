@@ -200,93 +200,94 @@
     <!-- ================= ENDE LIVE-TAB ================= -->
 
     <!-- ================= STATISTIK-TAB ================= -->
-    <div id="tabContentStats" class="hidden space-y-4">
+    <div id="tabContentStats" class="hidden space-y-3">
 
-      <!-- Zeitraum-Auswahl -->
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2">
-        <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-calendar-days text-amber-400 mr-1"></i>Zeitraum:</span>
-        <select id="statsDaysSelect" onchange="loadDailyStats()" class="bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-          <option value="7">Letzte 7 Tage</option>
-          <option value="14">Letzte 14 Tage</option>
-          <option value="30" selected>Letzte 30 Tage</option>
-          <option value="90">Letzte 90 Tage</option>
-        </select>
+      <!-- Attraktions-Auswahl -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+        <div class="relative w-full">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+          <input type="text" id="statsRideSearch" oninput="renderStatsRideList()" placeholder="Attraktion auswählen..."
+            class="w-full bg-black border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+        </div>
+        <div id="statsRideList" class="mt-2 max-h-40 overflow-y-auto space-y-1"></div>
       </div>
 
-      <div id="statsLoadingBox" class="py-10 text-center text-slate-500">
-        <i class="fa-solid fa-spinner fa-spin text-2xl text-amber-400 mb-2"></i>
-        <p class="text-xs font-bold">Lade Statistiken...</p>
+      <!-- Nichts ausgewählt -->
+      <div id="statsNoRideSelected" class="py-10 text-center text-slate-500 bg-slate-950 border border-slate-800 rounded-xl">
+        <i class="fa-solid fa-hand-pointer text-2xl text-amber-400 mb-2"></i>
+        <p class="text-xs font-bold">Wähle oben eine Attraktion aus</p>
+        <p class="text-[11px] text-slate-600 mt-1">Um Verlaufsdaten und Empfehlungen zu sehen.</p>
       </div>
 
-      <div id="statsEmptyBox" class="hidden py-10 text-center text-slate-500 bg-slate-950 border border-slate-800 rounded-xl">
-        <i class="fa-solid fa-hourglass-half text-2xl text-amber-400 mb-2"></i>
-        <p class="text-xs font-bold">Noch keine historischen Daten vorhanden</p>
-        <p class="text-[11px] text-slate-600 mt-1">Der Server sammelt seit kurzem Daten - mit der Zeit füllt sich diese Ansicht automatisch.</p>
-      </div>
+      <!-- Statistik-Inhalt für ausgewählte Attraktion -->
+      <div id="statsRideDetail" class="hidden space-y-3">
 
-      <div id="statsContent" class="hidden space-y-5">
+        <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3">
+          <h2 id="statsSelectedRideName" class="text-sm font-black text-amber-400 mb-2"></h2>
 
-        <!-- 1. Besucherzahlen pro Tag -->
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-users"></i> Geschätzte Besucherzahl pro Tag
-            </h2>
-            <span id="dailyGuestsPeakBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800">--</span>
+          <!-- Modus-Umschalter: Einzeltag vs. Durchschnitt -->
+          <div class="flex items-center gap-1 bg-black border border-slate-800 rounded-lg p-1 mb-3">
+            <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+              <i class="fa-solid fa-calendar-day mr-1"></i> Einzelner Tag
+            </button>
+            <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+              <i class="fa-solid fa-chart-line mr-1"></i> Durchschnitt
+            </button>
           </div>
-          <div class="h-52 w-full bg-black border border-slate-800 rounded-lg p-2">
-            <canvas id="dailyGuestsChart"></canvas>
-          </div>
-        </div>
 
-        <!-- 2. Durchschnittliche Wartezeit pro Tag -->
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-stopwatch"></i> Ø Wartezeit pro Tag (alle Attraktionen)
-            </h2>
-            <span id="dailyWaitAvgBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800">--</span>
+          <!-- Einzeltag-Modus: Kalender -->
+          <div id="statsDayModeContent" class="hidden space-y-2">
+            <div class="flex items-center justify-between">
+              <button onclick="shiftCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+                <i class="fa-solid fa-chevron-left text-[10px]"></i>
+              </button>
+              <span id="calendarMonthLabel" class="text-xs font-bold text-slate-200"></span>
+              <button onclick="shiftCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+              </button>
+            </div>
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
+            <p class="text-[9px] text-slate-600 text-center">Nur markierte Tage haben aufgezeichnete Daten.</p>
           </div>
-          <div class="h-52 w-full bg-black border border-slate-800 rounded-lg p-2">
-            <canvas id="dailyWaitChart"></canvas>
-          </div>
-        </div>
 
-        <!-- 3. Der "Durchschnittstag" - alle Tage übereinandergelegt -->
-        <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-star"></i> Der durchschnittliche Tag
-            </h2>
-            <span id="averageDaySampleBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800">--</span>
-          </div>
-          <p class="text-[10px] text-slate-500 mb-2">Alle gesammelten Tage übereinandergelegt und je Uhrzeit gemittelt - so sieht ein typischer Parktag im gewählten Zeitraum aus.</p>
-          <div class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
-            <canvas id="averageDayChart"></canvas>
-          </div>
-        </div>
-
-        <!-- 4. Wartezeiten-Tabelle pro Tag und Attraktion -->
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
-            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-table"></i> Ø Wartezeit pro Attraktion & Tag
-            </h2>
-            <div class="relative w-full sm:w-56">
-              <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]"></i>
-              <input type="text" id="statsTableSearch" oninput="renderPerRideTable()" placeholder="Attraktion filtern..."
-                class="w-full bg-black border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-[11px] text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+          <!-- Durchschnitt-Modus: Zeitraum-Auswahl -->
+          <div id="statsAverageModeContent" class="hidden">
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-bold text-slate-400 shrink-0">Zeitraum:</span>
+              <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="flex-1 bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+                <option value="7">Letzte 7 Tage</option>
+                <option value="14">Letzte 14 Tage</option>
+                <option value="30" selected>Letzte 30 Tage</option>
+                <option value="90">Letzte 90 Tage</option>
+              </select>
             </div>
           </div>
-          <div class="stats-table-wrap overflow-x-auto">
-            <table class="w-full text-[10px] font-mono border-collapse">
-              <thead>
-                <tr id="statsTableHeader" class="text-amber-400 border-b border-slate-800"></tr>
-              </thead>
-              <tbody id="statsTableBody"></tbody>
-            </table>
+        </div>
+
+        <!-- Empfehlung (nur im Durchschnitt-Modus) -->
+        <div id="statsRecommendationBox" class="hidden bg-gradient-to-r from-amber-500/10 to-amber-400/5 border border-amber-500/40 rounded-xl p-3 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-lightbulb text-amber-400"></i>
           </div>
-          <p class="text-[9px] text-slate-600 mt-2">Werte in Minuten, gerundet. "--" bedeutet: An diesem Tag keine Daten für diese Attraktion.</p>
+          <div class="min-w-0">
+            <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Empfehlung</p>
+            <p id="statsRecommendationText" class="text-xs font-bold text-slate-100"></p>
+          </div>
+        </div>
+
+        <!-- Der eigentliche Verlaufs-Graf -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 id="statsChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
+            <span id="statsChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
+          </div>
+          <div id="statsChartEmpty" class="hidden py-10 text-center text-slate-500">
+            <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
+            <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
+          </div>
+          <div id="statsChartWrap" class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
+            <canvas id="statsRideChart"></canvas>
+          </div>
         </div>
 
       </div>
@@ -356,17 +357,24 @@
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
     const MAX_PARK_CAPACITY = 25000;
+    const CHART_TIME_START_HOUR = 9;  // Feste X-Achse: 9 Uhr...
+    const CHART_TIME_END_HOUR = 20;   // ...bis 20 Uhr (deckt auch Wintertraum-Öffnungszeiten ab)
+    const CHART_WAIT_MAX_MINUTES = 120; // Feste Y-Achse: 0 bis 120 Minuten für alle Attraktionen
     
     let globalRidesData = [];
     let globalHistoryData = [];
-    let globalDailyStats = null; // Antwort von /api/daily-stats
+    let globalDailyStats = null; // nicht mehr aktiv genutzt, bleibt falls später gebraucht
+    let statsSelectedRide = null;
+    let statsMode = 'day'; // 'day' oder 'average'
+    let statsAvailableDays = []; // Tage mit Daten für die gewählte Attraktion (YYYY-MM-DD)
+    let statsSelectedDate = null; // aktuell im Kalender gewähltes Datum
+    let calendarViewYear = null;
+    let calendarViewMonth = null; // 0-11
+    let statsRideChartInstance = null;
     let chartInstances = {};
     let queueChartInstances = {};
     let sparklineInstances = {};
     let parkGuestsChartInstance = null;
-    let dailyGuestsChartInstance = null;
-    let dailyWaitChartInstance = null;
-    let averageDayChartInstance = null;
     let lastLoadTimestamp = null;
     let liveTimerInterval = null;
     let autoRefreshInterval = null;
@@ -474,10 +482,10 @@
         tabBtnLive.classList.remove('active', 'text-amber-400');
         tabBtnLive.classList.add('text-slate-500');
 
-        // Statistik-Daten nur beim ersten Öffnen laden (spart Requests),
-        // danach nur noch beim Wechsel des Zeitraums (siehe statsDaysSelect)
+        // Attraktionsliste nur beim ersten Öffnen laden (spart Requests)
         if (!statsAlreadyLoaded) {
-          loadDailyStats();
+          statsAlreadyLoaded = true;
+          loadStatsRideList();
         }
       }
     }
@@ -803,46 +811,100 @@
       else return { icon: 'fa-minus', color: 'text-slate-500', deltaStr: '' };
     }
 
+    // Baut ein Array mit einem Slot pro 15-Minuten-Intervall zwischen
+    // CHART_TIME_START_HOUR und CHART_TIME_END_HOUR. Slots ohne Messung bleiben
+    // "null" (Chart.js zeichnet dort eine Lücke, keine Linie zu 0). So beginnt
+    // die Linie immer exakt an der korrekten Uhrzeit-Position (nicht "in der
+    // Mitte") und die X-Achse ist für alle Attraktionen identisch, unabhängig
+    // davon, wann heute die erste Messung stattfand.
+    function buildFixedTimeAxis() {
+      const labels = [];
+      for (let h = CHART_TIME_START_HOUR; h <= CHART_TIME_END_HOUR; h++) {
+        labels.push(`${String(h).padStart(2, '0')}:00`);
+        if (h < CHART_TIME_END_HOUR) {
+          labels.push(`${String(h).padStart(2, '0')}:15`);
+          labels.push(`${String(h).padStart(2, '0')}:30`);
+          labels.push(`${String(h).padStart(2, '0')}:45`);
+        }
+      }
+      return labels;
+    }
+
+    const FIXED_TIME_LABELS = buildFixedTimeAxis();
+
+    // Ordnet einen "HH:MM"-Zeitstempel dem nächstgelegenen 15-Minuten-Slot
+    // auf der festen Achse zu (falls die tatsächliche Messung z.B. um 10:07
+    // Uhr lag, landet sie im 10:00-Slot)
+    function findNearestSlotIndex(timeStr) {
+      const [h, m] = timeStr.split(':').map(Number);
+      if (isNaN(h) || isNaN(m)) return -1;
+      const totalMinutes = h * 60 + m;
+      const startMinutes = CHART_TIME_START_HOUR * 60;
+      const slot = Math.round((totalMinutes - startMinutes) / 15);
+      if (slot < 0 || slot >= FIXED_TIME_LABELS.length) return -1;
+      return slot;
+    }
+
     function calculateSmartHistoryAndForecast(rideName) {
-      const historyLabels = globalHistoryData.map(h => h.time);
-      
-      const actualPoints = globalHistoryData.map(h => {
-        if (!h.rides) return 0;
+      // Werte auf die feste Zeitachse mappen statt die rohe history-Reihenfolge
+      // zu verwenden - so passt die Position auf der X-Achse immer zur echten
+      // Uhrzeit, egal wann heute die erste Messung reinkam.
+      const actualPoints = new Array(FIXED_TIME_LABELS.length).fill(null);
+
+      globalHistoryData.forEach(h => {
+        if (!h.rides) return;
+        const slot = findNearestSlotIndex(h.time);
+        if (slot === -1) return;
         const found = h.rides.find(r => r.name === rideName);
-        return (found && found.isOpen) ? found.waitTime : 0;
+        actualPoints[slot] = (found && found.isOpen) ? found.waitTime : (found ? 0 : null);
       });
 
       const queuePoints = actualPoints.map(w => {
+        if (w === null) return null;
         return calculateQueueMetrics(rideName, w, w > 0).people;
       });
 
+      // Trend für die Prognose: letzte 2 tatsächlich vorhandenen Werte nehmen
+      const knownIndices = [];
+      actualPoints.forEach((v, i) => { if (v !== null) knownIndices.push(i); });
+
       let trendRate = 0;
-      const n = actualPoints.length;
-      if (n >= 2) {
-        const last = actualPoints[n - 1];
-        const prev = actualPoints[Math.max(0, n - 4)];
-        trendRate = (last - prev) / Math.min(3, n - 1);
+      let lastKnownIndex = -1;
+      let lastVal = 0;
+
+      if (knownIndices.length >= 2) {
+        const lastIdx = knownIndices[knownIndices.length - 1];
+        const refIdx = knownIndices[Math.max(0, knownIndices.length - 4)];
+        trendRate = (actualPoints[lastIdx] - actualPoints[refIdx]) / Math.max(1, lastIdx - refIdx);
+        lastKnownIndex = lastIdx;
+        lastVal = actualPoints[lastIdx];
+      } else if (knownIndices.length === 1) {
+        lastKnownIndex = knownIndices[0];
+        lastVal = actualPoints[lastKnownIndex];
       }
 
-      const forecastPoints = [];
-      const forecastQueuePoints = [];
-      const forecastLabels = [];
-      const lastVal = n > 0 ? actualPoints[n - 1] : 0;
-
-      for (let i = 1; i <= 4; i++) {
-        let predictedVal = Math.max(0, Math.round(lastVal + (trendRate * i)));
-        forecastPoints.push(predictedVal);
-        forecastQueuePoints.push(calculateQueueMetrics(rideName, predictedVal, true).people);
-        forecastLabels.push(`+${i*5}m`);
+      // Prognose direkt in dasselbe Array einfügen (an den 4 Slots nach dem
+      // letzten bekannten Wert), damit alles auf derselben festen Achse bleibt
+      const forecastPoints = new Array(FIXED_TIME_LABELS.length).fill(null);
+      if (lastKnownIndex >= 0) {
+        forecastPoints[lastKnownIndex] = lastVal; // nahtloser Übergang Ist -> Prognose
+        for (let i = 1; i <= 4 && (lastKnownIndex + i) < FIXED_TIME_LABELS.length; i++) {
+          const predictedVal = Math.max(0, Math.round(lastVal + (trendRate * i)));
+          forecastPoints[lastKnownIndex + i] = predictedVal;
+        }
       }
+
+      const forecastQueuePoints = forecastPoints.map(w => {
+        if (w === null) return null;
+        return calculateQueueMetrics(rideName, w, true).people;
+      });
 
       return {
-        historyLabels,
+        historyLabels: FIXED_TIME_LABELS,
         actualPoints,
         queuePoints,
         forecastPoints,
-        forecastQueuePoints,
-        forecastLabels
+        forecastQueuePoints
       };
     }
 
@@ -1157,60 +1219,84 @@
 
       if (sparklineInstances[elementId]) sparklineInstances[elementId].destroy();
 
-      const { actualPoints, forecastPoints, historyLabels, forecastLabels } = dataObj;
-      const fullLabels = [...historyLabels, ...forecastLabels];
-      const paddedActual = [...actualPoints];
-      
-      const paddedForecast = new Array(actualPoints.length - 1).fill(null);
-      if (actualPoints.length > 0) {
-        paddedForecast.push(actualPoints[actualPoints.length - 1]);
-      }
-      paddedForecast.push(...forecastPoints);
+      const { actualPoints, forecastPoints, historyLabels } = dataObj;
 
       sparklineInstances[elementId] = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: fullLabels,
+          labels: historyLabels,
           datasets: [
             {
               label: 'Wartezeit',
-              data: paddedActual,
+              data: actualPoints,
               borderColor: '#f59e0b',
               backgroundColor: 'rgba(245, 158, 11, 0.2)',
               borderWidth: 1.5,
               fill: true,
-              tension: 0.35,
-              pointRadius: 0
+              tension: 0.3,
+              pointRadius: 0,
+              spanGaps: false
             },
             {
               label: 'Prognose',
-              data: paddedForecast,
+              data: forecastPoints,
               borderColor: '#10b981',
               borderDash: [3, 3],
               backgroundColor: 'rgba(16, 185, 129, 0.1)',
               borderWidth: 1.5,
               fill: true,
-              tension: 0.35,
-              pointRadius: 0
+              tension: 0.3,
+              pointRadius: 0,
+              spanGaps: false
             }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: { 
-            legend: { display: false }, 
-            tooltip: { 
-              enabled: true,
-              callbacks: {
-                label: (context) => `${context.dataset.label}: ${context.raw} Min`
-              }
-            } 
+          // Miniaturansicht: keine Touch-/Hover-Interaktion, keine Tooltips -
+          // das Antippen/Ziehen soll nur im großen, aufgeklappten Graf gehen.
+          events: [],
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
           },
           scales: {
-            x: { display: false },
-            y: { display: false, beginAtZero: true }
+            x: {
+              min: 0,
+              max: FIXED_TIME_LABELS.length - 1,
+              grid: { display: false, drawTicks: false },
+              border: { display: true, color: '#334155' },
+              ticks: {
+                color: '#64748b',
+                font: { size: 7 },
+                autoSkip: false,
+                maxRotation: 0,
+                // Nur alle 3 Stunden eine Beschriftung zeigen (12 Slots = 3h bei 15-Min-Schritten)
+                callback: function(value, index) {
+                  const label = FIXED_TIME_LABELS[index];
+                  if (!label) return '';
+                  const [h, m] = label.split(':');
+                  const hourNum = parseInt(h, 10);
+                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
+                    return `${h}h`;
+                  }
+                  return '';
+                }
+              }
+            },
+            y: {
+              min: 0,
+              max: CHART_WAIT_MAX_MINUTES,
+              border: { display: true, color: '#334155' },
+              grid: { color: 'rgba(51, 65, 85, 0.3)', drawTicks: false },
+              ticks: {
+                color: '#64748b',
+                font: { size: 7 },
+                stepSize: 20, // Beschriftung alle 20 Minuten
+                callback: (value) => value % 20 === 0 ? value : ''
+              }
+            }
           }
         }
       });
@@ -1222,43 +1308,37 @@
 
       if (chartInstances[elementId]) chartInstances[elementId].destroy();
 
-      const { historyLabels, actualPoints, forecastPoints, forecastLabels } = dataObj;
-      const fullLabels = [...historyLabels, ...forecastLabels];
-      const paddedActual = [...actualPoints];
-      
-      const paddedForecast = new Array(actualPoints.length - 1).fill(null);
-      if (actualPoints.length > 0) {
-        paddedForecast.push(actualPoints[actualPoints.length - 1]);
-      }
-      paddedForecast.push(...forecastPoints);
+      const { historyLabels, actualPoints, forecastPoints } = dataObj;
 
       chartInstances[elementId] = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: fullLabels,
+          labels: historyLabels,
           datasets: [
             {
               label: 'Wartezeit (Ist)',
-              data: paddedActual,
+              data: actualPoints,
               borderColor: '#f59e0b',
               backgroundColor: 'rgba(245, 158, 11, 0.15)',
               borderWidth: 2,
               fill: true,
-              tension: 0.35,
+              tension: 0.3,
               pointRadius: 0,
-              pointHoverRadius: 5
+              pointHoverRadius: 5,
+              spanGaps: false
             },
             {
-              label: 'Trend-Prognose (+20m)',
-              data: paddedForecast,
+              label: 'Trend-Prognose',
+              data: forecastPoints,
               borderColor: '#10b981',
               borderDash: [4, 4],
               backgroundColor: 'rgba(16, 185, 129, 0.08)',
               borderWidth: 2,
               fill: true,
-              tension: 0.35,
+              tension: 0.3,
               pointRadius: 0,
-              pointHoverRadius: 5
+              pointHoverRadius: 5,
+              spanGaps: false
             }
           ]
         },
@@ -1275,11 +1355,32 @@
             }
           },
           scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            x: {
+              min: 0,
+              max: FIXED_TIME_LABELS.length - 1,
+              grid: { display: false },
+              ticks: {
+                color: '#64748b',
+                font: { size: 9 },
+                autoSkip: false,
+                maxRotation: 0,
+                callback: function(value, index) {
+                  const label = FIXED_TIME_LABELS[index];
+                  if (!label) return '';
+                  const [h, m] = label.split(':');
+                  const hourNum = parseInt(h, 10);
+                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
+                    return `${h}:00`;
+                  }
+                  return '';
+                }
+              }
+            },
             y: { 
-              beginAtZero: true, 
+              min: 0,
+              max: CHART_WAIT_MAX_MINUTES,
               grid: { color: '#1e293b' }, 
-              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 15 } 
+              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 } 
             }
           }
         }
@@ -1292,43 +1393,37 @@
 
       if (queueChartInstances[elementId]) queueChartInstances[elementId].destroy();
 
-      const { historyLabels, queuePoints, forecastQueuePoints, forecastLabels } = dataObj;
-      const fullLabels = [...historyLabels, ...forecastLabels];
-      const paddedActual = [...queuePoints];
-      
-      const paddedForecast = new Array(queuePoints.length - 1).fill(null);
-      if (queuePoints.length > 0) {
-        paddedForecast.push(queuePoints[queuePoints.length - 1]);
-      }
-      paddedForecast.push(...forecastQueuePoints);
+      const { historyLabels, queuePoints, forecastQueuePoints } = dataObj;
 
       queueChartInstances[elementId] = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: fullLabels,
+          labels: historyLabels,
           datasets: [
             {
               label: 'Menschen in Schlange (Ist)',
-              data: paddedActual,
+              data: queuePoints,
               borderColor: '#22d3ee',
               backgroundColor: 'rgba(34, 211, 238, 0.15)',
               borderWidth: 2,
               fill: true,
-              tension: 0.35,
+              tension: 0.3,
               pointRadius: 0,
-              pointHoverRadius: 5
+              pointHoverRadius: 5,
+              spanGaps: false
             },
             {
               label: 'Prognose',
-              data: paddedForecast,
+              data: forecastQueuePoints,
               borderColor: '#10b981',
               borderDash: [4, 4],
               backgroundColor: 'rgba(16, 185, 129, 0.08)',
               borderWidth: 2,
               fill: true,
-              tension: 0.35,
+              tension: 0.3,
               pointRadius: 0,
-              pointHoverRadius: 5
+              pointHoverRadius: 5,
+              spanGaps: false
             }
           ]
         },
@@ -1345,7 +1440,27 @@
             }
           },
           scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            x: {
+              min: 0,
+              max: FIXED_TIME_LABELS.length - 1,
+              grid: { display: false },
+              ticks: {
+                color: '#64748b',
+                font: { size: 9 },
+                autoSkip: false,
+                maxRotation: 0,
+                callback: function(value, index) {
+                  const label = FIXED_TIME_LABELS[index];
+                  if (!label) return '';
+                  const [h, m] = label.split(':');
+                  const hourNum = parseInt(h, 10);
+                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
+                    return `${h}:00`;
+                  }
+                  return '';
+                }
+              }
+            },
             y: { 
               beginAtZero: true, 
               grid: { color: '#1e293b' }, 
@@ -1360,222 +1475,283 @@
     // ================ STATISTIK-TAB LOGIK =====================
     // =========================================================
 
-    // Rechnet aus einer Ø-Wartezeit über alle offenen Attraktionen eine grobe
-    // Besucherzahl-Schätzung hoch. Nutzt denselben Kapazitäts-Ansatz wie im
-    // Live-Tab, aber vereinfacht (ohne Einzelattraktions-Aufschlüsselung),
-    // da der Server nur aggregierte Ø-Werte liefert, keine Einzelfahrgeschäfte
-    // pro Zeitpunkt für den historischen Bereich.
-    function estimateGuestsFromAvgWait(avgWait) {
-      if (avgWait === null || avgWait === undefined || isNaN(avgWait)) return 0;
-      // Durchschnittliche Kapazität über alle Attraktionen im RIDE_DATABASE
-      const capacities = Object.values(RIDE_DATABASE).map(r => r.capacity);
-      const avgCapacity = capacities.reduce((a, b) => a + b, 0) / capacities.length;
-      const avgRideCount = 20; // grobe Annahme: ~20 gleichzeitig geöffnete Hauptattraktionen
-      const queuePeoplePerRide = (avgCapacity / 60) * avgWait;
-      const totalQueuePeople = queuePeoplePerRide * avgRideCount;
-      const walkingPeople = totalQueuePeople * 0.55;
-      return Math.round(totalQueuePeople + walkingPeople);
-    }
+    // ---------- Attraktionsliste ----------
+    let statsAllRideNames = []; // vom Server geladene Liste aller bekannten Attraktionsnamen
 
-    function formatDateShort(isoDate) {
-      // "2026-08-07" -> "07.08."
-      const parts = isoDate.split('-');
-      if (parts.length !== 3) return isoDate;
-      return `${parts[2]}.${parts[1]}.`;
-    }
-
-    async function loadDailyStats() {
-      const loadingBox = document.getElementById('statsLoadingBox');
-      const emptyBox = document.getElementById('statsEmptyBox');
-      const content = document.getElementById('statsContent');
-      const days = document.getElementById('statsDaysSelect').value;
-
-      loadingBox.classList.remove('hidden');
-      emptyBox.classList.add('hidden');
-      content.classList.add('hidden');
-
+    async function loadStatsRideList() {
       try {
-        const response = await fetch(`${SERVER_URL}/api/daily-stats?park=${PHANTASIALAND_ID}&days=${days}`);
+        const response = await fetch(`${SERVER_URL}/api/rides-list?park=${PHANTASIALAND_ID}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
         const data = await response.json();
-        globalDailyStats = data;
-        statsAlreadyLoaded = true;
-
-        loadingBox.classList.add('hidden');
-
-        if (!data.dailySummary || data.dailySummary.length === 0) {
-          emptyBox.classList.remove('hidden');
-          return;
-        }
-
-        content.classList.remove('hidden');
-
-        renderDailyGuestsChart();
-        renderDailyWaitChart();
-        renderAverageDayChart();
-        renderPerRideTable();
-
+        statsAllRideNames = data.rides || [];
+        renderStatsRideList();
       } catch (err) {
-        console.error('Fehler beim Laden der Statistik:', err);
-        loadingBox.classList.add('hidden');
-        emptyBox.classList.remove('hidden');
-        document.getElementById('statsEmptyBox').innerHTML = `
-          <i class="fa-solid fa-triangle-exclamation text-2xl text-red-400 mb-2"></i>
-          <p class="text-xs font-bold text-red-400">Fehler beim Laden der Statistik</p>
-          <p class="text-[11px] text-slate-600 mt-1">Bitte versuche es später erneut.</p>
+        console.error('Fehler beim Laden der Attraktionsliste:', err);
+        document.getElementById('statsRideList').innerHTML = `
+          <p class="text-[11px] text-red-400 text-center py-2">Fehler beim Laden der Liste.</p>
         `;
       }
     }
 
-    // 1. Besucherzahlen pro Tag
-    function renderDailyGuestsChart() {
-      const ctx = document.getElementById('dailyGuestsChart');
-      if (!ctx || !globalDailyStats) return;
-      if (dailyGuestsChartInstance) dailyGuestsChartInstance.destroy();
+    function renderStatsRideList() {
+      const container = document.getElementById('statsRideList');
+      const query = (document.getElementById('statsRideSearch').value || '').toLowerCase().trim();
 
-      const summary = globalDailyStats.dailySummary;
-      const labels = summary.map(d => formatDateShort(d.recorded_date));
-      const guestEstimates = summary.map(d => estimateGuestsFromAvgWait(d.avg_wait));
+      const filtered = statsAllRideNames.filter(name => name.toLowerCase().includes(query));
 
-      const peak = Math.max(...guestEstimates, 0);
-      document.getElementById('dailyGuestsPeakBadge').textContent = `Peak: ~${peak.toLocaleString('de-DE')}`;
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-[11px] text-slate-600 text-center py-2">Keine Attraktion gefunden.</p>`;
+        return;
+      }
 
-      dailyGuestsChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Geschätzte Besucher',
-            data: guestEstimates,
-            backgroundColor: 'rgba(245, 158, 11, 0.6)',
-            borderColor: '#f59e0b',
-            borderWidth: 1,
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (context) => `~${context.raw.toLocaleString('de-DE')} Gäste (geschätzt)`
-              }
-            }
-          },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
-            y: {
-              beginAtZero: true,
-              grid: { color: '#1e293b' },
-              ticks: { color: '#64748b', font: { size: 9 } }
-            }
-          }
-        }
-      });
+      container.innerHTML = filtered.map(name => {
+        const isSelected = name === statsSelectedRide;
+        const key = escapeHtml(name).replace(/'/g, "\\'");
+        return `
+          <button onclick="selectStatsRide('${key}')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${isSelected ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-black text-slate-300 border border-slate-800 hover:border-slate-600'}">
+            ${escapeHtml(name)}
+          </button>
+        `;
+      }).join('');
     }
 
-    // 2. Durchschnittliche Wartezeit pro Tag
-    function renderDailyWaitChart() {
-      const ctx = document.getElementById('dailyWaitChart');
-      if (!ctx || !globalDailyStats) return;
-      if (dailyWaitChartInstance) dailyWaitChartInstance.destroy();
+    async function selectStatsRide(rideName) {
+      statsSelectedRide = rideName;
+      document.getElementById('statsSelectedRideName').textContent = rideName;
+      document.getElementById('statsNoRideSelected').classList.add('hidden');
+      document.getElementById('statsRideDetail').classList.remove('hidden');
+      renderStatsRideList(); // Auswahl-Hervorhebung aktualisieren
 
-      const summary = globalDailyStats.dailySummary;
-      const labels = summary.map(d => formatDateShort(d.recorded_date));
-      const avgWaits = summary.map(d => d.avg_wait !== null ? Math.round(d.avg_wait * 10) / 10 : 0);
-      const peakWaits = summary.map(d => d.peak_wait || 0);
+      // Verfügbare Tage für diese Attraktion laden (für den Kalender)
+      try {
+        const response = await fetch(`${SERVER_URL}/api/ride-days?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        statsAvailableDays = data.days || [];
+      } catch (err) {
+        console.error('Fehler beim Laden der verfügbaren Tage:', err);
+        statsAvailableDays = [];
+      }
 
-      const overallAvg = avgWaits.filter(v => v > 0);
-      const avgOfAvg = overallAvg.length > 0 ? (overallAvg.reduce((a, b) => a + b, 0) / overallAvg.length).toFixed(1) : '--';
-      document.getElementById('dailyWaitAvgBadge').textContent = `Ø gesamt: ${avgOfAvg} Min`;
+      // Kalenderansicht auf den neuesten verfügbaren Monat setzen
+      if (statsAvailableDays.length > 0) {
+        const latest = statsAvailableDays[statsAvailableDays.length - 1];
+        const [y, m] = latest.split('-').map(Number);
+        calendarViewYear = y;
+        calendarViewMonth = m - 1;
+        statsSelectedDate = latest; // neuesten Tag direkt vorauswählen
+      } else {
+        const now = new Date();
+        calendarViewYear = now.getFullYear();
+        calendarViewMonth = now.getMonth();
+        statsSelectedDate = null;
+      }
 
-      dailyWaitChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Ø Wartezeit',
-              data: avgWaits,
-              borderColor: '#f59e0b',
-              backgroundColor: 'rgba(245, 158, 11, 0.15)',
-              borderWidth: 2,
-              fill: true,
-              tension: 0.3,
-              pointRadius: 3,
-              pointBackgroundColor: '#f59e0b'
-            },
-            {
-              label: 'Spitzenwert',
-              data: peakWaits,
-              borderColor: '#ef4444',
-              borderDash: [4, 4],
-              backgroundColor: 'transparent',
-              borderWidth: 1.5,
-              fill: false,
-              tension: 0.3,
-              pointRadius: 2,
-              pointBackgroundColor: '#ef4444'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: {
-              display: true,
-              labels: { color: '#94a3b8', font: { size: 9 }, boxWidth: 10 }
-            },
-            tooltip: {
-              callbacks: {
-                label: (context) => `${context.dataset.label}: ${context.raw} Min`
-              }
-            }
-          },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
-            y: {
-              beginAtZero: true,
-              grid: { color: '#1e293b' },
-              ticks: { color: '#64748b', font: { size: 9 } }
-            }
-          }
-        }
-      });
+      setStatsMode(statsMode); // aktuellen Modus neu anwenden (lädt auch Daten)
     }
 
-    // 3. Der Durchschnittstag - alle Tage nach Uhrzeit gemittelt
-    function renderAverageDayChart() {
-      const ctx = document.getElementById('averageDayChart');
-      if (!ctx || !globalDailyStats) return;
-      if (averageDayChartInstance) averageDayChartInstance.destroy();
+    function setStatsMode(mode) {
+      statsMode = mode;
+      const dayBtn = document.getElementById('statsModeBtnDay');
+      const avgBtn = document.getElementById('statsModeBtnAverage');
+      const dayContent = document.getElementById('statsDayModeContent');
+      const avgContent = document.getElementById('statsAverageModeContent');
+      const recBox = document.getElementById('statsRecommendationBox');
 
-      const avgDay = globalDailyStats.averageDay || [];
-      const labels = avgDay.map(d => d.recorded_time);
-      const values = avgDay.map(d => d.avg_wait !== null ? Math.round(d.avg_wait * 10) / 10 : 0);
-      const daysCounted = avgDay.length > 0 ? Math.max(...avgDay.map(d => d.days_counted || 0)) : 0;
+      if (mode === 'day') {
+        dayBtn.classList.add('bg-amber-500', 'text-slate-950');
+        dayBtn.classList.remove('text-slate-400');
+        avgBtn.classList.remove('bg-amber-500', 'text-slate-950');
+        avgBtn.classList.add('text-slate-400');
+        dayContent.classList.remove('hidden');
+        avgContent.classList.add('hidden');
+        recBox.classList.add('hidden');
 
-      document.getElementById('averageDaySampleBadge').textContent = `Basis: ${daysCounted} Tag(e)`;
+        renderCalendar();
+        if (statsSelectedDate) {
+          loadRideHistoryDay(statsSelectedDate);
+        } else {
+          showStatsChartEmpty();
+        }
+      } else {
+        avgBtn.classList.add('bg-amber-500', 'text-slate-950');
+        avgBtn.classList.remove('text-slate-400');
+        dayBtn.classList.remove('bg-amber-500', 'text-slate-950');
+        dayBtn.classList.add('text-slate-400');
+        avgContent.classList.remove('hidden');
+        dayContent.classList.add('hidden');
 
-      averageDayChartInstance = new Chart(ctx, {
+        loadRideHistoryAverage();
+      }
+    }
+
+    // ---------- Kalender ----------
+    const MONTH_NAMES_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    const WEEKDAY_LETTERS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+    function shiftCalendarMonth(delta) {
+      calendarViewMonth += delta;
+      if (calendarViewMonth > 11) { calendarViewMonth = 0; calendarViewYear++; }
+      if (calendarViewMonth < 0) { calendarViewMonth = 11; calendarViewYear--; }
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const label = document.getElementById('calendarMonthLabel');
+      label.textContent = `${MONTH_NAMES_DE[calendarViewMonth]} ${calendarViewYear}`;
+
+      const grid = document.getElementById('calendarGrid');
+      const availableSet = new Set(statsAvailableDays);
+
+      let html = WEEKDAY_LETTERS_DE.map(d => `<div class="text-[9px] text-slate-600 font-bold py-1">${d}</div>`).join('');
+
+      const firstOfMonth = new Date(calendarViewYear, calendarViewMonth, 1);
+      // JS: 0=So...6=Sa -> wir wollen Montag als ersten Tag der Woche
+      let startOffset = firstOfMonth.getDay() - 1;
+      if (startOffset < 0) startOffset = 6;
+
+      const daysInMonth = new Date(calendarViewYear, calendarViewMonth + 1, 0).getDate();
+
+      for (let i = 0; i < startOffset; i++) {
+        html += `<div></div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${calendarViewYear}-${String(calendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const hasData = availableSet.has(dateStr);
+        const isSelected = dateStr === statsSelectedDate;
+
+        let classes = 'w-full aspect-square flex items-center justify-center rounded-lg text-[10px] font-bold transition ';
+        if (isSelected) {
+          classes += 'bg-amber-500 text-slate-950';
+        } else if (hasData) {
+          classes += 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 cursor-pointer';
+        } else {
+          classes += 'text-slate-700 cursor-default';
+        }
+
+        const clickHandler = hasData ? `onclick="pickCalendarDate('${dateStr}')"` : '';
+        html += `<div class="${classes}" ${clickHandler}>${day}</div>`;
+      }
+
+      grid.innerHTML = html;
+    }
+
+    function pickCalendarDate(dateStr) {
+      statsSelectedDate = dateStr;
+      renderCalendar();
+      loadRideHistoryDay(dateStr);
+    }
+
+    // ---------- Daten laden: Einzeltag ----------
+    async function loadRideHistoryDay(dateStr) {
+      if (!statsSelectedRide) return;
+
+      document.getElementById('statsChartTitle').textContent = `Verlauf am ${formatDateShort(dateStr)}`;
+      document.getElementById('statsChartBadge').textContent = 'Einzeltag';
+
+      try {
+        const url = `${SERVER_URL}/api/ride-history?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(statsSelectedRide)}&date=${dateStr}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (!data.points || data.points.length === 0) {
+          showStatsChartEmpty();
+          return;
+        }
+
+        // Punkte auf die feste Zeitachse mappen, wie im Live-Tab
+        const values = new Array(FIXED_TIME_LABELS.length).fill(null);
+        data.points.forEach(p => {
+          const slot = findNearestSlotIndex(p.recorded_time);
+          if (slot === -1) return;
+          values[slot] = p.is_open ? p.wait_time : 0;
+        });
+
+        renderStatsRideChart(values, null);
+
+      } catch (err) {
+        console.error('Fehler beim Laden des Tagesverlaufs:', err);
+        showStatsChartEmpty();
+      }
+    }
+
+    // ---------- Daten laden: Durchschnitt über Zeitraum ----------
+    async function loadRideHistoryAverage() {
+      if (!statsSelectedRide) return;
+
+      const days = document.getElementById('statsAverageDaysSelect').value;
+      document.getElementById('statsChartTitle').textContent = `Durchschnittsverlauf`;
+      document.getElementById('statsChartBadge').textContent = `Letzte ${days} Tage`;
+
+      try {
+        const url = `${SERVER_URL}/api/ride-history?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(statsSelectedRide)}&days=${days}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const recBox = document.getElementById('statsRecommendationBox');
+        const recText = document.getElementById('statsRecommendationText');
+
+        if (!data.points || data.points.length === 0) {
+          showStatsChartEmpty();
+          recBox.classList.add('hidden');
+          return;
+        }
+
+        const values = new Array(FIXED_TIME_LABELS.length).fill(null);
+        data.points.forEach(p => {
+          const slot = findNearestSlotIndex(p.recorded_time);
+          if (slot === -1) return;
+          values[slot] = p.avg_wait !== null ? Math.round(p.avg_wait * 10) / 10 : null;
+        });
+
+        renderStatsRideChart(values, null);
+
+        if (data.recommendation) {
+          recBox.classList.remove('hidden');
+          const rec = data.recommendation;
+          recText.textContent = `Am günstigsten meist gegen ${rec.time} Uhr (Ø ${Math.round(rec.avgWait)} Min, basierend auf ${rec.sampleCount} Messungen)`;
+        } else {
+          recBox.classList.add('hidden');
+        }
+
+      } catch (err) {
+        console.error('Fehler beim Laden des Durchschnittsverlaufs:', err);
+        showStatsChartEmpty();
+      }
+    }
+
+    function showStatsChartEmpty() {
+      document.getElementById('statsChartWrap').classList.add('hidden');
+      document.getElementById('statsChartEmpty').classList.remove('hidden');
+      document.getElementById('statsRecommendationBox').classList.add('hidden');
+    }
+
+    function renderStatsRideChart(values, forecastValues) {
+      document.getElementById('statsChartWrap').classList.remove('hidden');
+      document.getElementById('statsChartEmpty').classList.add('hidden');
+
+      const ctx = document.getElementById('statsRideChart');
+      if (!ctx) return;
+      if (statsRideChartInstance) statsRideChartInstance.destroy();
+
+      statsRideChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels,
+          labels: FIXED_TIME_LABELS,
           datasets: [{
-            label: 'Ø Wartezeit (typischer Tag)',
+            label: 'Wartezeit',
             data: values,
             borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+            backgroundColor: 'rgba(245, 158, 11, 0.15)',
             borderWidth: 2.5,
             fill: true,
-            tension: 0.4,
+            tension: 0.3,
             pointRadius: 0,
-            pointHoverRadius: 5
+            pointHoverRadius: 5,
+            spanGaps: false
           }]
         },
         options: {
@@ -1586,85 +1762,47 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (context) => `Ø ${context.raw} Min Wartezeit`
+                label: (context) => `${context.raw} Min`
               }
             }
           },
           scales: {
             x: {
+              min: 0,
+              max: FIXED_TIME_LABELS.length - 1,
               grid: { display: false },
-              ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 12 }
+              ticks: {
+                color: '#64748b',
+                font: { size: 9 },
+                autoSkip: false,
+                maxRotation: 0,
+                callback: function(value, index) {
+                  const label = FIXED_TIME_LABELS[index];
+                  if (!label) return '';
+                  const [h, m] = label.split(':');
+                  const hourNum = parseInt(h, 10);
+                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
+                    return `${h}:00`;
+                  }
+                  return '';
+                }
+              }
             },
             y: {
-              beginAtZero: true,
+              min: 0,
+              max: CHART_WAIT_MAX_MINUTES,
               grid: { color: '#1e293b' },
-              ticks: { color: '#64748b', font: { size: 9 } }
+              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 }
             }
           }
         }
       });
     }
 
-    // 4. Tabelle: Ø Wartezeit pro Attraktion und Tag
-    function renderPerRideTable() {
-      if (!globalDailyStats) return;
-
-      const perRideDaily = globalDailyStats.perRideDaily || [];
-      const searchQuery = (document.getElementById('statsTableSearch').value || '').toLowerCase().trim();
-
-      // Eindeutige, sortierte Liste der Tage und Attraktionen ermitteln
-      const daysSet = new Set();
-      const ridesSet = new Set();
-      const dataMap = {}; // dataMap[rideName][date] = avgWait
-
-      perRideDaily.forEach(row => {
-        daysSet.add(row.recorded_date);
-        ridesSet.add(row.ride_name);
-        if (!dataMap[row.ride_name]) dataMap[row.ride_name] = {};
-        dataMap[row.ride_name][row.recorded_date] = row.avg_wait;
-      });
-
-      const sortedDays = Array.from(daysSet).sort();
-      const sortedRides = Array.from(ridesSet)
-        .filter(r => r.toLowerCase().includes(searchQuery))
-        .sort();
-
-      // Tabellen-Header aufbauen
-      const headerRow = document.getElementById('statsTableHeader');
-      headerRow.innerHTML = `
-        <th class="text-left py-1.5 px-2 sticky left-0 bg-slate-950">Attraktion</th>
-        ${sortedDays.map(d => `<th class="text-center py-1.5 px-2 whitespace-nowrap">${formatDateShort(d)}</th>`).join('')}
-      `;
-
-      // Tabellen-Body aufbauen
-      const tbody = document.getElementById('statsTableBody');
-
-      if (sortedRides.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${sortedDays.length + 1}" class="text-center py-4 text-slate-500">Keine Attraktionen gefunden</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = sortedRides.map((rideName, idx) => {
-        const rowBg = idx % 2 === 0 ? 'bg-black' : 'bg-slate-950/50';
-        const cells = sortedDays.map(day => {
-          const val = dataMap[rideName][day];
-          if (val === undefined || val === null) {
-            return `<td class="text-center py-1.5 px-2 text-slate-700">--</td>`;
-          }
-          const rounded = Math.round(val);
-          let colorClass = 'text-emerald-400';
-          if (rounded > 35) colorClass = 'text-red-400';
-          else if (rounded > 15) colorClass = 'text-yellow-300';
-          return `<td class="text-center py-1.5 px-2 ${colorClass} font-bold">${rounded}</td>`;
-        }).join('');
-
-        return `
-          <tr class="${rowBg} border-b border-slate-900">
-            <td class="py-1.5 px-2 text-slate-200 font-semibold sticky left-0 ${rowBg} truncate max-w-[140px]">${escapeHtml(rideName)}</td>
-            ${cells}
-          </tr>
-        `;
-      }).join('');
+    function formatDateShort(isoDate) {
+      const parts = isoDate.split('-');
+      if (parts.length !== 3) return isoDate;
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
     }
 
     function escapeHtml(str) {
