@@ -202,6 +202,38 @@
     <!-- ================= STATISTIK-TAB ================= -->
     <div id="tabContentStats" class="hidden space-y-3">
 
+      <!-- Park-weite Übersicht: Besucherzahlen & Wochentags-Vergleich -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
+          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-users"></i> Geschätzte Besucher pro Tag
+          </h2>
+          <select id="parkStatsDaysSelect" onchange="loadParkWideStats()" class="bg-black border border-slate-800 text-slate-100 text-[10px] rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+            <option value="7">7 Tage</option>
+            <option value="14">14 Tage</option>
+            <option value="30" selected>30 Tage</option>
+            <option value="90">90 Tage</option>
+          </select>
+        </div>
+        <p id="parkGuestsAvgBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
+        <div class="h-44 w-full bg-black border border-slate-800 rounded-lg p-2">
+          <canvas id="parkWideGuestsChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Smarter Zusatz-Graf: Wochentags-Vergleich -->
+      <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-calendar-week"></i> Bester Wochentag zum Besuchen
+          </h2>
+        </div>
+        <p id="weekdayBestBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
+        <div class="h-44 w-full bg-black border border-slate-800 rounded-lg p-2">
+          <canvas id="weekdayChart"></canvas>
+        </div>
+      </div>
+
       <!-- Attraktions-Auswahl -->
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
         <div class="relative w-full">
@@ -357,9 +389,11 @@
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
     const MAX_PARK_CAPACITY = 25000;
-    const CHART_TIME_START_HOUR = 9;  // Feste X-Achse: 9 Uhr...
-    const CHART_TIME_END_HOUR = 20;   // ...bis 20 Uhr (deckt auch Wintertraum-Öffnungszeiten ab)
-    const CHART_WAIT_MAX_MINUTES = 120; // Feste Y-Achse: 0 bis 120 Minuten für alle Attraktionen
+    const CHART_TIME_START_HOUR = 9;  // Park öffnet immer um 9 Uhr...
+    const CHART_PARK_OPEN_HOURS = 9;  // ...und ist immer 9 Stunden geöffnet (bis 18 Uhr)
+    const CHART_TIME_END_HOUR = CHART_TIME_START_HOUR + CHART_PARK_OPEN_HOURS;
+    const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
+    let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
     
     let globalRidesData = [];
     let globalHistoryData = [];
@@ -482,10 +516,12 @@
         tabBtnLive.classList.remove('active', 'text-amber-400');
         tabBtnLive.classList.add('text-slate-500');
 
-        // Attraktionsliste nur beim ersten Öffnen laden (spart Requests)
+        // Attraktionsliste und park-weite Grafen nur beim ersten Öffnen laden
         if (!statsAlreadyLoaded) {
           statsAlreadyLoaded = true;
           loadStatsRideList();
+          loadParkWideStats();
+          loadWeekdayStats();
         }
       }
     }
@@ -856,8 +892,15 @@
         const slot = findNearestSlotIndex(h.time);
         if (slot === -1) return;
         const found = h.rides.find(r => r.name === rideName);
-        actualPoints[slot] = (found && found.isOpen) ? found.waitTime : (found ? 0 : null);
+        if (!found) return; // keine Meldung für diese Attraktion -> Lücke bleibt
+        actualPoints[slot] = found.isOpen ? found.waitTime : 0;
       });
+
+      // Vor der allerersten Meldung (egal ob offen oder zu) bleibt der Wert
+      // "null" (echte Lücke) - so startet die sichtbare Linie erst genau an
+      // der echten Startzeit dieser Attraktion (z.B. Taron ab 10 Uhr statt ab
+      // 9 Uhr wie Black Mamba), statt am linken Rand künstlich bei 0 zu beginnen.
+      // Das ist durch die Befüllung oben (Zuweisung nur bei "found") bereits gegeben.
 
       const queuePoints = actualPoints.map(w => {
         if (w === null) return null;
@@ -954,7 +997,7 @@
             </div>
 
             <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (SOWOHL AUF DESKTOP ALS AUCH MOBILE) -->
-            <div class="w-28 sm:w-48 h-9 bg-black border border-amber-500/30 rounded-lg p-1 shrink-0">
+            <div class="w-28 sm:w-48 h-14 bg-black border border-amber-500/30 rounded-lg overflow-hidden shrink-0">
               <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
             </div>
 
@@ -1201,8 +1244,25 @@
 
       try {
         if (typeof Chart !== 'undefined') {
-          renderedItems.forEach(item => {
-            const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+          // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
+          // Y-Achsen-Obergrenze zu bestimmen: Standard 80 Min, aber wenn eine
+          // sichtbare Attraktion mehr hat, wird die Skala für ALLE Mini-Grafen
+          // gemeinsam erhöht (nicht individuell), damit sie vergleichbar bleiben.
+          const precomputed = renderedItems.map(item => ({
+            item,
+            dataObj: calculateSmartHistoryAndForecast(item.rideName)
+          }));
+
+          let maxObserved = 0;
+          precomputed.forEach(({ dataObj }) => {
+            dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+          });
+          // Skala mit etwas Puffer nach oben (10%), aber nie unter dem Standard
+          CHART_WAIT_DYNAMIC_MAX = maxObserved > CHART_WAIT_DEFAULT_MAX
+            ? Math.ceil((maxObserved * 1.1) / 10) * 10
+            : CHART_WAIT_DEFAULT_MAX;
+
+          precomputed.forEach(({ item, dataObj }) => {
             renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
             renderDetailedChart(`chart-${item.cardId}`, dataObj);
             renderQueueChart(`queueChart-${item.cardId}`, dataObj);
@@ -1230,7 +1290,7 @@
               label: 'Wartezeit',
               data: actualPoints,
               borderColor: '#f59e0b',
-              backgroundColor: 'rgba(245, 158, 11, 0.2)',
+              backgroundColor: 'rgba(245, 158, 11, 0.25)',
               borderWidth: 1.5,
               fill: true,
               tension: 0.3,
@@ -1242,7 +1302,7 @@
               data: forecastPoints,
               borderColor: '#10b981',
               borderDash: [3, 3],
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
               borderWidth: 1.5,
               fill: true,
               tension: 0.3,
@@ -1254,9 +1314,10 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          // Miniaturansicht: keine Touch-/Hover-Interaktion, keine Tooltips -
-          // das Antippen/Ziehen soll nur im großen, aufgeklappten Graf gehen.
+          // Komplett minimalistisch: keine Achsen, keine Beschriftungen, keine
+          // Interaktion - nur die reine Kurvenform zählt in der Miniaturansicht.
           events: [],
+          layout: { padding: 0 },
           plugins: {
             legend: { display: false },
             tooltip: { enabled: false }
@@ -1265,37 +1326,12 @@
             x: {
               min: 0,
               max: FIXED_TIME_LABELS.length - 1,
-              grid: { display: false, drawTicks: false },
-              border: { display: true, color: '#334155' },
-              ticks: {
-                color: '#64748b',
-                font: { size: 7 },
-                autoSkip: false,
-                maxRotation: 0,
-                // Nur alle 3 Stunden eine Beschriftung zeigen (12 Slots = 3h bei 15-Min-Schritten)
-                callback: function(value, index) {
-                  const label = FIXED_TIME_LABELS[index];
-                  if (!label) return '';
-                  const [h, m] = label.split(':');
-                  const hourNum = parseInt(h, 10);
-                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
-                    return `${h}h`;
-                  }
-                  return '';
-                }
-              }
+              display: false
             },
             y: {
               min: 0,
-              max: CHART_WAIT_MAX_MINUTES,
-              border: { display: true, color: '#334155' },
-              grid: { color: 'rgba(51, 65, 85, 0.3)', drawTicks: false },
-              ticks: {
-                color: '#64748b',
-                font: { size: 7 },
-                stepSize: 20, // Beschriftung alle 20 Minuten
-                callback: (value) => value % 20 === 0 ? value : ''
-              }
+              max: CHART_WAIT_DYNAMIC_MAX,
+              display: false
             }
           }
         }
@@ -1378,7 +1414,7 @@
             },
             y: { 
               min: 0,
-              max: CHART_WAIT_MAX_MINUTES,
+              max: CHART_WAIT_DYNAMIC_MAX,
               grid: { color: '#1e293b' }, 
               ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 } 
             }
@@ -1474,6 +1510,201 @@
     // =========================================================
     // ================ STATISTIK-TAB LOGIK =====================
     // =========================================================
+
+    let parkWideGuestsChartInstance = null;
+    let weekdayChartInstance = null;
+
+    const WEEKDAY_NAMES_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    const WEEKDAY_SHORT_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+    // Grobe Besucherzahl-Schätzung aus einer Ø-Wartezeit, analog zur
+    // Live-Tab-Logik, aber vereinfacht (Server liefert hier nur Aggregatwerte,
+    // keine Einzelattraktionen pro historischem Zeitpunkt)
+    function estimateGuestsFromAvgWait(avgWait) {
+      if (avgWait === null || avgWait === undefined || isNaN(avgWait)) return null;
+      const capacities = Object.values(RIDE_DATABASE).map(r => r.capacity);
+      const avgCapacity = capacities.reduce((a, b) => a + b, 0) / capacities.length;
+      const avgRideCount = 20; // grobe Annahme: ~20 gleichzeitig geöffnete Hauptattraktionen
+      const queuePeoplePerRide = (avgCapacity / 60) * avgWait;
+      const totalQueuePeople = queuePeoplePerRide * avgRideCount;
+      const walkingPeople = totalQueuePeople * 0.55;
+      return Math.round(totalQueuePeople + walkingPeople);
+    }
+
+    async function loadParkWideStats() {
+      const days = document.getElementById('parkStatsDaysSelect').value;
+
+      try {
+        const response = await fetch(`${SERVER_URL}/api/daily-stats?park=${PHANTASIALAND_ID}&days=${days}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        renderParkWideGuestsChart(data.dailySummary || []);
+      } catch (err) {
+        console.error('Fehler beim Laden der Park-Statistik:', err);
+        document.getElementById('parkGuestsAvgBadge').textContent = 'Fehler beim Laden.';
+      }
+    }
+
+    function renderParkWideGuestsChart(dailySummary) {
+      const ctx = document.getElementById('parkWideGuestsChart');
+      if (!ctx) return;
+      if (parkWideGuestsChartInstance) parkWideGuestsChartInstance.destroy();
+
+      if (dailySummary.length === 0) {
+        document.getElementById('parkGuestsAvgBadge').textContent = 'Noch keine Daten vorhanden.';
+        return;
+      }
+
+      const labels = dailySummary.map(d => {
+        const parts = d.recorded_date.split('-');
+        return `${parts[2]}.${parts[1]}.`;
+      });
+      const guestEstimates = dailySummary.map(d => estimateGuestsFromAvgWait(d.avg_wait));
+
+      const validEstimates = guestEstimates.filter(v => v !== null);
+      const avgGuests = validEstimates.length > 0
+        ? Math.round(validEstimates.reduce((a, b) => a + b, 0) / validEstimates.length)
+        : 0;
+
+      document.getElementById('parkGuestsAvgBadge').innerHTML =
+        `Ø <b class="text-amber-400">~${avgGuests.toLocaleString('de-DE')}</b> geschätzte Besucher pro Tag im gewählten Zeitraum`;
+
+      parkWideGuestsChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Geschätzte Besucher',
+              data: guestEstimates,
+              backgroundColor: 'rgba(245, 158, 11, 0.6)',
+              borderColor: '#f59e0b',
+              borderWidth: 1,
+              borderRadius: 3
+            },
+            {
+              label: 'Durchschnitt',
+              data: labels.map(() => avgGuests),
+              type: 'line',
+              borderColor: '#22d3ee',
+              borderDash: [5, 5],
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  if (context.dataset.label === 'Durchschnitt') return `Ø ${context.raw.toLocaleString('de-DE')} Gäste`;
+                  return `~${context.raw.toLocaleString('de-DE')} Gäste`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 8 }, maxTicksLimit: 10 } },
+            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
+          }
+        }
+      });
+    }
+
+    async function loadWeekdayStats() {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/weekday-stats?park=${PHANTASIALAND_ID}&days=90`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        renderWeekdayChart(data.weekdayStats || []);
+      } catch (err) {
+        console.error('Fehler beim Laden der Wochentags-Statistik:', err);
+        document.getElementById('weekdayBestBadge').textContent = 'Fehler beim Laden.';
+      }
+    }
+
+    function renderWeekdayChart(weekdayStats) {
+      const ctx = document.getElementById('weekdayChart');
+      if (!ctx) return;
+      if (weekdayChartInstance) weekdayChartInstance.destroy();
+
+      if (weekdayStats.length === 0) {
+        document.getElementById('weekdayBestBadge').textContent = 'Noch keine Daten vorhanden - braucht mehrere Wochen Sammelzeit.';
+        return;
+      }
+
+      // Reihenfolge Montag-Sonntag statt der SQL-Standardreihenfolge (0=So)
+      const orderedWeekdays = [1, 2, 3, 4, 5, 6, 0];
+      const dataMap = {};
+      weekdayStats.forEach(row => { dataMap[row.weekday] = row; });
+
+      const labels = orderedWeekdays.map(w => WEEKDAY_SHORT_DE[w]);
+      const values = orderedWeekdays.map(w => {
+        const row = dataMap[w];
+        return row && row.avg_wait !== null ? Math.round(row.avg_wait * 10) / 10 : null;
+      });
+
+      // Besten (niedrigsten) und schlechtesten Wochentag finden
+      let bestDay = null, worstDay = null;
+      orderedWeekdays.forEach(w => {
+        const row = dataMap[w];
+        if (!row || row.avg_wait === null || row.days_counted < 2) return; // min. 2 Datenpunkte für Aussagekraft
+        if (!bestDay || row.avg_wait < bestDay.avgWait) bestDay = { weekday: w, avgWait: row.avg_wait };
+        if (!worstDay || row.avg_wait > worstDay.avgWait) worstDay = { weekday: w, avgWait: row.avg_wait };
+      });
+
+      if (bestDay) {
+        document.getElementById('weekdayBestBadge').innerHTML =
+          `Am entspanntesten meist <b class="text-emerald-400">${WEEKDAY_NAMES_DE[bestDay.weekday]}</b> (Ø ${Math.round(bestDay.avgWait)} Min)` +
+          (worstDay ? ` · Am vollsten meist <b class="text-red-400">${WEEKDAY_NAMES_DE[worstDay.weekday]}</b> (Ø ${Math.round(worstDay.avgWait)} Min)` : '');
+      } else {
+        document.getElementById('weekdayBestBadge').textContent = 'Noch nicht genug Daten für eine verlässliche Aussage.';
+      }
+
+      const colors = orderedWeekdays.map(w => {
+        if (bestDay && w === bestDay.weekday) return 'rgba(16, 185, 129, 0.7)';
+        if (worstDay && w === worstDay.weekday) return 'rgba(239, 68, 68, 0.7)';
+        return 'rgba(245, 158, 11, 0.5)';
+      });
+
+      weekdayChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Ø Wartezeit',
+            data: values,
+            backgroundColor: colors,
+            borderColor: '#f59e0b',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => context.raw !== null ? `Ø ${context.raw} Min Wartezeit` : 'Keine Daten'
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10, weight: 'bold' } } },
+            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
+          }
+        }
+      });
+    }
 
     // ---------- Attraktionsliste ----------
     let statsAllRideNames = []; // vom Server geladene Liste aller bekannten Attraktionsnamen
@@ -1790,7 +2021,7 @@
             },
             y: {
               min: 0,
-              max: CHART_WAIT_MAX_MINUTES,
+              max: CHART_WAIT_DYNAMIC_MAX,
               grid: { color: '#1e293b' },
               ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 }
             }
