@@ -44,6 +44,61 @@
     .stats-table-wrap::-webkit-scrollbar { height: 6px; }
     .stats-table-wrap::-webkit-scrollbar-track { background: #000; }
     .stats-table-wrap::-webkit-scrollbar-thumb { background: #f59e0b; border-radius: 3px; }
+
+    /* Externes Chart.js-Tooltip: bleibt IMMER oberhalb von Maus/Finger,
+       damit die Anzeige nie durch den Cursor oder Finger verdeckt wird. */
+    .chartjs-external-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(0, 0, 0, 0.95);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: #f1f5f9;
+      transform: translate(-50%, -100%);
+      transition: opacity 0.08s ease;
+      z-index: 50;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .chartjs-external-tooltip .tt-title {
+      color: #f59e0b;
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+    .chartjs-external-tooltip .tt-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .chartjs-external-tooltip .tt-dot {
+      width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+    }
+
+    /* Feiertags-Kalender: Punkte statt flächiger Einfärbung */
+    .holiday-dot {
+      width: 5px; height: 5px; border-radius: 50%; display: inline-block;
+    }
+    .holiday-day-cell { position: relative; }
+    .holiday-day-popover {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.97);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 10px;
+      color: #e2e8f0;
+      white-space: nowrap;
+      z-index: 40;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      pointer-events: none;
+    }
+    .holiday-day-popover .pop-row { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+    .holiday-day-popover .pop-row:first-child { margin-top: 0; }
   </style>
 </head>
 <body class="bg-black text-slate-100 min-h-screen p-2 sm:p-5 font-sans selection:bg-amber-500/30">
@@ -250,25 +305,6 @@
 
     <!-- ================= STATISTIK-TAB ================= -->
     <div id="tabContentStats" class="hidden space-y-3">
-
-      <!-- Park-weite Übersicht: Besucherzahlen & Wochentags-Vergleich -->
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-        <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
-          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-            <i class="fa-solid fa-users"></i> Geschätzte Besucher pro Tag
-          </h2>
-          <select id="parkStatsDaysSelect" onchange="loadParkWideStats()" class="bg-black border border-slate-800 text-slate-100 text-[10px] rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-            <option value="7">7 Tage</option>
-            <option value="14">14 Tage</option>
-            <option value="30" selected>30 Tage</option>
-            <option value="90">90 Tage</option>
-          </select>
-        </div>
-        <p id="parkGuestsAvgBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
-        <div class="h-44 w-full bg-black border border-slate-800 rounded-lg p-2">
-          <canvas id="parkWideGuestsChart"></canvas>
-        </div>
-      </div>
 
       <!-- Smarter Zusatz-Graf: Wochentags-Vergleich -->
       <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
@@ -492,6 +528,11 @@
     let currentTab = 'live';
     let statsAlreadyLoaded = false;
 
+    // Tagesprognosen pro Attraktion (vom neuen /api/day-forecast Endpoint),
+    // gecacht damit wir sie nicht für jede Mini-Grafik einzeln neu abrufen
+    let dayForecastCache = {}; // { rideName: { slots: [...], factors: {...} } }
+    let dayForecastFetchPromises = {};
+
     const RIDE_DATABASE = {
       'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
       'Colorado Adventure': { area: 'Mexico', type: 'Achterbahn', desc: 'Minenbahn für die ganze Familie mit einer der höchsten Kapazitäten im Park.', capacity: 2400, duration: '3 min', opened: '1996', speed: '55 km/h' },
@@ -570,6 +611,7 @@
     let globalContextData = null; // Antwort von /api/context (Wetter, Ferien, Kalender)
     let holidayCalendarViewYear = null;
     let holidayCalendarViewMonth = null;
+    let openHolidayPopoverKey = null; // welcher Kalendertag gerade sein Popover zeigt (Klick-Modus)
 
     // WMO-Wettercodes in lesbare deutsche Beschreibungen + Icon übersetzen
     const WEATHER_CODE_MAP = {
@@ -688,6 +730,7 @@
       holidayCalendarViewMonth += delta;
       if (holidayCalendarViewMonth > 11) { holidayCalendarViewMonth = 0; holidayCalendarViewYear++; }
       if (holidayCalendarViewMonth < 0) { holidayCalendarViewMonth = 11; holidayCalendarViewYear--; }
+      openHolidayPopoverKey = null;
       renderHolidayCalendar();
     }
 
@@ -699,6 +742,7 @@
       'Frankreich': '#3b82f6',
       'Luxemburg': '#10b981'
     };
+    const PUBLIC_HOLIDAY_COLOR = '#ef4444';
 
     function renderHolidayCalendar() {
       if (!globalContextData) return;
@@ -719,41 +763,97 @@
       for (let i = 0; i < startOffset; i++) html += `<div></div>`;
 
       const usedCountries = new Set();
+      let usedPublicHoliday = false;
 
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${holidayCalendarViewYear}-${String(holidayCalendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+        // Alle Treffer für DIESEN Tag korrekt filtern - startDate/endDate sind
+        // inklusive Grenzen, dateStr ist ein reiner "YYYY-MM-DD" String-Vergleich,
+        // was bei ISO-Datumsformaten zuverlässig funktioniert.
         const schoolMatches = globalContextData.schoolHolidays.filter(h => dateStr >= h.startDate && dateStr <= h.endDate);
         const publicMatches = globalContextData.publicHolidays.filter(h => h.startDate === dateStr);
 
-        let cellStyle = '';
-        let titleParts = [];
+        const dotsHtml = [];
+        publicMatches.forEach(m => { usedPublicHoliday = true; });
+        // Eindeutige Länder für Schulferien an diesem Tag (max. Reihenfolge wie in COUNTRY_COLORS für Konsistenz)
+        const dayCountries = [...new Set(schoolMatches.map(m => m.country))];
+        dayCountries.forEach(c => usedCountries.add(c));
 
+        dayCountries.forEach(country => {
+          const color = COUNTRY_COLORS[country] || '#64748b';
+          dotsHtml.push(`<span class="holiday-dot" style="background-color:${color}"></span>`);
+        });
+
+        const hasAnyEvent = publicMatches.length > 0 || schoolMatches.length > 0;
+        const dayKey = dateStr;
+        const isPopoverOpen = openHolidayPopoverKey === dayKey;
+
+        let cellClasses = 'holiday-day-cell w-full aspect-square flex flex-col items-center justify-center rounded text-[9px] font-bold gap-0.5 ';
         if (publicMatches.length > 0) {
-          // Feiertag hat Vorrang in der Darstellung: rote Umrandung
-          cellStyle = 'border-2 border-red-500 text-red-300 bg-red-500/10';
-          publicMatches.forEach(m => { titleParts.push(`${m.name} (${m.country})`); usedCountries.add(m.country); });
+          cellClasses += 'border border-red-500/70 text-red-300';
         } else if (schoolMatches.length > 0) {
-          // Schulferien: Hintergrundfarbe nach erstem betroffenen Land
-          const color = COUNTRY_COLORS[schoolMatches[0].country] || '#64748b';
-          cellStyle = `background-color: ${color}25; color: ${color}; border: 1px solid ${color}50;`;
-          schoolMatches.forEach(m => { titleParts.push(`${m.name} (${m.country})`); usedCountries.add(m.country); });
+          cellClasses += 'border border-slate-700 text-slate-200';
         } else {
-          cellStyle = 'color: #475569;';
+          cellClasses += 'text-slate-600';
         }
 
-        const title = titleParts.length > 0 ? titleParts.join(' | ') : '';
+        let popoverHtml = '';
+        if (isPopoverOpen && hasAnyEvent) {
+          const rows = [];
+          publicMatches.forEach(m => {
+            rows.push(`<div class="pop-row"><span class="holiday-dot" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span><span><b>${escapeHtml(m.name)}</b> (${escapeHtml(m.country)})</span></div>`);
+          });
+          schoolMatches.forEach(m => {
+            const color = COUNTRY_COLORS[m.country] || '#64748b';
+            rows.push(`<div class="pop-row"><span class="holiday-dot" style="background-color:${color}"></span><span>Schulferien: ${escapeHtml(m.country)}</span></div>`);
+          });
+          popoverHtml = `<div class="holiday-day-popover">${rows.join('')}</div>`;
+        }
 
-        html += `<div class="w-full aspect-square flex items-center justify-center rounded text-[9px] font-bold" style="${cellStyle}" title="${escapeHtml(title)}">${day}</div>`;
+        const clickAttr = hasAnyEvent ? `onclick="event.stopPropagation(); toggleHolidayPopover('${dayKey}')"` : '';
+        const hoverAttrs = hasAnyEvent ? `onmouseenter="showHolidayPopover('${dayKey}')" onmouseleave="hideHolidayPopoverOnLeave('${dayKey}')"` : '';
+
+        html += `
+          <div class="${cellClasses}" ${clickAttr} ${hoverAttrs} style="${hasAnyEvent ? 'cursor:pointer;' : ''}">
+            ${popoverHtml}
+            <span>${day}</span>
+            <span class="flex items-center gap-0.5 h-1.5">${dotsHtml.join('')}</span>
+          </div>
+        `;
       }
 
       grid.innerHTML = html;
 
       // Legende nur für Länder, die im aktuellen Monat tatsächlich vorkommen
-      legend.innerHTML = Array.from(usedCountries).map(country => {
+      const legendParts = Array.from(usedCountries).map(country => {
         const color = COUNTRY_COLORS[country] || '#64748b';
-        return `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background-color: ${color}"></span>${country}</span>`;
-      }).join('') + (usedCountries.size > 0 ? `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block border-2 border-red-500"></span>Feiertag</span>` : '');
+        return `<span class="flex items-center gap-1"><span class="holiday-dot" style="background-color: ${color}"></span>${country}</span>`;
+      });
+      if (usedPublicHoliday) {
+        legendParts.push(`<span class="flex items-center gap-1"><span class="holiday-dot" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span>Feiertag</span>`);
+      }
+      legend.innerHTML = legendParts.join('');
+    }
+
+    // Klick auf einen Tag: Popover an/aus (funktioniert auch auf Touch-Geräten,
+    // wo es kein echtes "Hover" gibt)
+    function toggleHolidayPopover(dayKey) {
+      openHolidayPopoverKey = openHolidayPopoverKey === dayKey ? null : dayKey;
+      renderHolidayCalendar();
+    }
+    function showHolidayPopover(dayKey) {
+      // Nur per echtem Maus-Hover automatisch öffnen (Touch löst KEIN mouseenter aus)
+      if (openHolidayPopoverKey !== dayKey) {
+        openHolidayPopoverKey = dayKey;
+        renderHolidayCalendar();
+      }
+    }
+    function hideHolidayPopoverOnLeave(dayKey) {
+      if (openHolidayPopoverKey === dayKey) {
+        openHolidayPopoverKey = null;
+        renderHolidayCalendar();
+      }
     }
 
     // ---------- TAB-NAVIGATION ----------
@@ -783,7 +883,6 @@
         if (!statsAlreadyLoaded) {
           statsAlreadyLoaded = true;
           loadStatsRideList();
-          loadParkWideStats();
           loadWeekdayStats();
         }
       }
@@ -1001,20 +1100,9 @@
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#f59e0b',
-              titleFont: { size: 13, weight: 'bold' },
-              bodyColor: '#f1f5f9',
-              bodyFont: { size: 12 },
-              padding: 10,
-              displayColors: false,
-              callbacks: {
-                title: (items) => items.length ? `Uhrzeit: ${labels[items[0].dataIndex]}` : '',
-                label: (context) => `~${context.raw.toLocaleString('de-DE')} Gäste`
-              }
-            }
+            tooltip: buildExternalTooltipConfig('parkGuestsChart', (context) => {
+              return `~${Math.round(context.raw).toLocaleString('de-DE')} Gäste`;
+            })
           },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
@@ -1153,6 +1241,54 @@
       return slot;
     }
 
+    // ---------- Tagesprognose vom Server holen (30-Tage-Basis + Wetter + Ferien) ----------
+    // Wird pro Attraktion einmal geladen und gecacht. Liefert ein Array mit
+    // einem Prognosewert pro festem Zeit-Slot (oder null, falls keine Daten).
+    async function ensureDayForecast(rideName) {
+      if (dayForecastCache[rideName]) return dayForecastCache[rideName];
+      if (dayForecastFetchPromises[rideName]) return dayForecastFetchPromises[rideName];
+
+      const promise = fetch(`${SERVER_URL}/api/day-forecast?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}&days=30`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data || !data.slots) {
+            dayForecastCache[rideName] = { slotMap: {}, factors: null };
+            return dayForecastCache[rideName];
+          }
+          const slotMap = {};
+          data.slots.forEach(s => { slotMap[s.time] = s; });
+          dayForecastCache[rideName] = { slotMap, factors: data.factors };
+          return dayForecastCache[rideName];
+        })
+        .catch(err => {
+          console.error(`Fehler beim Laden der Tagesprognose für ${rideName}:`, err);
+          dayForecastCache[rideName] = { slotMap: {}, factors: null };
+          return dayForecastCache[rideName];
+        })
+        .finally(() => { delete dayForecastFetchPromises[rideName]; });
+
+      dayForecastFetchPromises[rideName] = promise;
+      return promise;
+    }
+
+    // Mappt die servergelieferte Tagesprognose (Ø letzte 30 Tage x Wetter x Ferien)
+    // auf die feste Zeitachse. Für Slots vor "jetzt" wird kein Prognosewert
+    // gebraucht (da echte Messwerte vorliegen); für Slots ab "jetzt" füllt das
+    // die Prognoselinie stabil und fundiert, statt nur den letzten Trend
+    // linear fortzuschreiben.
+    function mapForecastToFixedAxis(forecastData) {
+      const arr = new Array(FIXED_TIME_LABELS.length).fill(null);
+      if (!forecastData || !forecastData.slotMap) return arr;
+
+      FIXED_TIME_LABELS.forEach((label, idx) => {
+        const slot = forecastData.slotMap[label];
+        if (slot && slot.forecast !== undefined && slot.forecast !== null) {
+          arr[idx] = slot.forecast;
+        }
+      });
+      return arr;
+    }
+
     function calculateSmartHistoryAndForecast(rideName) {
       // Werte auf die feste Zeitachse mappen statt die rohe history-Reihenfolge
       // zu verwenden - so passt die Position auf der X-Achse immer zur echten
@@ -1168,44 +1304,40 @@
         actualPoints[slot] = found.isOpen ? found.waitTime : 0;
       });
 
-      // Vor der allerersten Meldung (egal ob offen oder zu) bleibt der Wert
-      // "null" (echte Lücke) - so startet die sichtbare Linie erst genau an
-      // der echten Startzeit dieser Attraktion (z.B. Taron ab 10 Uhr statt ab
-      // 9 Uhr wie Black Mamba), statt am linken Rand künstlich bei 0 zu beginnen.
-      // Das ist durch die Befüllung oben (Zuweisung nur bei "found") bereits gegeben.
-
       const queuePoints = actualPoints.map(w => {
         if (w === null) return null;
         return calculateQueueMetrics(rideName, w, w > 0).people;
       });
 
-      // Trend für die Prognose: letzte 2 tatsächlich vorhandenen Werte nehmen
+      // Letzten bekannten Slot ermitteln, um nahtlos an die Prognose überzugehen
       const knownIndices = [];
       actualPoints.forEach((v, i) => { if (v !== null) knownIndices.push(i); });
+      let lastKnownIndex = knownIndices.length > 0 ? knownIndices[knownIndices.length - 1] : -1;
+      let lastVal = lastKnownIndex >= 0 ? actualPoints[lastKnownIndex] : null;
 
-      let trendRate = 0;
-      let lastKnownIndex = -1;
-      let lastVal = 0;
+      // Serverseitige 30-Tage-Prognose (Wochentag+Uhrzeit-Ø, korrigiert um
+      // Wetter- und Ferienfaktor) aus dem Cache holen, falls schon geladen.
+      // Falls noch nicht geladen, bleibt forecastPoints vorerst leer -
+      // renderUI() stößt das Nachladen an und rendert danach erneut.
+      const cached = dayForecastCache[rideName];
+      const serverForecast = mapForecastToFixedAxis(cached);
 
-      if (knownIndices.length >= 2) {
-        const lastIdx = knownIndices[knownIndices.length - 1];
-        const refIdx = knownIndices[Math.max(0, knownIndices.length - 4)];
-        trendRate = (actualPoints[lastIdx] - actualPoints[refIdx]) / Math.max(1, lastIdx - refIdx);
-        lastKnownIndex = lastIdx;
-        lastVal = actualPoints[lastIdx];
-      } else if (knownIndices.length === 1) {
-        lastKnownIndex = knownIndices[0];
-        lastVal = actualPoints[lastKnownIndex];
-      }
-
-      // Prognose direkt in dasselbe Array einfügen (an den 4 Slots nach dem
-      // letzten bekannten Wert), damit alles auf derselben festen Achse bleibt
       const forecastPoints = new Array(FIXED_TIME_LABELS.length).fill(null);
       if (lastKnownIndex >= 0) {
         forecastPoints[lastKnownIndex] = lastVal; // nahtloser Übergang Ist -> Prognose
-        for (let i = 1; i <= 4 && (lastKnownIndex + i) < FIXED_TIME_LABELS.length; i++) {
-          const predictedVal = Math.max(0, Math.round(lastVal + (trendRate * i)));
-          forecastPoints[lastKnownIndex + i] = predictedVal;
+      }
+      // Für alle Slots NACH dem letzten bekannten Messpunkt die serverseitige
+      // 30-Tage-Prognose einsetzen, sofern vorhanden
+      for (let i = lastKnownIndex + 1; i < FIXED_TIME_LABELS.length; i++) {
+        if (serverForecast[i] !== null) {
+          forecastPoints[i] = serverForecast[i];
+        }
+      }
+      // Falls heute noch gar keine Messung vorliegt (Park noch nicht offen),
+      // die komplette Prognquose als vorausschauende Linie anzeigen
+      if (lastKnownIndex === -1) {
+        for (let i = 0; i < FIXED_TIME_LABELS.length; i++) {
+          if (serverForecast[i] !== null) forecastPoints[i] = serverForecast[i];
         }
       }
 
@@ -1219,7 +1351,8 @@
         actualPoints,
         queuePoints,
         forecastPoints,
-        forecastQueuePoints
+        forecastQueuePoints,
+        forecastFactors: cached ? cached.factors : null
       };
     }
 
@@ -1343,7 +1476,7 @@
                 <div class="flex justify-between items-center mb-1">
                   <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
                     <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Wartezeit (Ist)</span>
-                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Trend-Prognose (+20m)</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Prognose (Ø 30 Tage, Wetter & Ferien)</span>
                   </p>
                   <span class="text-[9px] text-amber-400 font-mono font-semibold">${meta.type}</span>
                 </div>
@@ -1528,6 +1661,7 @@
           let maxObserved = 0;
           precomputed.forEach(({ dataObj }) => {
             dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+            dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
           });
           // Skala mit etwas Puffer nach oben (10%), aber nie unter dem Standard
           CHART_WAIT_DYNAMIC_MAX = maxObserved > CHART_WAIT_DEFAULT_MAX
@@ -1539,10 +1673,104 @@
             renderDetailedChart(`chart-${item.cardId}`, dataObj);
             renderQueueChart(`queueChart-${item.cardId}`, dataObj);
           });
+
+          // Für alle sichtbaren Attraktionen, deren 30-Tage-Prognose noch nicht
+          // im Cache liegt, jetzt im Hintergrund nachladen und danach die
+          // Grafen einmalig neu zeichnen (kein voller renderUI()-Rerun nötig,
+          // das würde Akkordeon-Status & Scroll-Position durcheinanderbringen)
+          const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
+          if (missing.length > 0) {
+            Promise.all(missing.map(item => ensureDayForecast(item.rideName))).then(() => {
+              // Nur die Graphen neu zeichnen, nicht die ganze Liste (verhindert Flackern/Reset)
+              renderedItems.forEach(item => {
+                const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+                renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+                if (item.cardId === currentlyExpandedCardId) {
+                  renderDetailedChart(`chart-${item.cardId}`, dataObj);
+                  renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+                }
+              });
+            });
+          }
         }
       } catch (e) {
         console.error("Chart Rendering Fehler:", e);
       }
+    }
+
+    // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
+    // Chart.js' eingebautes Tooltip folgt standardmäßig direkt dem Cursor und
+    // wird von Finger/Maus verdeckt. Dieser externe Handler positioniert eine
+    // eigene DOM-Box oberhalb des Cursors (mit Rand-Clamping, damit sie nicht
+    // aus dem Chart-Container herausragt).
+    function getOrCreateTooltipEl(chartElementId) {
+      const id = `tooltip-${chartElementId}`;
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        el.className = 'chartjs-external-tooltip';
+        el.style.opacity = 0;
+        document.body.appendChild(el);
+      }
+      return el;
+    }
+
+    function buildExternalTooltipConfig(chartElementId, singleLineFormatter) {
+      return {
+        enabled: false,
+        external: function(context) {
+          const { chart, tooltip } = context;
+          const el = getOrCreateTooltipEl(chartElementId);
+
+          if (tooltip.opacity === 0) {
+            el.style.opacity = 0;
+            return;
+          }
+
+          if (tooltip.body) {
+            const titleLines = tooltip.title || [];
+            let inner = '';
+            if (titleLines.length) {
+              inner += `<div class="tt-title">${titleLines[0]}</div>`;
+            }
+            tooltip.dataPoints.forEach(dp => {
+              if (dp.raw === null || dp.raw === undefined) return;
+              const color = dp.dataset.borderColor || '#f59e0b';
+              const label = singleLineFormatter ? singleLineFormatter(dp) : `${dp.dataset.label}: ${dp.raw}`;
+              inner += `<div class="tt-row"><span class="tt-dot" style="background:${color}"></span>${label}</div>`;
+            });
+            el.innerHTML = inner;
+          }
+
+          const canvas = chart.canvas;
+          const canvasRect = canvas.getBoundingClientRect();
+
+          // Position: horizontal an tooltip.caretX, vertikal IMMER am oberen
+          // Rand des Graphen (nicht an caretY) - so ist die Box garantiert
+          // oberhalb von Cursor/Finger, egal wo im Chart man gerade ist.
+          let left = canvasRect.left + window.scrollX + tooltip.caretX;
+          let top = canvasRect.top + window.scrollY - 8;
+
+          el.style.opacity = 1;
+          el.style.left = left + 'px';
+          el.style.top = top + 'px';
+
+          // Horizontales Clamping, damit die Box nicht aus dem Viewport ragt
+          requestAnimationFrame(() => {
+            const boxRect = el.getBoundingClientRect();
+            if (boxRect.left < 4) {
+              el.style.transform = 'translate(0, -100%)';
+              el.style.left = (canvasRect.left + window.scrollX + 4) + 'px';
+            } else if (boxRect.right > window.innerWidth - 4) {
+              el.style.transform = 'translate(-100%, -100%)';
+              el.style.left = (canvasRect.right + window.scrollX - 4) + 'px';
+            } else {
+              el.style.transform = 'translate(-50%, -100%)';
+            }
+          });
+        }
+      };
     }
 
     function renderMiniTimelineGraph(elementId, dataObj) {
@@ -1636,7 +1864,7 @@
               spanGaps: false
             },
             {
-              label: 'Trend-Prognose',
+              label: 'Prognose (Ø 30 Tage)',
               data: forecastPoints,
               borderColor: '#10b981',
               borderDash: [4, 4],
@@ -1656,27 +1884,9 @@
           interaction: { mode: 'index', intersect: false },
           plugins: { 
             legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#f59e0b',
-              titleFont: { size: 13, weight: 'bold' },
-              bodyColor: '#f1f5f9',
-              bodyFont: { size: 12 },
-              padding: 10,
-              displayColors: true,
-              boxPadding: 4,
-              callbacks: {
-                title: (items) => {
-                  if (!items.length) return '';
-                  return `Uhrzeit: ${historyLabels[items[0].dataIndex]}`;
-                },
-                label: (context) => {
-                  if (context.raw === null) return null;
-                  return `${context.dataset.label}: ${context.raw} Min`;
-                }
-              }
-            }
+            tooltip: buildExternalTooltipConfig(elementId, (dp) => {
+              return `${dp.dataset.label}: ${dp.raw} Min`;
+            })
           },
           scales: {
             x: {
@@ -1757,27 +1967,9 @@
           interaction: { mode: 'index', intersect: false },
           plugins: { 
             legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#22d3ee',
-              titleFont: { size: 13, weight: 'bold' },
-              bodyColor: '#f1f5f9',
-              bodyFont: { size: 12 },
-              padding: 10,
-              displayColors: true,
-              boxPadding: 4,
-              callbacks: {
-                title: (items) => {
-                  if (!items.length) return '';
-                  return `Uhrzeit: ${historyLabels[items[0].dataIndex]}`;
-                },
-                label: (context) => {
-                  if (context.raw === null) return null;
-                  return `${context.dataset.label}: ~${context.raw} Personen`;
-                }
-              }
-            }
+            tooltip: buildExternalTooltipConfig(elementId, (dp) => {
+              return `${dp.dataset.label}: ~${dp.raw} Personen`;
+            })
           },
           scales: {
             x: {
@@ -1815,119 +2007,10 @@
     // ================ STATISTIK-TAB LOGIK =====================
     // =========================================================
 
-    let parkWideGuestsChartInstance = null;
     let weekdayChartInstance = null;
 
     const WEEKDAY_NAMES_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
     const WEEKDAY_SHORT_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-
-    // Grobe Besucherzahl-Schätzung aus einer Ø-Wartezeit, analog zur
-    // Live-Tab-Logik, aber vereinfacht (Server liefert hier nur Aggregatwerte,
-    // keine Einzelattraktionen pro historischem Zeitpunkt)
-    function estimateGuestsFromAvgWait(avgWait) {
-      if (avgWait === null || avgWait === undefined || isNaN(avgWait)) return null;
-      const capacities = Object.values(RIDE_DATABASE).map(r => r.capacity);
-      const avgCapacity = capacities.reduce((a, b) => a + b, 0) / capacities.length;
-      const avgRideCount = 20; // grobe Annahme: ~20 gleichzeitig geöffnete Hauptattraktionen
-      const queuePeoplePerRide = (avgCapacity / 60) * avgWait;
-      const totalQueuePeople = queuePeoplePerRide * avgRideCount;
-      const walkingPeople = totalQueuePeople * 0.55;
-      return Math.round(totalQueuePeople + walkingPeople);
-    }
-
-    async function loadParkWideStats() {
-      const days = document.getElementById('parkStatsDaysSelect').value;
-
-      try {
-        const response = await fetch(`${SERVER_URL}/api/daily-stats?park=${PHANTASIALAND_ID}&days=${days}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        renderParkWideGuestsChart(data.dailySummary || []);
-      } catch (err) {
-        console.error('Fehler beim Laden der Park-Statistik:', err);
-        document.getElementById('parkGuestsAvgBadge').textContent = 'Fehler beim Laden.';
-      }
-    }
-
-    function renderParkWideGuestsChart(dailySummary) {
-      const ctx = document.getElementById('parkWideGuestsChart');
-      if (!ctx) return;
-      if (parkWideGuestsChartInstance) parkWideGuestsChartInstance.destroy();
-
-      if (dailySummary.length === 0) {
-        document.getElementById('parkGuestsAvgBadge').textContent = 'Noch keine Daten vorhanden.';
-        return;
-      }
-
-      const labels = dailySummary.map(d => {
-        const parts = d.recorded_date.split('-');
-        return `${parts[2]}.${parts[1]}.`;
-      });
-      const guestEstimates = dailySummary.map(d => estimateGuestsFromAvgWait(d.avg_wait));
-
-      const validEstimates = guestEstimates.filter(v => v !== null);
-      const avgGuests = validEstimates.length > 0
-        ? Math.round(validEstimates.reduce((a, b) => a + b, 0) / validEstimates.length)
-        : 0;
-
-      document.getElementById('parkGuestsAvgBadge').innerHTML =
-        `Ø <b class="text-amber-400">~${avgGuests.toLocaleString('de-DE')}</b> geschätzte Besucher pro Tag im gewählten Zeitraum`;
-
-      parkWideGuestsChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Geschätzte Besucher',
-              data: guestEstimates,
-              backgroundColor: 'rgba(245, 158, 11, 0.6)',
-              borderColor: '#f59e0b',
-              borderWidth: 1,
-              borderRadius: 3
-            },
-            {
-              label: 'Durchschnitt',
-              data: labels.map(() => avgGuests),
-              type: 'line',
-              borderColor: '#22d3ee',
-              borderDash: [5, 5],
-              borderWidth: 1.5,
-              pointRadius: 0,
-              fill: false
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#f59e0b',
-              titleFont: { size: 13, weight: 'bold' },
-              bodyColor: '#f1f5f9',
-              bodyFont: { size: 12 },
-              padding: 10,
-              callbacks: {
-                title: (items) => items.length ? `Tag: ${labels[items[0].dataIndex]}` : '',
-                label: (context) => {
-                  if (context.dataset.label === 'Durchschnitt') return `Ø ${context.raw.toLocaleString('de-DE')} Gäste`;
-                  return `~${context.raw.toLocaleString('de-DE')} Gäste`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 8 }, maxTicksLimit: 10 } },
-            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
-          }
-        }
-      });
-    }
 
     async function loadWeekdayStats() {
       try {
@@ -2004,19 +2087,9 @@
           maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#f59e0b',
-              titleFont: { size: 13, weight: 'bold' },
-              bodyColor: '#f1f5f9',
-              bodyFont: { size: 12 },
-              padding: 10,
-              callbacks: {
-                title: (items) => items.length ? WEEKDAY_NAMES_DE[orderedWeekdays[items[0].dataIndex]] : '',
-                label: (context) => context.raw !== null ? `Ø ${context.raw} Min Wartezeit` : 'Keine Daten'
-              }
-            }
+            tooltip: buildExternalTooltipConfig('weekdayChart', (dp) => {
+              return dp.raw !== null ? `Ø ${dp.raw} Min Wartezeit` : 'Keine Daten';
+            })
           },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10, weight: 'bold' } } },
@@ -2374,26 +2447,9 @@
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#f59e0b',
-              titleFont: { size: 13, weight: 'bold' },
-              bodyColor: '#f1f5f9',
-              bodyFont: { size: 12 },
-              padding: 10,
-              displayColors: false,
-              callbacks: {
-                title: (items) => {
-                  if (!items.length) return '';
-                  return `Uhrzeit: ${FIXED_TIME_LABELS[items[0].dataIndex]}`;
-                },
-                label: (context) => {
-                  if (context.raw === null) return null;
-                  return `Wartezeit: ${context.raw} Min`;
-                }
-              }
-            }
+            tooltip: buildExternalTooltipConfig('statsRideChart', (dp) => {
+              return `Wartezeit: ${dp.raw} Min`;
+            })
           },
           scales: {
             x: {
