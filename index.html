@@ -1812,6 +1812,7 @@
       const dayContent = document.getElementById('statsDayModeContent');
       const avgContent = document.getElementById('statsAverageModeContent');
       const recBox = document.getElementById('statsRecommendationBox');
+      const smartBox = document.getElementById('smartForecastBox');
 
       if (mode === 'day') {
         dayBtn.classList.add('bg-amber-500', 'text-slate-950');
@@ -1821,6 +1822,7 @@
         dayContent.classList.remove('hidden');
         avgContent.classList.add('hidden');
         recBox.classList.add('hidden');
+        smartBox.classList.add('hidden');
 
         renderCalendar();
         if (statsSelectedDate) {
@@ -1837,6 +1839,67 @@
         dayContent.classList.add('hidden');
 
         loadRideHistoryAverage();
+        loadSmartForecast();
+      }
+    }
+
+    // ---------- Smarte Prognose: Wochentag + Wetter + Ferien + Live-Trend kombiniert ----------
+    async function loadSmartForecast() {
+      if (!statsSelectedRide) return;
+
+      const box = document.getElementById('smartForecastBox');
+
+      try {
+        const url = `${SERVER_URL}/api/smart-forecast?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(statsSelectedRide)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (data.prediction === null || data.prediction === undefined) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        box.classList.remove('hidden');
+        document.getElementById('smartForecastValue').textContent = `${data.prediction}`;
+
+        // Konfidenz-Badge einfärben
+        const confEl = document.getElementById('smartForecastConfidence');
+        const confMap = {
+          hoch: { text: 'Hohe Verlässlichkeit', cls: 'text-emerald-400 border-emerald-500/40' },
+          mittel: { text: 'Mittlere Verlässlichkeit', cls: 'text-amber-400 border-amber-500/40' },
+          niedrig: { text: 'Geringe Verlässlichkeit', cls: 'text-slate-400 border-slate-700' }
+        };
+        const conf = confMap[data.confidence] || confMap.niedrig;
+        confEl.textContent = conf.text;
+        confEl.className = `text-[9px] font-mono px-2 py-0.5 rounded border ${conf.cls}`;
+
+        // Wetter-Einfluss beschreiben
+        const weatherEl = document.getElementById('smartForecastWeather');
+        if (data.factors.currentWeather && data.factors.weatherFactor !== 1) {
+          const pct = Math.round((data.factors.weatherFactor - 1) * 100);
+          const sign = pct > 0 ? '+' : '';
+          weatherEl.textContent = `${sign}${pct}% (${data.factors.currentWeather.temperature}°C)`;
+        } else if (data.factors.currentWeather) {
+          weatherEl.textContent = `Neutral (${data.factors.currentWeather.temperature}°C)`;
+        } else {
+          weatherEl.textContent = 'Keine Daten';
+        }
+
+        // Ferien-Einfluss beschreiben
+        const holidayEl = document.getElementById('smartForecastHoliday');
+        if (data.factors.isSchoolHoliday) {
+          const pct = Math.round((data.factors.holidayFactor - 1) * 100);
+          const sign = pct > 0 ? '+' : '';
+          const countries = data.factors.holidayCountries.join(', ') || 'Ferien';
+          holidayEl.textContent = `${sign}${pct}% (${countries})`;
+        } else {
+          holidayEl.textContent = 'Keine Ferien';
+        }
+
+      } catch (err) {
+        console.error('Fehler beim Laden der smarten Prognose:', err);
+        box.classList.add('hidden');
       }
     }
 
