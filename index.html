@@ -467,6 +467,18 @@
     const CHART_TIME_END_HOUR = CHART_TIME_START_HOUR + CHART_PARK_OPEN_HOURS;
     const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
     let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
+
+    // Zentral ganz oben definiert (nicht erst weiter unten im Skript), damit
+    // Funktionen, die beim Seitenstart sofort laufen (z.B. window.onload ->
+    // loadContextData -> renderHolidayCalendar), diese garantiert bereits
+    // zur Verfügung haben. Vorher standen diese Konstanten weiter unten im
+    // Skript, was zu einem "ReferenceError" führte, weil const-Deklarationen
+    // erst ab ihrer eigenen Zeile nutzbar sind (Temporal Dead Zone) -
+    // dadurch schlug das Laden von Wetter/Ferien beim Start fehl.
+    const MONTH_NAMES_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    const WEEKDAY_LETTERS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const WEEKDAY_NAMES_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    const WEEKDAY_SHORT_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
     
     let globalRidesData = [];
     let globalHistoryData = [];
@@ -2200,8 +2212,6 @@
     }
 
     // ---------- Kalender ----------
-    const MONTH_NAMES_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-    const WEEKDAY_LETTERS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
     function shiftCalendarMonth(delta) {
       calendarViewMonth += delta;
