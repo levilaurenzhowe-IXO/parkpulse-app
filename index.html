@@ -82,6 +82,55 @@
     <!-- ================= LIVE-TAB ================= -->
     <div id="tabContentLive" class="space-y-3">
 
+      <!-- Wetter & Ferien-Übersicht -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+        <button onclick="toggleWeatherBox()" class="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-900/80 transition">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <i id="weatherIcon" class="fa-solid fa-cloud text-cyan-400 text-sm shrink-0"></i>
+            <span id="weatherTempText" class="text-xs font-bold text-slate-200 shrink-0">-- °C</span>
+            <span id="holidayStatusText" class="text-[10px] text-slate-400 truncate">Lade Ferien-/Feiertagsinfo...</span>
+          </div>
+          <i id="weatherBoxChevron" class="fa-solid fa-chevron-down text-xs text-cyan-400 transition-transform duration-200 shrink-0"></i>
+        </button>
+
+        <div id="weatherBoxContent" class="hidden p-3 space-y-3 border-t border-slate-800/80 bg-slate-950/90">
+
+          <div class="grid grid-cols-2 gap-2 text-center font-mono">
+            <div class="bg-black p-2 rounded-lg border border-slate-800">
+              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Wetter jetzt</span>
+              <span id="weatherDetailText" class="text-xs font-black text-cyan-400">--</span>
+            </div>
+            <div class="bg-black p-2 rounded-lg border border-slate-800">
+              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Niederschlag</span>
+              <span id="weatherPrecipText" class="text-xs font-black text-cyan-400">-- mm</span>
+            </div>
+          </div>
+
+          <div id="holidayDetailBox" class="space-y-1"></div>
+
+          <!-- Ferien-/Feiertagskalender -->
+          <div class="pt-1 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-calendar-days text-cyan-400"></i> Ferien- & Feiertagskalender
+              </span>
+              <div class="flex items-center gap-1">
+                <button onclick="shiftHolidayCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-md bg-black border border-slate-800 text-slate-300 hover:border-cyan-500/50 transition">
+                  <i class="fa-solid fa-chevron-left text-[9px]"></i>
+                </button>
+                <span id="holidayCalendarMonthLabel" class="text-[10px] font-bold text-slate-300 w-20 text-center"></span>
+                <button onclick="shiftHolidayCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-md bg-black border border-slate-800 text-slate-300 hover:border-cyan-500/50 transition">
+                  <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                </button>
+              </div>
+            </div>
+            <div id="holidayCalendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
+            <div id="holidayCalendarLegend" class="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[9px] text-slate-400"></div>
+          </div>
+
+        </div>
+      </div>
+
       <!-- Dezente & einklappbare Park-Auslastung (Max. 25.000 Besucher) -->
       <div class="bg-slate-950 border border-amber-500/40 rounded-xl overflow-hidden shadow-xl shadow-amber-500/5">
         <!-- Toggle Bar -->
@@ -517,6 +566,196 @@
       chevron.classList.toggle('rotate-180');
     }
 
+    // ---------- WETTER & FERIEN/FEIERTAGE ----------
+    let globalContextData = null; // Antwort von /api/context (Wetter, Ferien, Kalender)
+    let holidayCalendarViewYear = null;
+    let holidayCalendarViewMonth = null;
+
+    // WMO-Wettercodes in lesbare deutsche Beschreibungen + Icon übersetzen
+    const WEATHER_CODE_MAP = {
+      0: { label: 'Klarer Himmel', icon: 'fa-sun' },
+      1: { label: 'Überwiegend klar', icon: 'fa-sun' },
+      2: { label: 'Teilweise bewölkt', icon: 'fa-cloud-sun' },
+      3: { label: 'Bedeckt', icon: 'fa-cloud' },
+      45: { label: 'Nebel', icon: 'fa-smog' },
+      48: { label: 'Reifnebel', icon: 'fa-smog' },
+      51: { label: 'Leichter Nieselregen', icon: 'fa-cloud-rain' },
+      53: { label: 'Nieselregen', icon: 'fa-cloud-rain' },
+      55: { label: 'Starker Nieselregen', icon: 'fa-cloud-rain' },
+      61: { label: 'Leichter Regen', icon: 'fa-cloud-showers-heavy' },
+      63: { label: 'Regen', icon: 'fa-cloud-showers-heavy' },
+      65: { label: 'Starker Regen', icon: 'fa-cloud-showers-heavy' },
+      71: { label: 'Leichter Schneefall', icon: 'fa-snowflake' },
+      73: { label: 'Schneefall', icon: 'fa-snowflake' },
+      75: { label: 'Starker Schneefall', icon: 'fa-snowflake' },
+      80: { label: 'Leichte Schauer', icon: 'fa-cloud-showers-heavy' },
+      81: { label: 'Schauer', icon: 'fa-cloud-showers-heavy' },
+      82: { label: 'Heftige Schauer', icon: 'fa-cloud-showers-heavy' },
+      95: { label: 'Gewitter', icon: 'fa-bolt' },
+      96: { label: 'Gewitter mit Hagel', icon: 'fa-cloud-bolt' },
+      99: { label: 'Starkes Gewitter mit Hagel', icon: 'fa-cloud-bolt' }
+    };
+
+    function getWeatherInfo(code) {
+      return WEATHER_CODE_MAP[code] || { label: 'Unbekannt', icon: 'fa-cloud' };
+    }
+
+    function toggleWeatherBox() {
+      const content = document.getElementById('weatherBoxContent');
+      const chevron = document.getElementById('weatherBoxChevron');
+      content.classList.toggle('hidden');
+      chevron.classList.toggle('rotate-180');
+    }
+
+    async function loadContextData() {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/context`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        globalContextData = data;
+
+        renderWeatherSummary(data);
+        renderHolidaySummary(data);
+
+        // Kalenderansicht auf den aktuellen Monat setzen (nur beim ersten Laden)
+        if (holidayCalendarViewYear === null) {
+          const now = new Date();
+          holidayCalendarViewYear = now.getFullYear();
+          holidayCalendarViewMonth = now.getMonth();
+        }
+        renderHolidayCalendar();
+
+      } catch (err) {
+        console.error('Fehler beim Laden von Wetter/Ferien:', err);
+        document.getElementById('holidayStatusText').textContent = 'Fehler beim Laden.';
+      }
+    }
+
+    function renderWeatherSummary(data) {
+      const weather = data.weather;
+      if (!weather) {
+        document.getElementById('weatherTempText').textContent = 'k. A.';
+        return;
+      }
+
+      const info = getWeatherInfo(weather.weatherCode);
+      document.getElementById('weatherIcon').className = `fa-solid ${info.icon} text-cyan-400 text-sm shrink-0`;
+      document.getElementById('weatherTempText').textContent = `${Math.round(weather.temperature)} °C`;
+      document.getElementById('weatherDetailText').textContent = info.label;
+      document.getElementById('weatherPrecipText').textContent = `${weather.precipitation ?? 0} mm`;
+    }
+
+    function renderHolidaySummary(data) {
+      const today = data.today;
+      const statusEl = document.getElementById('holidayStatusText');
+      const detailBox = document.getElementById('holidayDetailBox');
+
+      const parts = [];
+      if (today.isPublicHoliday) {
+        parts.push(`Feiertag: ${today.publicHolidayNames.join(', ')} (${today.publicHolidayCountries.join(', ')})`);
+      }
+      if (today.isSchoolHoliday) {
+        parts.push(`Schulferien in: ${today.schoolHolidayCountries.join(', ')}`);
+      }
+
+      statusEl.textContent = parts.length > 0 ? parts.join(' · ') : 'Heute keine Ferien oder Feiertage in den erfassten Regionen';
+
+      let detailHtml = '';
+      if (today.isPublicHoliday) {
+        detailHtml += `
+          <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-[10px]">
+            <span class="text-red-400 font-bold"><i class="fa-solid fa-flag mr-1"></i>Feiertag heute:</span>
+            <span class="text-slate-300">${today.publicHolidayNames.join(', ')} (${today.publicHolidayCountries.join(', ')})</span>
+          </div>
+        `;
+      }
+      if (today.isSchoolHoliday) {
+        detailHtml += `
+          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 text-[10px]">
+            <span class="text-amber-400 font-bold"><i class="fa-solid fa-school mr-1"></i>Schulferien heute in:</span>
+            <span class="text-slate-300">${today.schoolHolidayCountries.join(', ')}</span>
+          </div>
+        `;
+      }
+      if (!today.isPublicHoliday && !today.isSchoolHoliday) {
+        detailHtml = `<p class="text-[10px] text-slate-500 text-center py-1">Heute keine Ferien oder Feiertage in den erfassten Regionen.</p>`;
+      }
+
+      detailBox.innerHTML = detailHtml;
+    }
+
+    function shiftHolidayCalendarMonth(delta) {
+      holidayCalendarViewMonth += delta;
+      if (holidayCalendarViewMonth > 11) { holidayCalendarViewMonth = 0; holidayCalendarViewYear++; }
+      if (holidayCalendarViewMonth < 0) { holidayCalendarViewMonth = 11; holidayCalendarViewYear--; }
+      renderHolidayCalendar();
+    }
+
+    // Feste Farbzuordnung pro Land für den Kalender (konsistent über die ganze App)
+    const COUNTRY_COLORS = {
+      'Deutschland (NRW)': '#f59e0b',
+      'Niederlande': '#f97316',
+      'Belgien': '#eab308',
+      'Frankreich': '#3b82f6',
+      'Luxemburg': '#10b981'
+    };
+
+    function renderHolidayCalendar() {
+      if (!globalContextData) return;
+
+      const label = document.getElementById('holidayCalendarMonthLabel');
+      label.textContent = `${MONTH_NAMES_DE[holidayCalendarViewMonth]} ${holidayCalendarViewYear}`;
+
+      const grid = document.getElementById('holidayCalendarGrid');
+      const legend = document.getElementById('holidayCalendarLegend');
+
+      const firstOfMonth = new Date(holidayCalendarViewYear, holidayCalendarViewMonth, 1);
+      let startOffset = firstOfMonth.getDay() - 1;
+      if (startOffset < 0) startOffset = 6;
+      const daysInMonth = new Date(holidayCalendarViewYear, holidayCalendarViewMonth + 1, 0).getDate();
+
+      let html = WEEKDAY_LETTERS_DE.map(d => `<div class="text-[8px] text-slate-600 font-bold py-0.5">${d}</div>`).join('');
+
+      for (let i = 0; i < startOffset; i++) html += `<div></div>`;
+
+      const usedCountries = new Set();
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${holidayCalendarViewYear}-${String(holidayCalendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        const schoolMatches = globalContextData.schoolHolidays.filter(h => dateStr >= h.startDate && dateStr <= h.endDate);
+        const publicMatches = globalContextData.publicHolidays.filter(h => h.startDate === dateStr);
+
+        let cellStyle = '';
+        let titleParts = [];
+
+        if (publicMatches.length > 0) {
+          // Feiertag hat Vorrang in der Darstellung: rote Umrandung
+          cellStyle = 'border-2 border-red-500 text-red-300 bg-red-500/10';
+          publicMatches.forEach(m => { titleParts.push(`${m.name} (${m.country})`); usedCountries.add(m.country); });
+        } else if (schoolMatches.length > 0) {
+          // Schulferien: Hintergrundfarbe nach erstem betroffenen Land
+          const color = COUNTRY_COLORS[schoolMatches[0].country] || '#64748b';
+          cellStyle = `background-color: ${color}25; color: ${color}; border: 1px solid ${color}50;`;
+          schoolMatches.forEach(m => { titleParts.push(`${m.name} (${m.country})`); usedCountries.add(m.country); });
+        } else {
+          cellStyle = 'color: #475569;';
+        }
+
+        const title = titleParts.length > 0 ? titleParts.join(' | ') : '';
+
+        html += `<div class="w-full aspect-square flex items-center justify-center rounded text-[9px] font-bold" style="${cellStyle}" title="${escapeHtml(title)}">${day}</div>`;
+      }
+
+      grid.innerHTML = html;
+
+      // Legende nur für Länder, die im aktuellen Monat tatsächlich vorkommen
+      legend.innerHTML = Array.from(usedCountries).map(country => {
+        const color = COUNTRY_COLORS[country] || '#64748b';
+        return `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background-color: ${color}"></span>${country}</span>`;
+      }).join('') + (usedCountries.size > 0 ? `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block border-2 border-red-500"></span>Feiertag</span>` : '');
+    }
+
     // ---------- TAB-NAVIGATION ----------
     function switchTab(tab) {
       currentTab = tab;
@@ -763,7 +1002,16 @@
           plugins: {
             legend: { display: false },
             tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#f59e0b',
+              titleFont: { size: 13, weight: 'bold' },
+              bodyColor: '#f1f5f9',
+              bodyFont: { size: 12 },
+              padding: 10,
+              displayColors: false,
               callbacks: {
+                title: (items) => items.length ? `Uhrzeit: ${labels[items[0].dataIndex]}` : '',
                 label: (context) => `~${context.raw.toLocaleString('de-DE')} Gäste`
               }
             }
@@ -1409,8 +1657,24 @@
           plugins: { 
             legend: { display: false },
             tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#f59e0b',
+              titleFont: { size: 13, weight: 'bold' },
+              bodyColor: '#f1f5f9',
+              bodyFont: { size: 12 },
+              padding: 10,
+              displayColors: true,
+              boxPadding: 4,
               callbacks: {
-                label: (context) => `${context.dataset.label}: ${context.raw} Min`
+                title: (items) => {
+                  if (!items.length) return '';
+                  return `Uhrzeit: ${historyLabels[items[0].dataIndex]}`;
+                },
+                label: (context) => {
+                  if (context.raw === null) return null;
+                  return `${context.dataset.label}: ${context.raw} Min`;
+                }
               }
             }
           },
@@ -1494,8 +1758,24 @@
           plugins: { 
             legend: { display: false },
             tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#22d3ee',
+              titleFont: { size: 13, weight: 'bold' },
+              bodyColor: '#f1f5f9',
+              bodyFont: { size: 12 },
+              padding: 10,
+              displayColors: true,
+              boxPadding: 4,
               callbacks: {
-                label: (context) => `~${context.raw} Personen in Schlange`
+                title: (items) => {
+                  if (!items.length) return '';
+                  return `Uhrzeit: ${historyLabels[items[0].dataIndex]}`;
+                },
+                label: (context) => {
+                  if (context.raw === null) return null;
+                  return `${context.dataset.label}: ~${context.raw} Personen`;
+                }
               }
             }
           },
@@ -1625,7 +1905,15 @@
           plugins: {
             legend: { display: false },
             tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#f59e0b',
+              titleFont: { size: 13, weight: 'bold' },
+              bodyColor: '#f1f5f9',
+              bodyFont: { size: 12 },
+              padding: 10,
               callbacks: {
+                title: (items) => items.length ? `Tag: ${labels[items[0].dataIndex]}` : '',
                 label: (context) => {
                   if (context.dataset.label === 'Durchschnitt') return `Ø ${context.raw.toLocaleString('de-DE')} Gäste`;
                   return `~${context.raw.toLocaleString('de-DE')} Gäste`;
@@ -1717,7 +2005,15 @@
           plugins: {
             legend: { display: false },
             tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#f59e0b',
+              titleFont: { size: 13, weight: 'bold' },
+              bodyColor: '#f1f5f9',
+              bodyFont: { size: 12 },
+              padding: 10,
               callbacks: {
+                title: (items) => items.length ? WEEKDAY_NAMES_DE[orderedWeekdays[items[0].dataIndex]] : '',
                 label: (context) => context.raw !== null ? `Ø ${context.raw} Min Wartezeit` : 'Keine Daten'
               }
             }
@@ -2079,8 +2375,23 @@
           plugins: {
             legend: { display: false },
             tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#f59e0b',
+              titleFont: { size: 13, weight: 'bold' },
+              bodyColor: '#f1f5f9',
+              bodyFont: { size: 12 },
+              padding: 10,
+              displayColors: false,
               callbacks: {
-                label: (context) => `${context.raw} Min`
+                title: (items) => {
+                  if (!items.length) return '';
+                  return `Uhrzeit: ${FIXED_TIME_LABELS[items[0].dataIndex]}`;
+                },
+                label: (context) => {
+                  if (context.raw === null) return null;
+                  return `Wartezeit: ${context.raw} Min`;
+                }
               }
             }
           },
@@ -2131,6 +2442,7 @@
     window.onload = function() {
       updateNotifyIcon();
       loadPhantasialandData();
+      loadContextData();
       startAutoRefresh();
     };
   </script>
