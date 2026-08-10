@@ -186,6 +186,16 @@
         </div>
       </div>
 
+      <!-- Tages-Zusammenfassung: aggregiert Wetter, Ferien und Trend park-weit
+           zu einer verständlichen Ein-Satz-Einschätzung, statt dass Nutzer
+           jede Attraktion einzeln interpretieren müssen -->
+      <div id="daySummaryBox" class="hidden bg-gradient-to-r from-cyan-500/10 to-transparent border border-cyan-500/30 rounded-xl px-3 py-2">
+        <p class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Tages-Einschätzung
+        </p>
+        <p id="daySummaryText" class="text-[11px] text-slate-300 leading-relaxed"></p>
+      </div>
+
       <!-- Dezente & einklappbare Park-Auslastung (Max. 25.000 Besucher) -->
       <div class="bg-slate-950 border border-amber-500/40 rounded-xl overflow-hidden shadow-xl shadow-amber-500/5">
         <!-- Toggle Bar -->
@@ -418,9 +428,13 @@
 
         <!-- Der eigentliche Verlaufs-Graf -->
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
             <h3 id="statsChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
             <span id="statsChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
+          </div>
+          <div id="statsChartOverlayLegend" class="hidden flex items-center gap-3 mb-1.5 text-[9px] text-slate-400">
+            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
+            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-sky-400"></span> Regen</span>
           </div>
           <div id="statsChartEmpty" class="hidden py-10 text-center text-slate-500">
             <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
@@ -532,6 +546,25 @@
     // gecacht damit wir sie nicht für jede Mini-Grafik einzeln neu abrufen
     let dayForecastCache = {}; // { rideName: { slots: [...], factors: {...} } }
     let dayForecastFetchPromises = {};
+
+    // Ausfälle (rote Balken) pro Attraktion+Datum gecacht: { "rideName|date": { outages: [...], firstOpenTime } }
+    let outageCache = {};
+    let outageFetchPromises = {};
+
+    // Regenperioden (blaue Balken) pro Datum gecacht (parkweit, datumsbasiert): { date: { periods: [...] } }
+    let rainPeriodsCache = {};
+    let rainPeriodsFetchPromises = {};
+
+    // Zuverlässigkeits-Statistik pro Attraktion gecacht (nur bei Bedarf, beim Aufklappen geladen)
+    let reliabilityCache = {};
+
+    // Korrelationen ("bessere Alternative") pro Attraktion gecacht
+    let correlationsCache = {};
+
+    // Zuordnung cardId -> rideName, wird bei jedem renderUI() neu befüllt.
+    // Wird gebraucht, damit toggleAccordion() beim Aufklappen weiß, welche
+    // Attraktion zur Karte gehört (für Zuverlässigkeit/Alternative/Ausfälle).
+    let cardIdToRideName = {};
 
     const RIDE_DATABASE = {
       'Black Mamba': { area: 'Deep in Africa', type: 'Achterbahn', desc: 'B&M Inverted Coaster durch Schluchten und Tunnel in Deep in Africa.', capacity: 1500, duration: '2 min', opened: '2006', speed: '80 km/h' },
@@ -666,11 +699,70 @@
           holidayCalendarViewMonth = now.getMonth();
         }
         renderHolidayCalendar();
+        renderDaySummary(data);
 
       } catch (err) {
         console.error('Fehler beim Laden von Wetter/Ferien:', err);
         document.getElementById('holidayStatusText').textContent = 'Fehler beim Laden.';
       }
+    }
+
+    // ---------- Tages-Zusammenfassung: aggregiert Wetter + Ferien + Wochentag
+    // zu einer verständlichen Einschätzung, ohne dass der Nutzer Einzeldaten
+    // pro Attraktion interpretieren muss. Nutzt dieselben Rohdaten wie die
+    // einzelnen Prognosen (Wetter/Ferien aus /api/context, Wochentag lokal),
+    // aggregiert sie aber park-weit statt pro Ride.
+    function renderDaySummary(contextData) {
+      const box = document.getElementById('daySummaryBox');
+      const textEl = document.getElementById('daySummaryText');
+      if (!contextData || !contextData.today) { box.classList.add('hidden'); return; }
+
+      const today = contextData.today;
+      const weather = contextData.weather;
+      const now = new Date();
+      const weekdayIdx = now.getDay();
+      const isWeekend = weekdayIdx === 0 || weekdayIdx === 6;
+
+      const parts = [];
+      let severityScore = 0; // grobe Einschätzung: höher = voller erwartet
+
+      if (today.isSchoolHoliday) {
+        parts.push(`Schulferien in ${today.schoolHolidayCountries.join(', ')}`);
+        severityScore += 2;
+      }
+      if (today.isPublicHoliday) {
+        parts.push(`Feiertag (${today.publicHolidayNames.join(', ')})`);
+        severityScore += 2;
+      }
+      if (isWeekend) {
+        parts.push('Wochenende');
+        severityScore += 1;
+      }
+
+      let weatherPhrase = '';
+      if (weather && weather.weatherCode !== null && weather.weatherCode !== undefined) {
+        const isRainy = weather.weatherCode >= 51 && weather.weatherCode <= 82;
+        if (isRainy) {
+          weatherPhrase = 'Regenwetter treibt Indoor-Attraktionen typischerweise stärker voll';
+          severityScore += 1;
+        } else if (weather.weatherCode <= 1 && weather.temperature >= 20) {
+          weatherPhrase = 'Sonniges, warmes Wetter';
+          severityScore += 1;
+        }
+      }
+      if (weatherPhrase) parts.push(weatherPhrase);
+
+      let verdict;
+      if (severityScore >= 3) verdict = 'Heute wahrscheinlich ein voller Tag.';
+      else if (severityScore <= 0) verdict = 'Heute wahrscheinlich ein eher ruhiger Tag.';
+      else verdict = 'Heute wahrscheinlich durchschnittlich besucht.';
+
+      if (parts.length === 0) {
+        textEl.textContent = `${verdict} Keine besonderen Einflussfaktoren (keine Ferien/Feiertage, normales Wetter).`;
+      } else {
+        textEl.textContent = `${verdict} Einflussfaktoren: ${parts.join(', ')}.`;
+      }
+      box.classList.remove('hidden');
     }
 
     function renderWeatherSummary(data) {
@@ -1271,6 +1363,102 @@
       return promise;
     }
 
+    // ---------- Ausfälle (rote Balken) laden & cachen ----------
+    // date=null bedeutet "heute" (Server-Default)
+    async function ensureOutages(rideName, date) {
+      const dateKey = date || 'today';
+      const cacheKey = `${rideName}|${dateKey}`;
+      if (outageCache[cacheKey]) return outageCache[cacheKey];
+      if (outageFetchPromises[cacheKey]) return outageFetchPromises[cacheKey];
+
+      let url = `${SERVER_URL}/api/ride-outages?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}`;
+      if (date) url += `&date=${date}`;
+
+      const promise = fetch(url)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          outageCache[cacheKey] = data || { outages: [], firstOpenTime: null };
+          return outageCache[cacheKey];
+        })
+        .catch(err => {
+          console.error(`Fehler beim Laden der Ausfälle für ${rideName}:`, err);
+          outageCache[cacheKey] = { outages: [], firstOpenTime: null };
+          return outageCache[cacheKey];
+        })
+        .finally(() => { delete outageFetchPromises[cacheKey]; });
+
+      outageFetchPromises[cacheKey] = promise;
+      return promise;
+    }
+
+    // ---------- Regenperioden (blaue Balken) laden & cachen ----------
+    async function ensureRainPeriods(date) {
+      const dateKey = date || 'today';
+      if (rainPeriodsCache[dateKey]) return rainPeriodsCache[dateKey];
+      if (rainPeriodsFetchPromises[dateKey]) return rainPeriodsFetchPromises[dateKey];
+
+      let url = `${SERVER_URL}/api/rain-periods?park=${PHANTASIALAND_ID}`;
+      if (date) url += `&date=${date}`;
+
+      const promise = fetch(url)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          rainPeriodsCache[dateKey] = data || { periods: [] };
+          return rainPeriodsCache[dateKey];
+        })
+        .catch(err => {
+          console.error('Fehler beim Laden der Regenperioden:', err);
+          rainPeriodsCache[dateKey] = { periods: [] };
+          return rainPeriodsCache[dateKey];
+        })
+        .finally(() => { delete rainPeriodsFetchPromises[dateKey]; });
+
+      rainPeriodsFetchPromises[dateKey] = promise;
+      return promise;
+    }
+
+    // ---------- Zuverlässigkeits-Statistik laden & cachen (nur bei Bedarf) ----------
+    async function ensureReliability(rideName) {
+      if (reliabilityCache[rideName]) return reliabilityCache[rideName];
+      try {
+        const response = await fetch(`${SERVER_URL}/api/ride-reliability?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}&days=30`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        reliabilityCache[rideName] = data;
+        return data;
+      } catch (err) {
+        console.error(`Fehler beim Laden der Zuverlässigkeit für ${rideName}:`, err);
+        return null;
+      }
+    }
+
+    // ---------- Korrelationen ("bessere Alternative") laden & cachen ----------
+    async function ensureCorrelations(rideName) {
+      if (correlationsCache[rideName]) return correlationsCache[rideName];
+      try {
+        const response = await fetch(`${SERVER_URL}/api/ride-correlations?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}&days=30`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        correlationsCache[rideName] = data.correlations || [];
+        return correlationsCache[rideName];
+      } catch (err) {
+        console.error(`Fehler beim Laden der Korrelationen für ${rideName}:`, err);
+        return [];
+      }
+    }
+
+    // Wandelt Ausfall-/Regen-Zeitfenster (startTime/endTime als "HH:MM") in
+    // Start-/End-Indizes auf der festen Zeitachse um, geclampt auf den
+    // sichtbaren Bereich - für die Overlay-Zeichnung im Chart.js Plugin.
+    function timeRangeToSlotRange(startTime, endTime) {
+      let startIdx = findNearestSlotIndex(startTime);
+      let endIdx = findNearestSlotIndex(endTime);
+      if (startIdx === -1) startIdx = 0;
+      if (endIdx === -1) endIdx = FIXED_TIME_LABELS.length - 1;
+      if (endIdx < startIdx) endIdx = startIdx;
+      return { startIdx, endIdx };
+    }
+
     // Mappt die servergelieferte Tagesprognose (Ø letzte 30 Tage x Wetter x Ferien)
     // auf die feste Zeitachse. Für Slots vor "jetzt" wird kein Prognosewert
     // gebraucht (da echte Messwerte vorliegen); für Slots ab "jetzt" füllt das
@@ -1346,13 +1534,27 @@
         return calculateQueueMetrics(rideName, w, true).people;
       });
 
+      // Ausfall-Ranges (rot) aus dem Cache holen, falls schon geladen (heutiges Datum)
+      const outageData = outageCache[`${rideName}|today`];
+      const outageRanges = outageData && outageData.outages
+        ? outageData.outages.map(o => timeRangeToSlotRange(o.startTime, o.endTime))
+        : [];
+
+      // Regen-Ranges (blau) aus dem Cache holen (parkweit, heutiges Datum)
+      const rainData = rainPeriodsCache['today'];
+      const rainRanges = rainData && rainData.periods
+        ? rainData.periods.map(p => timeRangeToSlotRange(p.startTime, p.endTime))
+        : [];
+
       return {
         historyLabels: FIXED_TIME_LABELS,
         actualPoints,
         queuePoints,
         forecastPoints,
         forecastQueuePoints,
-        forecastFactors: cached ? cached.factors : null
+        forecastFactors: cached ? cached.factors : null,
+        outageRanges,
+        rainRanges
       };
     }
 
@@ -1469,14 +1671,32 @@
               </div>
             </div>
 
+            <!-- Zuverlässigkeits-Statistik (wird per JS nachgeladen) -->
+            <div id="reliabilityBox-${cardId}" class="bg-black border border-slate-800 rounded-lg p-2">
+              <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-gears text-amber-400"></i> Zuverlässigkeit (letzte 30 Tage)
+              </p>
+              <p class="text-[10px] text-slate-600">Lade Daten...</p>
+            </div>
+
+            <!-- Bessere Alternative gerade jetzt (Korrelationen), wird per JS nachgeladen -->
+            <div id="alternativeBox-${cardId}" class="hidden bg-cyan-500/5 border border-cyan-500/30 rounded-lg p-2">
+              <p class="text-[9px] text-cyan-400 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-shuffle"></i> Ausweich-Tipp
+              </p>
+              <p id="alternativeBoxText-${cardId}" class="text-[11px] text-slate-300"></p>
+            </div>
+
             <!-- DIE 2 GRAPHEN UNTEREINANDER -->
             <div class="space-y-3">
               <!-- Graph 1: Wartezeit + Prognose -->
               <div>
                 <div class="flex justify-between items-center mb-1">
-                  <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2 flex-wrap">
                     <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Wartezeit (Ist)</span>
-                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Prognose (Ø 30 Tage, Wetter & Ferien)</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Prognose (Ø 30 Tage)</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-sky-400"></span> Regen</span>
                   </p>
                   <span class="text-[9px] text-amber-400 font-mono font-semibold">${meta.type}</span>
                 </div>
@@ -1516,11 +1736,108 @@
         if (isHidden) {
           targetContainer.classList.remove('hidden');
           currentlyExpandedCardId = cardId;
+          loadExpandedCardExtras(cardId);
         } else {
           targetContainer.classList.add('hidden');
           currentlyExpandedCardId = null;
         }
       }
+    }
+
+    // Lädt beim Aufklappen einer Karte die "teuren" Zusatzdaten nach, die
+    // nicht für alle Karten gleichzeitig gebraucht werden: Ausfälle (rot),
+    // Regenperioden (blau), Zuverlässigkeits-Statistik und die "bessere
+    // Alternative gerade"-Empfehlung aus den Ride-Korrelationen.
+    async function loadExpandedCardExtras(cardId) {
+      const rideName = cardIdToRideName[cardId];
+      if (!rideName) return;
+
+      // 1) Ausfälle + Regen laden, dann NUR die Graphen dieser einen Karte neu zeichnen
+      Promise.all([ensureOutages(rideName), ensureRainPeriods()]).then(() => {
+        const dataObj = calculateSmartHistoryAndForecast(rideName);
+        renderDetailedChart(`chart-${cardId}`, dataObj);
+        renderMiniTimelineGraph(`dayGraph-${cardId}`, dataObj);
+      });
+
+      // 2) Zuverlässigkeits-Box befüllen
+      ensureReliability(rideName).then(rel => {
+        const box = document.getElementById(`reliabilityBox-${cardId}`);
+        if (!box) return;
+        if (!rel || rel.uptimePercent === null) {
+          box.innerHTML = `
+            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
+              <i class="fa-solid fa-gears text-amber-400"></i> Zuverlässigkeit (letzte 30 Tage)
+            </p>
+            <p class="text-[10px] text-slate-600">Noch nicht genug Daten gesammelt.</p>
+          `;
+          return;
+        }
+
+        const uptimeColor = rel.uptimePercent >= 97 ? 'text-emerald-400' : rel.uptimePercent >= 90 ? 'text-yellow-300' : 'text-red-400';
+        const hourText = rel.mostCommonOutageHour !== null ? `${String(rel.mostCommonOutageHour).padStart(2, '0')}:00 Uhr` : '–';
+        const durText = rel.avgOutageDurationMinutes !== null ? `${rel.avgOutageDurationMinutes} Min` : '–';
+
+        box.innerHTML = `
+          <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-gears text-amber-400"></i> Zuverlässigkeit (letzte ${rel.daysAnalyzed} Tage)
+          </p>
+          <div class="grid grid-cols-3 gap-1.5 font-mono text-[10px]">
+            <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+              <span class="text-slate-500 block text-[9px] uppercase">Betriebsquote</span>
+              <strong class="${uptimeColor}">${rel.uptimePercent}%</strong>
+            </div>
+            <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+              <span class="text-slate-500 block text-[9px] uppercase">Ø Ausfalldauer</span>
+              <strong class="text-slate-200">${durText}</strong>
+            </div>
+            <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+              <span class="text-slate-500 block text-[9px] uppercase">Häufigste Zeit</span>
+              <strong class="text-slate-200">${hourText}</strong>
+            </div>
+          </div>
+          <p class="text-[9px] text-slate-600 mt-1.5">${rel.totalOutages} erkannte Ausfälle im Zeitraum (Zeit vor der ersten täglichen Öffnung zählt nicht als Ausfall).</p>
+        `;
+      });
+
+      // 3) Alternative-Hinweis aus den Korrelationen ableiten
+      ensureCorrelations(rideName).then(correlations => {
+        const box = document.getElementById(`alternativeBox-${cardId}`);
+        const textEl = document.getElementById(`alternativeBoxText-${cardId}`);
+        if (!box || !textEl) return;
+
+        const currentRide = globalRidesData.find(r => r.name === rideName);
+        if (!currentRide || !currentRide.isOpen || correlations.length === 0) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        // Nur relevant, wenn die aktuelle Wartezeit spürbar hoch ist -
+        // sonst braucht niemand einen Ausweich-Tipp
+        if (currentRide.waitTime < 20) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        // Unter den Top-Korrelationen die am STÄRKSTEN GLEICHLÄUFIGE nehmen,
+        // aber deren aktuelle Wartezeit mit der Live-Liste abgleichen: wir
+        // suchen eine Attraktion, die JETZT tatsächlich weniger Wartezeit hat.
+        // Die Korrelation sagt nur, wie oft beide gemeinsam über/unter ihrem
+        // eigenen Ø liegen - als Ausweich-Kandidat eignen sich daher eher die
+        // NIEDRIGER korrelierten (gegenläufige) Optionen aus der Live-Liste.
+        const candidates = correlations
+          .map(c => ({ ...c, live: globalRidesData.find(r => r.name === c.rideName) }))
+          .filter(c => c.live && c.live.isOpen && c.live.waitTime < currentRide.waitTime - 5)
+          .sort((a, b) => a.live.waitTime - b.live.waitTime);
+
+        if (candidates.length === 0) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        const best = candidates[0];
+        box.classList.remove('hidden');
+        textEl.innerHTML = `<b class="text-cyan-300">${escapeHtml(best.rideName)}</b> hat gerade nur <b class="text-emerald-400">${best.live.waitTime} Min</b> Wartezeit (statt ${currentRide.waitTime} Min hier) und verhält sich historisch ähnlich - eine mögliche Alternative gerade jetzt.`;
+      });
     }
 
     function renderUI() {
@@ -1646,6 +1963,10 @@
       } else {
         hiddenSection.classList.add('hidden');
       }
+
+      // Card-zu-Ride-Zuordnung aktualisieren (für toggleAccordion, Zuverlässigkeit, etc.)
+      cardIdToRideName = {};
+      renderedItems.forEach(item => { cardIdToRideName[item.cardId] = item.rideName; });
 
       try {
         if (typeof Chart !== 'undefined') {
@@ -1773,13 +2094,53 @@
       };
     }
 
+    // ---------- Chart.js-Plugin: Ausfall- (rot) & Regen-Overlays (blau) ----------
+    // Zeichnet feste horizontale Balken am unteren Rand des Chart-Bereichs:
+    // rot = Attraktion war laut erkannten Ausfällen geschlossen (innerhalb
+    // der regulären Öffnungszeit, siehe detectOutagesForDay im Server),
+    // blau = es hat laut gespeicherten Wetterdaten geregnet. Beide Ranges
+    // werden dem Plugin als Slot-Index-Bereiche mitgegeben (chartArea-relativ
+    // berechnet Chart.js selbst über scales.x).
+    function createOverlayPlugin(outageRanges, rainRanges, opts = {}) {
+      const barHeight = opts.barHeight || 4;
+      return {
+        id: `overlay-${Math.random().toString(36).slice(2)}`,
+        afterDraw(chart) {
+          const { ctx, chartArea, scales } = chart;
+          if (!chartArea || !scales.x) return;
+          const xScale = scales.x;
+          const bottom = chartArea.bottom;
+
+          function drawRanges(ranges, color, yOffset) {
+            ranges.forEach(({ startIdx, endIdx }) => {
+              const xStart = xScale.getPixelForValue(startIdx);
+              const xEnd = xScale.getPixelForValue(endIdx);
+              const w = Math.max(2, xEnd - xStart);
+              ctx.save();
+              ctx.fillStyle = color;
+              ctx.fillRect(xStart, bottom - yOffset, w, barHeight);
+              ctx.restore();
+            });
+          }
+
+          if (rainRanges && rainRanges.length) {
+            drawRanges(rainRanges, 'rgba(56, 189, 248, 0.85)', barHeight * 2 + 2);
+          }
+          if (outageRanges && outageRanges.length) {
+            drawRanges(outageRanges, 'rgba(239, 68, 68, 0.9)', barHeight + 1);
+          }
+        }
+      };
+    }
+
     function renderMiniTimelineGraph(elementId, dataObj) {
       const ctx = document.getElementById(elementId);
       if (!ctx) return;
 
       if (sparklineInstances[elementId]) sparklineInstances[elementId].destroy();
 
-      const { actualPoints, forecastPoints, historyLabels } = dataObj;
+      const { actualPoints, forecastPoints, historyLabels, outageRanges, rainRanges } = dataObj;
+      const overlayPlugin = createOverlayPlugin(outageRanges, rainRanges, { barHeight: 2 });
 
       sparklineInstances[elementId] = new Chart(ctx, {
         type: 'line',
@@ -1811,6 +2172,7 @@
             }
           ]
         },
+        plugins: [overlayPlugin],
         options: {
           responsive: true,
           maintainAspectRatio: false,
@@ -1844,7 +2206,8 @@
 
       if (chartInstances[elementId]) chartInstances[elementId].destroy();
 
-      const { historyLabels, actualPoints, forecastPoints } = dataObj;
+      const { historyLabels, actualPoints, forecastPoints, outageRanges, rainRanges } = dataObj;
+      const overlayPlugin = createOverlayPlugin(outageRanges, rainRanges, { barHeight: 4 });
 
       chartInstances[elementId] = new Chart(ctx, {
         type: 'line',
@@ -1878,6 +2241,7 @@
             }
           ]
         },
+        plugins: [overlayPlugin],
         options: {
           responsive: true,
           maintainAspectRatio: false,
@@ -2207,6 +2571,10 @@
         avgContent.classList.remove('hidden');
         dayContent.classList.add('hidden');
 
+        // Ausfall/Regen-Overlays ergeben im gemittelten Verlauf keinen Sinn
+        // (kein einzelner Tag mehr) - Legende daher ausblenden
+        document.getElementById('statsChartOverlayLegend').classList.add('hidden');
+
         loadRideHistoryAverage();
         loadSmartForecast();
       }
@@ -2356,7 +2724,17 @@
           values[slot] = p.is_open ? p.wait_time : 0;
         });
 
-        renderStatsRideChart(values, null);
+        // Ausfälle + Regen für genau diesen historischen Tag laden, damit sie
+        // im gespeicherten Verlauf ebenfalls als rote/blaue Balken erscheinen
+        const [outageData, rainData] = await Promise.all([
+          ensureOutages(statsSelectedRide, dateStr),
+          ensureRainPeriods(dateStr)
+        ]);
+        const outageRanges = (outageData.outages || []).map(o => timeRangeToSlotRange(o.startTime, o.endTime));
+        const rainRanges = (rainData.periods || []).map(p => timeRangeToSlotRange(p.startTime, p.endTime));
+
+        document.getElementById('statsChartOverlayLegend').classList.remove('hidden');
+        renderStatsRideChart(values, null, outageRanges, rainRanges);
 
       } catch (err) {
         console.error('Fehler beim Laden des Tagesverlaufs:', err);
@@ -2414,15 +2792,18 @@
       document.getElementById('statsChartWrap').classList.add('hidden');
       document.getElementById('statsChartEmpty').classList.remove('hidden');
       document.getElementById('statsRecommendationBox').classList.add('hidden');
+      document.getElementById('statsChartOverlayLegend').classList.add('hidden');
     }
 
-    function renderStatsRideChart(values, forecastValues) {
+    function renderStatsRideChart(values, forecastValues, outageRanges, rainRanges) {
       document.getElementById('statsChartWrap').classList.remove('hidden');
       document.getElementById('statsChartEmpty').classList.add('hidden');
 
       const ctx = document.getElementById('statsRideChart');
       if (!ctx) return;
       if (statsRideChartInstance) statsRideChartInstance.destroy();
+
+      const overlayPlugin = createOverlayPlugin(outageRanges || [], rainRanges || [], { barHeight: 4 });
 
       statsRideChartInstance = new Chart(ctx, {
         type: 'line',
@@ -2441,6 +2822,7 @@
             spanGaps: false
           }]
         },
+        plugins: [overlayPlugin],
         options: {
           responsive: true,
           maintainAspectRatio: false,
