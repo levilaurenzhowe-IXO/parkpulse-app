@@ -115,14 +115,43 @@
       </div>
 
       <div class="flex items-center gap-2 self-end sm:self-auto">
+        <!-- Suche: dezenter Icon-Button, öffnet ein Suchfeld erst bei Klick -->
+        <button onclick="toggleHeaderSearch()" id="headerSearchBtn" class="bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 w-8 h-8 rounded-lg text-xs transition flex items-center justify-center active:scale-95 shadow" title="Attraktion suchen">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+        <!-- Gruppierung: dezenter Icon-Button, öffnet ein kleines Dropdown -->
+        <div class="relative">
+          <button onclick="toggleHeaderSort()" id="headerSortBtn" class="bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 w-8 h-8 rounded-lg text-xs transition flex items-center justify-center active:scale-95 shadow" title="Sortierung/Gruppierung">
+            <i class="fa-solid fa-layer-group"></i>
+          </button>
+          <div id="headerSortDropdown" class="hidden absolute right-0 top-10 z-30 bg-slate-950 border border-slate-800 rounded-lg shadow-xl p-1 w-56">
+            <button onclick="setSortModeFromHeader('waitTime')" class="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-slate-300 hover:bg-slate-900 transition">⏳ Nach Wartezeit (Höchste zuerst)</button>
+            <button onclick="setSortModeFromHeader('queuePeople')" class="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-slate-300 hover:bg-slate-900 transition">👥 Nach Personen in Schlange</button>
+            <button onclick="setSortModeFromHeader('area')" class="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-slate-300 hover:bg-slate-900 transition">🏰 Nach Themenbereich</button>
+            <button onclick="setSortModeFromHeader('type')" class="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-slate-300 hover:bg-slate-900 transition">🎢 Nach Attraktionsart</button>
+          </div>
+        </div>
         <button onclick="toggleNotifications()" id="notifyBtn" class="bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 w-8 h-8 rounded-lg text-xs transition flex items-center justify-center active:scale-95 shadow" title="Push-Benachrichtigungen aktivieren">
           <i class="fa-regular fa-bell" id="notifyIcon"></i>
         </button>
-        <button onclick="loadPhantasialandData()" class="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow shadow-amber-500/20">
-          <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Aktualisieren
+        <!-- Aktualisieren-Button mit integrierter kompakter Status-Anzeige:
+             blinkender Punkt (aktiv/live) + "vor Xs" statt separater Statuszeile -->
+        <button onclick="loadPhantasialandData()" class="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 pl-2.5 pr-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow shadow-amber-500/20">
+          <span id="headerLiveDot" class="w-1.5 h-1.5 rounded-full bg-slate-950 animate-pulse shrink-0"></span>
+          <i class="fa-solid fa-rotate-right" id="refreshIcon"></i>
+          <span id="headerRefreshLabel">Aktualisieren</span>
         </button>
       </div>
     </header>
+
+    <!-- Aufklappbares Suchfeld (nur sichtbar nach Klick auf die Lupe) -->
+    <div id="headerSearchBar" class="hidden">
+      <div class="relative w-full">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+        <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion suchen..." autofocus
+          class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+      </div>
+    </div>
 
     <!-- Tab-Navigation -->
     <div class="flex items-center gap-1 border-b border-slate-800">
@@ -256,39 +285,16 @@
         </div>
       </div>
 
-      <!-- Status Banner -->
-      <div id="statusBox" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-sm">
-        <div class="flex items-center gap-2 min-w-0">
-          <i class="fa-solid fa-circle-dot text-amber-400 animate-ping text-[8px] shrink-0"></i>
-          <span id="statusText" class="truncate font-medium">Lade Daten...</span>
-        </div>
-        <span id="liveTimer" class="text-[10px] text-slate-500 shrink-0 font-mono"></span>
-      </div>
-
-      <!-- Filter & Sortier-Werkzeuge -->
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-2">
-        <div class="flex flex-col sm:flex-row gap-2 items-center justify-between">
-          
-          <!-- Suche -->
-          <div class="relative w-full sm:w-64">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-            <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion suchen..." 
-              class="w-full bg-black border border-slate-800 rounded-lg pl-8 pr-2.5 py-1 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
-          </div>
-
-          <!-- Sortierung / Gruppierung -->
-          <div class="flex items-center gap-2 w-full sm:w-auto">
-            <span class="text-[11px] font-bold text-slate-400 shrink-0"><i class="fa-solid fa-layer-group text-amber-400 mr-1"></i>Gruppierung:</span>
-            <select id="sortSelect" onchange="renderUI()" class="w-full sm:w-auto bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-              <option value="waitTime">⏳ Nach Wartezeit (Höchste zuerst)</option>
-              <option value="queuePeople">👥 Nach Personen in Schlange</option>
-              <option value="area">🏰 Nach Themenbereich</option>
-              <option value="type">🎢 Nach Attraktionsart</option>
-            </select>
-          </div>
-
-        </div>
-      </div>
+      <!-- sortMode wird jetzt über das Dropdown im Header gesteuert (siehe
+           headerSortDropdown) - dieses versteckte Select hält weiterhin den
+           aktuellen Wert, damit der bestehende renderUI()-Code unverändert
+           darauf zugreifen kann -->
+      <select id="sortSelect" class="hidden">
+        <option value="waitTime" selected>waitTime</option>
+        <option value="queuePeople">queuePeople</option>
+        <option value="area">area</option>
+        <option value="type">type</option>
+      </select>
 
       <!-- Hauptcontainer für Attraktionen -->
       <div id="ridesContainer" class="space-y-2"></div>
@@ -326,6 +332,63 @@
         <p id="weekdayBestBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
         <div class="h-44 w-full bg-black border border-slate-800 rounded-lg p-2">
           <canvas id="weekdayChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Park-Auslastung: historischer Verlauf, analog zur Ride-Statistik -->
+      <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
+        <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+          <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
+        </h2>
+
+        <!-- Modus-Umschalter: Einzeltag vs. Durchschnitt -->
+        <div class="flex items-center gap-1 bg-black border border-slate-800 rounded-lg p-1 mb-3">
+          <button onclick="setCrowdStatsMode('day')" id="crowdStatsModeBtnDay" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+            <i class="fa-solid fa-calendar-day mr-1"></i> Einzelner Tag
+          </button>
+          <button onclick="setCrowdStatsMode('average')" id="crowdStatsModeBtnAverage" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+            <i class="fa-solid fa-chart-line mr-1"></i> Durchschnitt
+          </button>
+        </div>
+
+        <!-- Einzeltag-Modus: Kalender -->
+        <div id="crowdStatsDayModeContent" class="hidden space-y-2 mb-3">
+          <div class="flex items-center justify-between">
+            <button onclick="shiftCrowdCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+              <i class="fa-solid fa-chevron-left text-[10px]"></i>
+            </button>
+            <span id="crowdCalendarMonthLabel" class="text-xs font-bold text-slate-200"></span>
+            <button onclick="shiftCrowdCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+              <i class="fa-solid fa-chevron-right text-[10px]"></i>
+            </button>
+          </div>
+          <div id="crowdCalendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
+          <p class="text-[9px] text-slate-600 text-center">Nur markierte Tage haben vollständig aufgezeichnete Auslastungsdaten.</p>
+        </div>
+
+        <!-- Durchschnitt-Modus: Zeitraum-Auswahl -->
+        <div id="crowdStatsAverageModeContent" class="hidden mb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] font-bold text-slate-400 shrink-0">Zeitraum:</span>
+            <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="flex-1 bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+              <option value="7">Letzte 7 Tage</option>
+              <option value="14">Letzte 14 Tage</option>
+              <option value="30" selected>Letzte 30 Tage</option>
+              <option value="90">Letzte 90 Tage</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-1">
+          <h3 id="crowdChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
+          <span id="crowdChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
+        </div>
+        <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
+          <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
+          <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
+        </div>
+        <div id="crowdChartWrap" class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
+          <canvas id="crowdStatsChart"></canvas>
         </div>
       </div>
 
@@ -512,8 +575,8 @@
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
     const MAX_PARK_CAPACITY = 25000;
-    const CHART_TIME_START_HOUR = 9;  // Park öffnet immer um 9 Uhr...
-    const CHART_PARK_OPEN_HOURS = 9;  // ...und ist immer 9 Stunden geöffnet (bis 18 Uhr)
+    const CHART_TIME_START_HOUR = 9;  // Park öffnet frühestens um 9 Uhr...
+    const CHART_PARK_OPEN_HOURS = 11; // ...Achse geht bis 20 Uhr, da der Park im Sommer oft länger offen hat
     const CHART_TIME_END_HOUR = CHART_TIME_START_HOUR + CHART_PARK_OPEN_HOURS;
     const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
     let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
@@ -639,6 +702,43 @@
       content.classList.toggle('hidden');
       chevron.classList.toggle('rotate-180');
     }
+
+    // ---------- HEADER: Such- und Sortier-UI (dezent, klappt erst bei Klick auf) ----------
+    function toggleHeaderSearch() {
+      const bar = document.getElementById('headerSearchBar');
+      const isHidden = bar.classList.contains('hidden');
+      bar.classList.toggle('hidden');
+      if (isHidden) {
+        document.getElementById('headerSortDropdown').classList.add('hidden');
+        setTimeout(() => document.getElementById('searchInput').focus(), 50);
+      } else {
+        // Beim Schließen die Suche zurücksetzen, damit sie nicht "unsichtbar aktiv" bleibt
+        document.getElementById('searchInput').value = '';
+        renderUI();
+      }
+    }
+
+    function toggleHeaderSort() {
+      const dropdown = document.getElementById('headerSortDropdown');
+      dropdown.classList.toggle('hidden');
+      document.getElementById('headerSearchBar').classList.add('hidden');
+    }
+
+    function setSortModeFromHeader(mode) {
+      document.getElementById('sortSelect').value = mode;
+      document.getElementById('headerSortDropdown').classList.add('hidden');
+      renderUI();
+    }
+
+    // Klick außerhalb des Sortier-Dropdowns schließt es wieder
+    document.addEventListener('click', (e) => {
+      const dropdown = document.getElementById('headerSortDropdown');
+      const btn = document.getElementById('headerSortBtn');
+      if (!dropdown || dropdown.classList.contains('hidden')) return;
+      if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
 
     // ---------- WETTER & FERIEN/FEIERTAGE ----------
     let globalContextData = null; // Antwort von /api/context (Wetter, Ferien, Kalender)
@@ -826,14 +926,20 @@
       renderHolidayCalendar();
     }
 
-    // Feste Farbzuordnung pro Land für den Kalender (konsistent über die ganze App)
+    // Feste Farbzuordnung pro Land für den Kalender (konsistent über die ganze
+    // App) - deutlich unterscheidbare Farben, damit Länder klar auseinander-
+    // zuhalten sind. COUNTRY_ROW_ORDER legt zusätzlich die feste vertikale
+    // Position jedes Landes im Kalender fest (oben nach unten), damit
+    // Frankreich z.B. immer in derselben Zeile erscheint, egal welche Länder
+    // an einem bestimmten Tag betroffen sind.
     const COUNTRY_COLORS = {
-      'Deutschland (NRW)': '#f59e0b',
-      'Niederlande': '#f97316',
-      'Belgien': '#eab308',
-      'Frankreich': '#3b82f6',
-      'Luxemburg': '#10b981'
+      'Frankreich': '#3b82f6',           // Blau
+      'Deutschland (NRW)': '#f59e0b',    // Amber
+      'Niederlande': '#ec4899',          // Pink
+      'Belgien': '#a855f7',              // Violett
+      'Luxemburg': '#10b981'             // Grün
     };
+    const COUNTRY_ROW_ORDER = ['Frankreich', 'Deutschland (NRW)', 'Niederlande', 'Belgien', 'Luxemburg'];
     const PUBLIC_HOLIDAY_COLOR = '#ef4444';
 
     function renderHolidayCalendar() {
@@ -850,45 +956,71 @@
       if (startOffset < 0) startOffset = 6;
       const daysInMonth = new Date(holidayCalendarViewYear, holidayCalendarViewMonth + 1, 0).getDate();
 
-      let html = WEEKDAY_LETTERS_DE.map(d => `<div class="text-[8px] text-slate-600 font-bold py-0.5">${d}</div>`).join('');
+      const ROW_HEIGHT = 3; // px pro Länder-Streifen
+      const ROW_GAP = 1;    // px Abstand zwischen Streifen
+      const STRIPE_AREA_HEIGHT = COUNTRY_ROW_ORDER.length * (ROW_HEIGHT + ROW_GAP) + 2; // + Platz für Feiertags-Streifen
 
-      for (let i = 0; i < startOffset; i++) html += `<div></div>`;
+      let headerHtml = WEEKDAY_LETTERS_DE.map(d => `<div class="text-[8px] text-slate-600 font-bold py-0.5">${d}</div>`).join('');
 
+      // Für jede Kalenderzelle vorab bestimmen, welche Länder/Feiertage
+      // betroffen sind - wird für die Zellen UND die durchgezogenen Streifen
+      // gebraucht (Streifen müssen wissen, ob der Vortag/Folgetag ebenfalls
+      // betroffen ist, um "durchgezogen über mehrere Tage" zu wirken)
+      const dayInfos = []; // Index 0 = Tag 1 des Monats
       const usedCountries = new Set();
       let usedPublicHoliday = false;
 
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${holidayCalendarViewYear}-${String(holidayCalendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-        // Alle Treffer für DIESEN Tag korrekt filtern - startDate/endDate sind
-        // inklusive Grenzen, dateStr ist ein reiner "YYYY-MM-DD" String-Vergleich,
-        // was bei ISO-Datumsformaten zuverlässig funktioniert.
         const schoolMatches = globalContextData.schoolHolidays.filter(h => dateStr >= h.startDate && dateStr <= h.endDate);
         const publicMatches = globalContextData.publicHolidays.filter(h => h.startDate === dateStr);
-
-        const dotsHtml = [];
-        publicMatches.forEach(m => { usedPublicHoliday = true; });
-        // Eindeutige Länder für Schulferien an diesem Tag (max. Reihenfolge wie in COUNTRY_COLORS für Konsistenz)
-        const dayCountries = [...new Set(schoolMatches.map(m => m.country))];
+        const dayCountries = new Set(schoolMatches.map(m => m.country));
         dayCountries.forEach(c => usedCountries.add(c));
+        if (publicMatches.length > 0) usedPublicHoliday = true;
+        dayInfos.push({ day, dateStr, schoolMatches, publicMatches, countries: dayCountries });
+      }
 
-        dayCountries.forEach(country => {
-          const color = COUNTRY_COLORS[country] || '#64748b';
-          dotsHtml.push(`<span class="holiday-dot" style="background-color:${color}"></span>`);
-        });
+      let bodyHtml = '';
+      for (let i = 0; i < startOffset; i++) bodyHtml += `<div></div>`;
 
+      dayInfos.forEach((info, idx) => {
+        const { day, dateStr, schoolMatches, publicMatches, countries } = info;
         const hasAnyEvent = publicMatches.length > 0 || schoolMatches.length > 0;
         const dayKey = dateStr;
         const isPopoverOpen = openHolidayPopoverKey === dayKey;
 
-        let cellClasses = 'holiday-day-cell w-full aspect-square flex flex-col items-center justify-center rounded text-[9px] font-bold gap-0.5 ';
+        // Nachbarn in der Woche ermitteln (für "durchgezogen"-Optik): ein
+        // Streifen für Land X soll links/rechts bündig an die Kachelkante
+        // anschließen, wenn der Vortag/Folgetag ebenfalls betroffen ist -
+        // sonst wirkt ein mehrtägiger Zeitraum wie einzelne Klötzchen statt
+        // einer durchgehenden Linie. Wochengrenzen unterbrechen den optischen
+        // Zusammenhang zwangsläufig (neue Zeile im Grid), das ist unvermeidbar.
+        const prevInfo = idx > 0 ? dayInfos[idx - 1] : null;
+        const nextInfo = idx < dayInfos.length - 1 ? dayInfos[idx + 1] : null;
+
+        let stripesHtml = '';
+        let rowIdx = 0;
+        COUNTRY_ROW_ORDER.forEach(country => {
+          if (!countries.has(country)) { rowIdx++; return; }
+          const color = COUNTRY_COLORS[country] || '#64748b';
+          const connectsLeft = prevInfo && prevInfo.countries.has(country);
+          const connectsRight = nextInfo && nextInfo.countries.has(country);
+          const top = rowIdx * (ROW_HEIGHT + ROW_GAP);
+          // Streifen reicht bis an den Rand der Kachel (0%/100%), wenn er sich
+          // mit dem Nachbartag verbindet, sonst mit kleinem Inset (sichtbar als
+          // abgerundeter Einzeltag-Strich)
+          const leftPct = connectsLeft ? 0 : 8;
+          const rightPct = connectsRight ? 0 : 8;
+          stripesHtml += `<span class="absolute rounded-sm" style="left:${leftPct}%; right:${rightPct}%; top:${top}px; height:${ROW_HEIGHT}px; background-color:${color};"></span>`;
+          rowIdx++;
+        });
         if (publicMatches.length > 0) {
-          cellClasses += 'border border-red-500/70 text-red-300';
-        } else if (schoolMatches.length > 0) {
-          cellClasses += 'border border-slate-700 text-slate-200';
-        } else {
-          cellClasses += 'text-slate-600';
+          const top = COUNTRY_ROW_ORDER.length * (ROW_HEIGHT + ROW_GAP);
+          stripesHtml += `<span class="absolute rounded-sm" style="left:8%; right:8%; top:${top}px; height:${ROW_HEIGHT}px; background-color:${PUBLIC_HOLIDAY_COLOR};"></span>`;
         }
+
+        let cellClasses = 'holiday-day-cell w-full flex flex-col items-center rounded text-[9px] font-bold pt-0.5 ';
+        cellClasses += hasAnyEvent ? 'text-slate-200' : 'text-slate-600';
 
         let popoverHtml = '';
         if (isPopoverOpen && hasAnyEvent) {
@@ -906,24 +1038,28 @@
         const clickAttr = hasAnyEvent ? `onclick="event.stopPropagation(); toggleHolidayPopover('${dayKey}')"` : '';
         const hoverAttrs = hasAnyEvent ? `onmouseenter="showHolidayPopover('${dayKey}')" onmouseleave="hideHolidayPopoverOnLeave('${dayKey}')"` : '';
 
-        html += `
+        bodyHtml += `
           <div class="${cellClasses}" ${clickAttr} ${hoverAttrs} style="${hasAnyEvent ? 'cursor:pointer;' : ''}">
             ${popoverHtml}
-            <span>${day}</span>
-            <span class="flex items-center gap-0.5 h-1.5">${dotsHtml.join('')}</span>
+            <span class="leading-none">${day}</span>
+            <span class="relative w-full" style="height:${STRIPE_AREA_HEIGHT}px; margin-top:2px;">${stripesHtml}</span>
           </div>
         `;
-      }
-
-      grid.innerHTML = html;
-
-      // Legende nur für Länder, die im aktuellen Monat tatsächlich vorkommen
-      const legendParts = Array.from(usedCountries).map(country => {
-        const color = COUNTRY_COLORS[country] || '#64748b';
-        return `<span class="flex items-center gap-1"><span class="holiday-dot" style="background-color: ${color}"></span>${country}</span>`;
       });
+
+      grid.innerHTML = headerHtml + bodyHtml;
+
+      // Legende nur für Länder, die im aktuellen Monat tatsächlich vorkommen,
+      // in der festen COUNTRY_ROW_ORDER-Reihenfolge (damit sie zur vertikalen
+      // Position im Kalender passt)
+      const legendParts = COUNTRY_ROW_ORDER
+        .filter(country => usedCountries.has(country))
+        .map(country => {
+          const color = COUNTRY_COLORS[country] || '#64748b';
+          return `<span class="flex items-center gap-1"><span class="w-3 h-1 rounded-sm inline-block" style="background-color: ${color}"></span>${country}</span>`;
+        });
       if (usedPublicHoliday) {
-        legendParts.push(`<span class="flex items-center gap-1"><span class="holiday-dot" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span>Feiertag</span>`);
+        legendParts.push(`<span class="flex items-center gap-1"><span class="w-3 h-1 rounded-sm inline-block" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span>Feiertag</span>`);
       }
       legend.innerHTML = legendParts.join('');
     }
@@ -1159,8 +1295,14 @@
 
       const hidden = getHiddenRides();
       const labels = globalHistoryData.map(h => h.time);
+      // Zeitpunkte, an denen der Server weniger als die Mindestanzahl an
+      // Attraktionen gefunden hat (isCompleteSnapshot=false), werden NICHT in
+      // die Andrangs-Berechnung einbezogen - stattdessen bleibt der Punkt eine
+      // echte Lücke (null), damit Chart.js dort keine künstliche Delle zeichnet,
+      // die durch kurzzeitig fehlende Attraktionen in der Live-API entsteht.
       const guestPoints = globalHistoryData.map(h => {
-        if (!h.rides) return 0;
+        if (!h.rides) return null;
+        if (h.isCompleteSnapshot === false) return null;
         let qPeople = 0;
         h.rides.forEach(r => {
           if (!hidden.includes(r.name) && r.isOpen) {
@@ -1183,7 +1325,8 @@
             fill: true,
             tension: 0.4,
             pointRadius: 0,
-            pointHoverRadius: 4
+            pointHoverRadius: 4,
+            spanGaps: true
           }]
         },
         options: {
@@ -1216,7 +1359,7 @@
       liveTimerInterval = setInterval(() => {
         if (!lastLoadTimestamp) return;
         const secondsAgo = Math.floor((Date.now() - lastLoadTimestamp) / 1000);
-        const el = document.getElementById('liveTimer');
+        const el = document.getElementById('headerRefreshLabel');
         if (!el) return;
         el.textContent = secondsAgo < 60 ? `vor ${secondsAgo}s` : `vor ${Math.floor(secondsAgo / 60)}m`;
       }, 1000);
@@ -1228,11 +1371,14 @@
     }
 
     async function loadPhantasialandData() {
-      const statusText = document.getElementById('statusText');
+      const label = document.getElementById('headerRefreshLabel');
+      const dot = document.getElementById('headerLiveDot');
       const icon = document.getElementById('refreshIcon');
 
       icon.classList.add('fa-spin');
-      statusText.innerHTML = `Rufe aktuelle Live-Daten ab...`;
+      label.textContent = 'Lädt...';
+      dot.classList.remove('bg-emerald-500', 'bg-red-500');
+      dot.classList.add('bg-slate-950');
 
       try {
         const response = await fetch(`${SERVER_URL}/api/park?park=${PHANTASIALAND_ID}`);
@@ -1243,22 +1389,26 @@
 
       } catch (err) {
         console.error("Verbindungsfehler:", err);
-        statusText.innerHTML = `❌ Verbindungsfehler. Bitte erneut versuchen.`;
+        label.textContent = 'Fehler';
+        dot.classList.remove('bg-slate-950', 'animate-pulse');
+        dot.classList.add('bg-red-500');
         icon.classList.remove('fa-spin');
         return;
       }
 
       if (globalHistoryData.length === 0) {
-        statusText.innerHTML = `⏳ Erste Messung läuft, bitte gleich noch einmal versuchen...`;
+        label.textContent = 'Erste Messung läuft...';
         icon.classList.remove('fa-spin');
         return;
       }
 
       const latestEntry = globalHistoryData[globalHistoryData.length - 1];
       globalRidesData = latestEntry.rides || [];
-      const timeRecorded = latestEntry.time || 'Unbekannt';
 
-      statusText.innerHTML = `🟢 Stand <b>${timeRecorded} Uhr</b> (${globalRidesData.length} Attraktionen)`;
+      // Blinkender Punkt: grün = alles aktuell (Button zeigt "vor Xs" via
+      // startLiveTimer), so weiß der Nutzer auf einen Blick, dass die Daten leben
+      dot.classList.remove('bg-slate-950', 'bg-red-500');
+      dot.classList.add('bg-emerald-500', 'animate-pulse');
       startLiveTimer();
 
       checkThresholds(globalRidesData);
@@ -1328,6 +1478,22 @@
       if (isNaN(h) || isNaN(m)) return -1;
       const totalMinutes = h * 60 + m;
       const startMinutes = CHART_TIME_START_HOUR * 60;
+      const endMinutes = CHART_TIME_END_HOUR * 60;
+
+      // Messungen, die knapp VOR der offiziellen Öffnungszeit (9:00) liegen,
+      // z.B. weil der letzte Cronjob-Zyklus vor 9 Uhr lief, werden auf den
+      // allerersten Slot (9:00) geclampt statt verworfen oder fälschlich in
+      // einen "8:45"-Slot gerundet - Attraktionen können auf der Zeitachse
+      // nie vor der offiziellen Parköffnung als geöffnet erscheinen.
+      if (totalMinutes < startMinutes) {
+        // Nur clampen, wenn die Messung nicht zu weit vor Öffnung liegt
+        // (z.B. nachts / Vortag-Reste), sonst als "kein sinnvoller Slot" werfen
+        return (startMinutes - totalMinutes <= 20) ? 0 : -1;
+      }
+      if (totalMinutes > endMinutes) {
+        return -1;
+      }
+
       const slot = Math.round((totalMinutes - startMinutes) / 15);
       if (slot < 0 || slot >= FIXED_TIME_LABELS.length) return -1;
       return slot;
@@ -1477,6 +1643,28 @@
       return arr;
     }
 
+    // Füllt am Anfang und Ende einer Werte-Reihe (fester Zeitachse) fehlende
+    // Slots mit 0 auf, statt sie als "null" (=Lücke/offenes Ende) zu lassen.
+    // Genutzt für gemittelte Verläufe (Statistik-Durchschnitt, Auslastungs-
+    // Durchschnitt): dort soll die Linie sichtbar bei 0 starten/enden statt
+    // "in der Luft" abzubrechen, wenn am Rand der Achse (sehr früh/sehr spät)
+    // nur wenige oder keine Tage Messdaten haben. Lücken MITTEN in der Reihe
+    // (z.B. echte Ausfälle) bleiben unangetastet.
+    function padEdgesWithZero(values) {
+      const result = values.slice();
+      let firstKnown = -1, lastKnown = -1;
+      for (let i = 0; i < result.length; i++) {
+        if (result[i] !== null) { firstKnown = i; break; }
+      }
+      for (let i = result.length - 1; i >= 0; i--) {
+        if (result[i] !== null) { lastKnown = i; break; }
+      }
+      if (firstKnown === -1) return result; // komplett leer, nichts zu tun
+      for (let i = 0; i < firstKnown; i++) result[i] = 0;
+      for (let i = lastKnown + 1; i < result.length; i++) result[i] = 0;
+      return result;
+    }
+
     function calculateSmartHistoryAndForecast(rideName) {
       // Werte auf die feste Zeitachse mappen statt die rohe history-Reihenfolge
       // zu verwenden - so passt die Position auf der X-Achse immer zur echten
@@ -1503,38 +1691,10 @@
       let lastKnownIndex = knownIndices.length > 0 ? knownIndices[knownIndices.length - 1] : -1;
       let lastVal = lastKnownIndex >= 0 ? actualPoints[lastKnownIndex] : null;
 
-      // Serverseitige 30-Tage-Prognose (Wochentag+Uhrzeit-Ø, korrigiert um
-      // Wetter- und Ferienfaktor) aus dem Cache holen, falls schon geladen.
-      // Falls noch nicht geladen, bleibt forecastPoints vorerst leer -
-      // renderUI() stößt das Nachladen an und rendert danach erneut.
-      const cached = dayForecastCache[rideName];
-      const serverForecast = mapForecastToFixedAxis(cached);
-
-      const forecastPoints = new Array(FIXED_TIME_LABELS.length).fill(null);
-      if (lastKnownIndex >= 0) {
-        forecastPoints[lastKnownIndex] = lastVal; // nahtloser Übergang Ist -> Prognose
-      }
-      // Für alle Slots NACH dem letzten bekannten Messpunkt die serverseitige
-      // 30-Tage-Prognose einsetzen, sofern vorhanden
-      for (let i = lastKnownIndex + 1; i < FIXED_TIME_LABELS.length; i++) {
-        if (serverForecast[i] !== null) {
-          forecastPoints[i] = serverForecast[i];
-        }
-      }
-      // Falls heute noch gar keine Messung vorliegt (Park noch nicht offen),
-      // die komplette Prognquose als vorausschauende Linie anzeigen
-      if (lastKnownIndex === -1) {
-        for (let i = 0; i < FIXED_TIME_LABELS.length; i++) {
-          if (serverForecast[i] !== null) forecastPoints[i] = serverForecast[i];
-        }
-      }
-
-      const forecastQueuePoints = forecastPoints.map(w => {
-        if (w === null) return null;
-        return calculateQueueMetrics(rideName, w, true).people;
-      });
-
-      // Ausfall-Ranges (rot) aus dem Cache holen, falls schon geladen (heutiges Datum)
+      // Ausfall-Ranges (rot) aus dem Cache holen, falls schon geladen (heutiges
+      // Datum) - VOR der Prognoseberechnung, da diese die aktuelle Ausfall-
+      // Range braucht, um die Prognose während eines laufenden Ausfalls
+      // realistisch zu halten (siehe weiter unten)
       const outageData = outageCache[`${rideName}|today`];
       const outageRanges = outageData && outageData.outages
         ? outageData.outages.map(o => timeRangeToSlotRange(o.startTime, o.endTime))
@@ -1545,6 +1705,73 @@
       const rainRanges = rainData && rainData.periods
         ? rainData.periods.map(p => timeRangeToSlotRange(p.startTime, p.endTime))
         : [];
+
+      // Serverseitige 30-Tage-Prognose (Wochentag+Uhrzeit-Ø, korrigiert um
+      // Wetter- und Ferienfaktor) aus dem Cache holen, falls schon geladen.
+      // Falls noch nicht geladen, bleibt forecastPoints vorerst leer -
+      // renderUI() stößt das Nachladen an und rendert danach erneut.
+      const cached = dayForecastCache[rideName];
+      const serverForecast = mapForecastToFixedAxis(cached);
+
+      // Zuverlässigkeits-Daten (Ø Ausfalldauer) aus dem Cache holen, falls
+      // schon geladen (wird beim Aufklappen einer Karte nachgeladen) - wird
+      // genutzt, um die Prognose während eines LAUFENDEN Ausfalls realistisch
+      // zu halten: statt direkt auf den normalen Prognosewert zu springen,
+      // bleibt die Linie für die Dauer der historischen Ø-Ausfalldauer auf 0,
+      // bevor sie wieder ansteigt.
+      const reliability = reliabilityCache[rideName];
+
+      const forecastPoints = new Array(FIXED_TIME_LABELS.length).fill(null);
+      if (lastKnownIndex >= 0) {
+        forecastPoints[lastKnownIndex] = lastVal; // nahtloser Übergang Ist -> Prognose
+      }
+
+      // Prüfen, ob der letzte bekannte Zustand ein LAUFENDER Ausfall ist
+      // (aktuelle Wartezeit = 0 UND dieser Slot liegt in einer erkannten
+      // Ausfall-Range, die bis zum letzten bekannten Slot reicht oder darüber
+      // hinausgeht)
+      let resumeIndex = lastKnownIndex + 1; // Slot, ab dem die normale Prognose wieder greift
+      if (lastKnownIndex >= 0 && lastVal === 0 && reliability && reliability.avgOutageDurationMinutes) {
+        const currentOutageRange = outageRanges
+          .find(r => r.startIdx <= lastKnownIndex && lastKnownIndex <= r.endIdx + 1);
+        if (currentOutageRange) {
+          // Ausfallbeginn in Minuten seit Tagesstart ermitteln, um die
+          // Ø-Ausfalldauer korrekt draufzurechnen (nicht ab "jetzt", sondern
+          // ab dem tatsächlichen Ausfallbeginn)
+          const outageStartMinutes = currentOutageRange.startIdx * 15;
+          const nowMinutes = lastKnownIndex * 15;
+          const elapsedMinutes = nowMinutes - outageStartMinutes;
+          const remainingMinutes = Math.max(0, reliability.avgOutageDurationMinutes - elapsedMinutes);
+          const remainingSlots = Math.round(remainingMinutes / 15);
+          resumeIndex = lastKnownIndex + Math.max(1, remainingSlots);
+
+          // Slots während der verbleibenden erwarteten Ausfalldauer auf 0 halten
+          for (let i = lastKnownIndex + 1; i < Math.min(resumeIndex, FIXED_TIME_LABELS.length); i++) {
+            forecastPoints[i] = 0;
+          }
+        }
+      }
+
+      // Für alle Slots NACH dem letzten bekannten Messpunkt (bzw. nach dem
+      // erwarteten Ende eines laufenden Ausfalls) die serverseitige
+      // 30-Tage-Prognose einsetzen, sofern vorhanden
+      for (let i = resumeIndex; i < FIXED_TIME_LABELS.length; i++) {
+        if (serverForecast[i] !== null) {
+          forecastPoints[i] = serverForecast[i];
+        }
+      }
+      // Falls heute noch gar keine Messung vorliegt (Park noch nicht offen),
+      // die komplette Prognose als vorausschauende Linie anzeigen
+      if (lastKnownIndex === -1) {
+        for (let i = 0; i < FIXED_TIME_LABELS.length; i++) {
+          if (serverForecast[i] !== null) forecastPoints[i] = serverForecast[i];
+        }
+      }
+
+      const forecastQueuePoints = forecastPoints.map(w => {
+        if (w === null) return null;
+        return calculateQueueMetrics(rideName, w, true).people;
+      });
 
       return {
         historyLabels: FIXED_TIME_LABELS,
@@ -1578,29 +1805,30 @@
           
           <div class="flex items-center justify-between gap-2.5">
             
-            <!-- 1. GANZ LINKS: GROSSE ZAHL -->
+            <!-- 1. GANZ LINKS: GROSSE ZAHL (oder Schloss-Symbol bei geschlossen) -->
             <div class="flex items-center gap-1 font-mono min-w-[45px] justify-center shrink-0">
-              <span class="text-2xl sm:text-3xl ${colorClass}">
-                ${isOpen ? wait : '--'}
-              </span>
-              ${isOpen ? `<i class="fa-solid ${trend.icon} ${trend.color} text-[10px] self-start mt-0.5"></i>` : ''}
+              ${isOpen
+                ? `<span class="text-2xl sm:text-3xl ${colorClass}">${wait}</span>
+                   <i class="fa-solid ${trend.icon} ${trend.color} text-[10px] self-start mt-0.5"></i>`
+                : `<i class="fa-solid fa-lock text-xl sm:text-2xl text-slate-600" title="Geschlossen"></i>`
+              }
             </div>
 
-            <!-- 2. MITTE-LINKS: NAME, THEMENBEREICH, SCHLANGENLÄNGE -->
+            <!-- 2. MITTE-LINKS: NAME + SCHLANGENINFO (Themenbereich bleibt nur
+                 intern für Gruppierung/Suche erhalten, wird hier nicht mehr angezeigt) -->
             <div class="min-w-0 flex-1 pl-0.5">
               <div class="flex items-center gap-1.5 truncate">
                 <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
                 <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
               </div>
               
-              <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 truncate">
-                <span class="truncate font-medium">${meta.area}</span>
-                ${isOpen ? `
-                  <span class="text-[9px] font-mono text-cyan-400 bg-black px-1.5 py-0.2 rounded border border-slate-800 shrink-0 font-semibold">
+              ${isOpen ? `
+                <div class="mt-0.5">
+                  <span class="text-[9px] font-mono text-cyan-400 bg-black px-1.5 py-0.2 rounded border border-slate-800 font-semibold">
                     ~${queueMetrics.meters}m | ~${queueMetrics.people}P
                   </span>
-                ` : ''}
-              </div>
+                </div>
+              ` : ''}
             </div>
 
             <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (SOWOHL AUF DESKTOP ALS AUCH MOBILE) -->
@@ -1613,6 +1841,7 @@
               <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-900'} transition" title="Favorit">
                 <i class="fa-solid fa-star text-[11px]"></i>
               </button>
+
 
               <button onclick="openThresholdModal('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-lg ${hasThresh ? 'text-amber-400 bg-amber-500/10 relative' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-900'} transition" title="Alarm einstellen">
                 <i class="fa-solid fa-bell text-[11px]"></i>
@@ -1851,7 +2080,20 @@
       const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
       const sortMode = document.getElementById('sortSelect').value;
 
-      updateLoadScore(globalRidesData);
+      // Für die Auslastungs-/Besucherzahl-Berechnung den letzten VOLLSTÄNDIGEN
+      // Snapshot nutzen (mind. 32 Attraktionen gefunden), nicht zwingend den
+      // allerletzten Messpunkt - so entsteht kein künstlicher Einbruch im
+      // Andrangs-Balken, wenn die Live-API kurzzeitig weniger Attraktionen liefert.
+      // Die reine Attraktions-Liste (globalRidesData) bleibt davon unberührt
+      // und zeigt immer den aktuellsten Stand.
+      let crowdBasisRides = globalRidesData;
+      for (let i = globalHistoryData.length - 1; i >= 0; i--) {
+        if (globalHistoryData[i].isCompleteSnapshot !== false) {
+          crowdBasisRides = globalHistoryData[i].rides || globalRidesData;
+          break;
+        }
+      }
+      updateLoadScore(crowdBasisRides);
 
       if (globalRidesData.length === 0) return;
 
@@ -2101,7 +2343,13 @@
     // blau = es hat laut gespeicherten Wetterdaten geregnet. Beide Ranges
     // werden dem Plugin als Slot-Index-Bereiche mitgegeben (chartArea-relativ
     // berechnet Chart.js selbst über scales.x).
-    function createOverlayPlugin(outageRanges, rainRanges, opts = {}) {
+    // Regen bleibt als dezenter blauer Balken am unteren Rand (Hintergrund-
+    // Faktor, der neben der Linie sichtbar sein soll). Ausfälle werden NICHT
+    // mehr als Balken gezeichnet, sondern direkt auf der Wartezeit-Linie rot
+    // eingefärbt (siehe buildOutageSegmentColorFn) - so sieht man exakt, wo im
+    // Verlauf die Attraktion ausgefallen war, statt nur eine separate Markierung
+    // am Rand zu haben.
+    function createOverlayPlugin(rainRanges, opts = {}) {
       const barHeight = opts.barHeight || 4;
       return {
         id: `overlay-${Math.random().toString(36).slice(2)}`,
@@ -2124,12 +2372,29 @@
           }
 
           if (rainRanges && rainRanges.length) {
-            drawRanges(rainRanges, 'rgba(56, 189, 248, 0.85)', barHeight * 2 + 2);
-          }
-          if (outageRanges && outageRanges.length) {
-            drawRanges(outageRanges, 'rgba(239, 68, 68, 0.9)', barHeight + 1);
+            drawRanges(rainRanges, 'rgba(56, 189, 248, 0.85)', barHeight + 1);
           }
         }
+      };
+    }
+
+    // Baut eine Chart.js segment.borderColor/backgroundColor-Callback-Funktion,
+    // die ein Linien-Segment rot färbt, wenn EINER seiner beiden Endpunkte
+    // (p0 oder p1) in einem Ausfall-Slotbereich liegt - so wird genau der
+    // Abschnitt der Linie rot, in dem die Attraktion ausgefallen war, statt
+    // die ganze Linie oder eine separate Markierung.
+    function buildOutageSegmentColorFn(outageRanges, normalColor) {
+      const outageSet = new Set();
+      (outageRanges || []).forEach(({ startIdx, endIdx }) => {
+        for (let i = startIdx; i <= endIdx; i++) outageSet.add(i);
+      });
+      if (outageSet.size === 0) return () => normalColor;
+
+      return (ctx) => {
+        const i0 = ctx.p0DataIndex;
+        const i1 = ctx.p1DataIndex;
+        if (outageSet.has(i0) || outageSet.has(i1)) return '#ef4444';
+        return normalColor;
       };
     }
 
@@ -2140,7 +2405,9 @@
       if (sparklineInstances[elementId]) sparklineInstances[elementId].destroy();
 
       const { actualPoints, forecastPoints, historyLabels, outageRanges, rainRanges } = dataObj;
-      const overlayPlugin = createOverlayPlugin(outageRanges, rainRanges, { barHeight: 2 });
+      const overlayPlugin = createOverlayPlugin(rainRanges, { barHeight: 2 });
+      const outageSegmentColor = buildOutageSegmentColorFn(outageRanges, '#f59e0b');
+      const outageSegmentBg = buildOutageSegmentColorFn(outageRanges, 'rgba(245, 158, 11, 0.25)');
 
       sparklineInstances[elementId] = new Chart(ctx, {
         type: 'line',
@@ -2156,7 +2423,11 @@
               fill: true,
               tension: 0.3,
               pointRadius: 0,
-              spanGaps: false
+              spanGaps: false,
+              segment: {
+                borderColor: (c) => outageSegmentColor(c),
+                backgroundColor: (c) => outageSegmentBg(c)
+              }
             },
             {
               label: 'Prognose',
@@ -2207,7 +2478,9 @@
       if (chartInstances[elementId]) chartInstances[elementId].destroy();
 
       const { historyLabels, actualPoints, forecastPoints, outageRanges, rainRanges } = dataObj;
-      const overlayPlugin = createOverlayPlugin(outageRanges, rainRanges, { barHeight: 4 });
+      const overlayPlugin = createOverlayPlugin(rainRanges, { barHeight: 4 });
+      const outageSegmentColor = buildOutageSegmentColorFn(outageRanges, '#f59e0b');
+      const outageSegmentBg = buildOutageSegmentColorFn(outageRanges, 'rgba(245, 158, 11, 0.15)');
 
       chartInstances[elementId] = new Chart(ctx, {
         type: 'line',
@@ -2224,7 +2497,11 @@
               tension: 0.3,
               pointRadius: 0,
               pointHoverRadius: 5,
-              spanGaps: false
+              spanGaps: false,
+              segment: {
+                borderColor: (c) => outageSegmentColor(c),
+                backgroundColor: (c) => outageSegmentBg(c)
+              }
             },
             {
               label: 'Prognose (Ø 30 Tage)',
@@ -2375,6 +2652,278 @@
 
     const WEEKDAY_NAMES_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
     const WEEKDAY_SHORT_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+    // Schätzt die Gesamt-Besucherzahl aus einem Satz von Ride-Wartezeiten,
+    // exakt dieselbe Formel wie im Live-Tab (updateLoadScore/renderParkGuestsChart):
+    // Personen in Warteschlangen (über calculateQueueMetrics je Ride) + 55%
+    // geschätzte "Freigänger"/Gastro-Besucher obendrauf.
+    function estimateGuestsFromRides(rides) {
+      let totalQueuePeople = 0;
+      rides.forEach(r => {
+        if (r.isOpen) totalQueuePeople += calculateQueueMetrics(r.name, r.waitTime, true).people;
+      });
+      return Math.round(totalQueuePeople * 1.55);
+    }
+
+    // ---------- Park-Auslastung: Kalender + Einzeltag/Durchschnitt ----------
+    let crowdStatsMode = 'day';
+    let crowdAvailableDays = [];
+    let crowdSelectedDate = null;
+    let crowdCalendarViewYear = null;
+    let crowdCalendarViewMonth = null;
+    let crowdStatsChartInstance = null;
+    let crowdStatsAlreadyLoaded = false;
+
+    async function initCrowdStats() {
+      if (crowdStatsAlreadyLoaded) return;
+      crowdStatsAlreadyLoaded = true;
+
+      try {
+        const response = await fetch(`${SERVER_URL}/api/crowd-days?park=${PHANTASIALAND_ID}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        crowdAvailableDays = data.days || [];
+      } catch (err) {
+        console.error('Fehler beim Laden der Auslastungs-Tage:', err);
+        crowdAvailableDays = [];
+      }
+
+      if (crowdAvailableDays.length > 0) {
+        const latest = crowdAvailableDays[crowdAvailableDays.length - 1];
+        const [y, m] = latest.split('-').map(Number);
+        crowdCalendarViewYear = y;
+        crowdCalendarViewMonth = m - 1;
+        crowdSelectedDate = latest;
+      } else {
+        const now = new Date();
+        crowdCalendarViewYear = now.getFullYear();
+        crowdCalendarViewMonth = now.getMonth();
+        crowdSelectedDate = null;
+      }
+
+      setCrowdStatsMode(crowdStatsMode);
+    }
+
+    function setCrowdStatsMode(mode) {
+      crowdStatsMode = mode;
+      const dayBtn = document.getElementById('crowdStatsModeBtnDay');
+      const avgBtn = document.getElementById('crowdStatsModeBtnAverage');
+      const dayContent = document.getElementById('crowdStatsDayModeContent');
+      const avgContent = document.getElementById('crowdStatsAverageModeContent');
+
+      if (mode === 'day') {
+        dayBtn.classList.add('bg-amber-500', 'text-slate-950');
+        dayBtn.classList.remove('text-slate-400');
+        avgBtn.classList.remove('bg-amber-500', 'text-slate-950');
+        avgBtn.classList.add('text-slate-400');
+        dayContent.classList.remove('hidden');
+        avgContent.classList.add('hidden');
+
+        renderCrowdCalendar();
+        if (crowdSelectedDate) {
+          loadCrowdHistoryDay(crowdSelectedDate);
+        } else {
+          showCrowdChartEmpty();
+        }
+      } else {
+        avgBtn.classList.add('bg-amber-500', 'text-slate-950');
+        avgBtn.classList.remove('text-slate-400');
+        dayBtn.classList.remove('bg-amber-500', 'text-slate-950');
+        dayBtn.classList.add('text-slate-400');
+        avgContent.classList.remove('hidden');
+        dayContent.classList.add('hidden');
+
+        loadCrowdHistoryAverage();
+      }
+    }
+
+    function shiftCrowdCalendarMonth(delta) {
+      crowdCalendarViewMonth += delta;
+      if (crowdCalendarViewMonth > 11) { crowdCalendarViewMonth = 0; crowdCalendarViewYear++; }
+      if (crowdCalendarViewMonth < 0) { crowdCalendarViewMonth = 11; crowdCalendarViewYear--; }
+      renderCrowdCalendar();
+    }
+
+    function renderCrowdCalendar() {
+      const label = document.getElementById('crowdCalendarMonthLabel');
+      label.textContent = `${MONTH_NAMES_DE[crowdCalendarViewMonth]} ${crowdCalendarViewYear}`;
+
+      const grid = document.getElementById('crowdCalendarGrid');
+      const availableSet = new Set(crowdAvailableDays);
+
+      let html = WEEKDAY_LETTERS_DE.map(d => `<div class="text-[9px] text-slate-600 font-bold py-1">${d}</div>`).join('');
+
+      const firstOfMonth = new Date(crowdCalendarViewYear, crowdCalendarViewMonth, 1);
+      let startOffset = firstOfMonth.getDay() - 1;
+      if (startOffset < 0) startOffset = 6;
+      const daysInMonth = new Date(crowdCalendarViewYear, crowdCalendarViewMonth + 1, 0).getDate();
+
+      for (let i = 0; i < startOffset; i++) html += `<div></div>`;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${crowdCalendarViewYear}-${String(crowdCalendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const hasData = availableSet.has(dateStr);
+        const isSelected = dateStr === crowdSelectedDate;
+
+        let classes = 'w-full aspect-square flex items-center justify-center rounded-lg text-[10px] font-bold transition ';
+        if (isSelected) {
+          classes += 'bg-amber-500 text-slate-950';
+        } else if (hasData) {
+          classes += 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 cursor-pointer';
+        } else {
+          classes += 'text-slate-700 cursor-default';
+        }
+
+        const clickHandler = hasData ? `onclick="pickCrowdCalendarDate('${dateStr}')"` : '';
+        html += `<div class="${classes}" ${clickHandler}>${day}</div>`;
+      }
+
+      grid.innerHTML = html;
+    }
+
+    function pickCrowdCalendarDate(dateStr) {
+      crowdSelectedDate = dateStr;
+      renderCrowdCalendar();
+      loadCrowdHistoryDay(dateStr);
+    }
+
+    async function loadCrowdHistoryDay(dateStr) {
+      document.getElementById('crowdChartTitle').textContent = `Auslastung am ${formatDateShort(dateStr)}`;
+      document.getElementById('crowdChartBadge').textContent = 'Einzeltag';
+
+      try {
+        const url = `${SERVER_URL}/api/crowd-history?park=${PHANTASIALAND_ID}&date=${dateStr}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (!data.history || data.history.length === 0) {
+          showCrowdChartEmpty();
+          return;
+        }
+
+        const rawValues = new Array(FIXED_TIME_LABELS.length).fill(null);
+        data.history.forEach(h => {
+          const slot = findNearestSlotIndex(h.time);
+          if (slot === -1) return;
+          rawValues[slot] = estimateGuestsFromRides(h.rides);
+        });
+        // Rand mit 0 auffüllen, damit der Graph bei Parköffnung/-schluss
+        // sichtbar bei 0 startet/endet statt offen zu enden
+        const values = padEdgesWithZero(rawValues);
+
+        renderCrowdStatsChart(values);
+
+      } catch (err) {
+        console.error('Fehler beim Laden der Tages-Auslastung:', err);
+        showCrowdChartEmpty();
+      }
+    }
+
+    async function loadCrowdHistoryAverage() {
+      const days = document.getElementById('crowdStatsAverageDaysSelect').value;
+      document.getElementById('crowdChartTitle').textContent = `Durchschnittliche Auslastung`;
+      document.getElementById('crowdChartBadge').textContent = `Letzte ${days} Tage`;
+
+      try {
+        const url = `${SERVER_URL}/api/crowd-history?park=${PHANTASIALAND_ID}&days=${days}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (!data.history || data.history.length === 0) {
+          showCrowdChartEmpty();
+          return;
+        }
+
+        const rawValues = new Array(FIXED_TIME_LABELS.length).fill(null);
+        data.history.forEach(h => {
+          const slot = findNearestSlotIndex(h.time);
+          if (slot === -1) return;
+          rawValues[slot] = estimateGuestsFromRides(h.rides);
+        });
+        const values = padEdgesWithZero(rawValues);
+
+        renderCrowdStatsChart(values);
+
+      } catch (err) {
+        console.error('Fehler beim Laden der durchschnittlichen Auslastung:', err);
+        showCrowdChartEmpty();
+      }
+    }
+
+    function showCrowdChartEmpty() {
+      document.getElementById('crowdChartWrap').classList.add('hidden');
+      document.getElementById('crowdChartEmpty').classList.remove('hidden');
+    }
+
+    function renderCrowdStatsChart(values) {
+      document.getElementById('crowdChartWrap').classList.remove('hidden');
+      document.getElementById('crowdChartEmpty').classList.add('hidden');
+
+      const ctx = document.getElementById('crowdStatsChart');
+      if (!ctx) return;
+      if (crowdStatsChartInstance) crowdStatsChartInstance.destroy();
+
+      crowdStatsChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: FIXED_TIME_LABELS,
+          datasets: [{
+            label: 'Geschätzte Gäste',
+            data: values,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            spanGaps: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: buildExternalTooltipConfig('crowdStatsChart', (dp) => {
+              return `~${Math.round(dp.raw).toLocaleString('de-DE')} Gäste`;
+            })
+          },
+          scales: {
+            x: {
+              min: 0,
+              max: FIXED_TIME_LABELS.length - 1,
+              grid: { display: false },
+              ticks: {
+                color: '#64748b',
+                font: { size: 9 },
+                autoSkip: false,
+                maxRotation: 0,
+                callback: function(value, index) {
+                  const label = FIXED_TIME_LABELS[index];
+                  if (!label) return '';
+                  const [h, m] = label.split(':');
+                  const hourNum = parseInt(h, 10);
+                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
+                    return `${h}:00`;
+                  }
+                  return '';
+                }
+              }
+            },
+            y: {
+              beginAtZero: true,
+              max: MAX_PARK_CAPACITY,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 5000 }
+            }
+          }
+        }
+      });
+    }
 
     async function loadWeekdayStats() {
       try {
@@ -2765,12 +3314,16 @@
           return;
         }
 
-        const values = new Array(FIXED_TIME_LABELS.length).fill(null);
+        const rawValues = new Array(FIXED_TIME_LABELS.length).fill(null);
         data.points.forEach(p => {
           const slot = findNearestSlotIndex(p.recorded_time);
           if (slot === -1) return;
-          values[slot] = p.avg_wait !== null ? Math.round(p.avg_wait * 10) / 10 : null;
+          rawValues[slot] = p.avg_wait !== null ? Math.round(p.avg_wait * 10) / 10 : null;
         });
+        // Rand-Lücken (Park zu Beginn/Ende der Achse an fast allen Tagen noch
+        // nicht offen bzw. schon geschlossen) mit 0 auffüllen, damit die Linie
+        // sichtbar bei 0 startet/endet statt offen "in der Luft" zu hängen
+        const values = padEdgesWithZero(rawValues);
 
         renderStatsRideChart(values, null);
 
@@ -2803,7 +3356,9 @@
       if (!ctx) return;
       if (statsRideChartInstance) statsRideChartInstance.destroy();
 
-      const overlayPlugin = createOverlayPlugin(outageRanges || [], rainRanges || [], { barHeight: 4 });
+      const overlayPlugin = createOverlayPlugin(rainRanges || [], { barHeight: 4 });
+      const outageSegmentColor = buildOutageSegmentColorFn(outageRanges, '#f59e0b');
+      const outageSegmentBg = buildOutageSegmentColorFn(outageRanges, 'rgba(245, 158, 11, 0.15)');
 
       statsRideChartInstance = new Chart(ctx, {
         type: 'line',
@@ -2819,7 +3374,11 @@
             tension: 0.3,
             pointRadius: 0,
             pointHoverRadius: 5,
-            spanGaps: false
+            spanGaps: false,
+            segment: {
+              borderColor: (c) => outageSegmentColor(c),
+              backgroundColor: (c) => outageSegmentBg(c)
+            }
           }]
         },
         plugins: [overlayPlugin],
