@@ -172,6 +172,9 @@
           <div class="flex items-center gap-3 min-w-0 flex-1">
             <i id="weatherIcon" class="fa-solid fa-cloud text-cyan-400 text-sm shrink-0"></i>
             <span id="weatherTempText" class="text-xs font-bold text-slate-200 shrink-0">-- °C</span>
+            <span id="openingHoursText" class="text-[10px] font-mono text-amber-400 bg-black px-1.5 py-0.5 rounded border border-slate-800 shrink-0" title="Aktuelle Park-Öffnungszeiten">
+              <i class="fa-regular fa-clock mr-0.5"></i>--:-- – --:--
+            </span>
             <span id="holidayStatusText" class="text-[10px] text-slate-400 truncate">Lade Ferien-/Feiertagsinfo...</span>
           </div>
           <i id="weatherBoxChevron" class="fa-solid fa-chevron-down text-xs text-cyan-400 transition-transform duration-200 shrink-0"></i>
@@ -582,9 +585,12 @@
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
     const MAX_PARK_CAPACITY = 25000;
-    const CHART_TIME_START_HOUR = 9;  // Park öffnet frühestens um 9 Uhr...
-    const CHART_PARK_OPEN_HOURS = 11; // ...Achse geht bis 20 Uhr, da der Park im Sommer oft länger offen hat
-    const CHART_TIME_END_HOUR = CHART_TIME_START_HOUR + CHART_PARK_OPEN_HOURS;
+    // Fallback-Achse, falls die echten Park-Öffnungszeiten noch nicht geladen
+    // sind (z.B. beim allerersten Seitenaufbau) oder der Scraper dauerhaft
+    // ausfällt UND noch kein Fallback in der DB existiert (sehr unwahrscheinlich,
+    // der Server hat selbst schon einen 09:00-19:00 Notfall-Fallback).
+    let CHART_TIME_START_HOUR = 9;
+    let CHART_TIME_END_HOUR = 20;
     const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
     let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
     
@@ -756,6 +762,30 @@
     // und "Park ist einfach noch zu / schon geschlossen" zu unterscheiden -
     // wichtig gerade an Tagen mit spontan verlängerten Öffnungszeiten.
     let globalOpeningHours = null; // { openTime, closeTime, source, closed, scrapeError }
+
+    // Prüft anhand der bekannten (gescrapten/fallback) Park-Öffnungszeiten,
+    // ob JETZT gerade innerhalb der offiziellen Öffnungszeit liegt. Manche
+    // Attraktionen werden von queue-times.com bereits vor der offiziellen
+    // Parköffnung fälschlich als "geöffnet" gemeldet (z.B. Testbetrieb) -
+    // das darf dem Nutzer nicht als reguläre Wartezeit angezeigt werden.
+    // Ohne bekannte Öffnungszeiten (globalOpeningHours noch nicht geladen)
+    // wird NICHT geblockt, um im Zweifel nichts fälschlich zu verstecken.
+    function isWithinOfficialParkHours(date = new Date()) {
+      if (!globalOpeningHours || !globalOpeningHours.openTime || !globalOpeningHours.closeTime) return true;
+      if (globalOpeningHours.closed) return false;
+      const nowStr = date.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
+      return nowStr >= globalOpeningHours.openTime && nowStr <= globalOpeningHours.closeTime;
+    }
+
+    // Erzwingt "geschlossen" für eine Ride-Live-Meldung, falls wir gerade
+    // außerhalb der offiziellen Parköffnungszeit sind - unabhängig davon,
+    // was die Rohdaten von queue-times.com für diese Attraktion melden.
+    function applyOfficialHoursOverride(ride) {
+      if (ride.isOpen && !isWithinOfficialParkHours()) {
+        return { ...ride, isOpen: false, waitTime: 0 };
+      }
+      return ride;
+    }
     let holidayCalendarViewYear = null;
     let holidayCalendarViewMonth = null;
     let openHolidayPopoverKey = null; // welcher Kalendertag gerade sein Popover zeigt (Klick-Modus)
@@ -833,8 +863,21 @@
         const response = await fetch(`${SERVER_URL}/api/opening-hours?park=${PHANTASIALAND_ID}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+        const previousOpenClose = globalOpeningHours ? `${globalOpeningHours.openTime}-${globalOpeningHours.closeTime}` : null;
         globalOpeningHours = data;
         renderOpeningHoursWarning(data);
+
+        // Zeitachse neu berechnen, sobald sich die bekannten Öffnungszeiten
+        // ändern (z.B. spontane Verlängerung) oder beim allerersten Laden.
+        // Ändert sich dadurch tatsächlich etwas UND schon Live-Daten vorhanden
+        // sind, wird die UI einmal neu gerendert, damit alle Graphen sofort
+        // die korrekte, aktuelle Öffnungszeit abbilden statt erst beim
+        // nächsten automatischen Refresh.
+        const newOpenClose = data && data.openTime ? `${data.openTime}-${data.closeTime}` : null;
+        refreshTimeAxisFromOpeningHours();
+        if (newOpenClose !== previousOpenClose && globalRidesData.length > 0) {
+          renderUI();
+        }
       } catch (err) {
         console.error('Fehler beim Laden der Öffnungszeiten:', err);
         // Bei komplettem Verbindungsfehler zum eigenen Server bleibt
@@ -848,6 +891,25 @@
     function renderOpeningHoursWarning(data) {
       const box = document.getElementById('openingHoursWarningBox');
       const textEl = document.getElementById('openingHoursWarningText');
+      const displayEl = document.getElementById('openingHoursText');
+
+      // Permanente, immer sichtbare Öffnungszeiten-Anzeige (unabhängig davon,
+      // ob gerade ein Fehler vorliegt) - zeigt zusätzlich per Farbe/Icon an,
+      // ob die Zeiten frisch gescraped sind oder nur der Fallback greift.
+      if (displayEl) {
+        if (data && data.closed) {
+          displayEl.innerHTML = `<i class="fa-solid fa-lock mr-0.5"></i>Heute geschlossen`;
+          displayEl.className = 'text-[10px] font-mono text-red-400 bg-black px-1.5 py-0.5 rounded border border-slate-800 shrink-0';
+        } else if (data && data.openTime && data.closeTime) {
+          const isFallback = data.source === 'fallback';
+          displayEl.innerHTML = `<i class="fa-regular fa-clock mr-0.5"></i>${data.openTime} – ${data.closeTime}${isFallback ? ' *' : ''}`;
+          displayEl.title = isFallback
+            ? 'Konnte nicht live abgerufen werden - Standardannahme 09:00–19:00 Uhr'
+            : 'Live von wartezeiten.app abgerufene Öffnungszeiten';
+          displayEl.className = `text-[10px] font-mono ${isFallback ? 'text-red-400' : 'text-amber-400'} bg-black px-1.5 py-0.5 rounded border border-slate-800 shrink-0`;
+        }
+      }
+
       if (!box || !textEl) return;
 
       if (data && data.scrapeError) {
@@ -1375,7 +1437,7 @@
             backgroundColor: 'rgba(245, 158, 11, 0.15)',
             borderWidth: 2,
             fill: true,
-            tension: 0.4,
+            tension: 0,
             pointRadius: 0,
             pointHoverRadius: 4,
             spanGaps: true
@@ -1455,7 +1517,11 @@
       }
 
       const latestEntry = globalHistoryData[globalHistoryData.length - 1];
-      globalRidesData = latestEntry.rides || [];
+      // Vor der offiziellen Parköffnung fälschlich als "offen" gemeldete
+      // Attraktionen werden hier zentral korrigiert, damit ALLE nachgelagerten
+      // Stellen (Card-Anzeige, Auslastungsberechnung, Trend, Schwellenwerte)
+      // automatisch die korrigierte Version sehen.
+      globalRidesData = (latestEntry.rides || []).map(applyOfficialHoursOverride);
 
       // Blinkender Punkt: grün = alles aktuell (Button zeigt "vor Xs" via
       // startLiveTimer), so weiß der Nutzer auf einen Blick, dass die Daten leben
@@ -1501,26 +1567,51 @@
       else return { icon: 'fa-minus', color: 'text-slate-500', deltaStr: '' };
     }
 
-    // Baut ein Array mit einem Slot pro 15-Minuten-Intervall zwischen
-    // CHART_TIME_START_HOUR und CHART_TIME_END_HOUR. Slots ohne Messung bleiben
-    // "null" (Chart.js zeichnet dort eine Lücke, keine Linie zu 0). So beginnt
-    // die Linie immer exakt an der korrekten Uhrzeit-Position (nicht "in der
-    // Mitte") und die X-Achse ist für alle Attraktionen identisch, unabhängig
-    // davon, wann heute die erste Messung stattfand.
+    // Baut ein Array mit einem Slot pro 15-Minuten-Intervall zwischen der
+    // AKTUELL BEKANNTEN Park-Öffnungszeit (aus globalOpeningHours, von
+    // wartezeiten.app gescraped) und der Schließzeit. Slots ohne Messung
+    // bleiben "null" (Chart.js zeichnet dort eine Lücke, keine Linie zu 0).
+    // So beginnt die Linie immer exakt an der korrekten Uhrzeit-Position und
+    // die X-Achse deckt an Tagen mit spontan verlängerten Öffnungszeiten
+    // (z.B. bis 20:30 statt 19:00) auch wirklich den ganzen Tag ab, statt an
+    // einer festen Stunde abzuschneiden. Ohne bekannte Öffnungszeiten (noch
+    // nicht geladen) greift der Fallback CHART_TIME_START_HOUR/END_HOUR (9-20 Uhr).
     function buildFixedTimeAxis() {
-      const labels = [];
-      for (let h = CHART_TIME_START_HOUR; h <= CHART_TIME_END_HOUR; h++) {
-        labels.push(`${String(h).padStart(2, '0')}:00`);
-        if (h < CHART_TIME_END_HOUR) {
-          labels.push(`${String(h).padStart(2, '0')}:15`);
-          labels.push(`${String(h).padStart(2, '0')}:30`);
-          labels.push(`${String(h).padStart(2, '0')}:45`);
+      let startMinutes = CHART_TIME_START_HOUR * 60;
+      let endMinutes = CHART_TIME_END_HOUR * 60;
+
+      if (globalOpeningHours && globalOpeningHours.openTime && globalOpeningHours.closeTime && !globalOpeningHours.closed) {
+        const [oh, om] = globalOpeningHours.openTime.split(':').map(Number);
+        const [ch, cm] = globalOpeningHours.closeTime.split(':').map(Number);
+        if (!isNaN(oh) && !isNaN(om) && !isNaN(ch) && !isNaN(cm)) {
+          // Auf den vollen 15-Minuten-Slot davor/danach runden, damit die
+          // Achse weiterhin glatt auf :00/:15/:30/:45 liegt
+          startMinutes = Math.floor((oh * 60 + om) / 15) * 15;
+          endMinutes = Math.ceil((ch * 60 + cm) / 15) * 15;
         }
+      }
+
+      const labels = [];
+      for (let m = startMinutes; m <= endMinutes; m += 15) {
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        labels.push(`${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
       }
       return labels;
     }
 
-    const FIXED_TIME_LABELS = buildFixedTimeAxis();
+    let FIXED_TIME_LABELS = buildFixedTimeAxis();
+
+    // Wird nach jedem Laden der Öffnungszeiten aufgerufen, um die Achse neu
+    // zu berechnen. CHART_TIME_START_HOUR/END_HOUR (Stunden-Grenzen für ältere
+    // Code-Stellen wie Achsenbeschriftung) werden synchron mitgezogen.
+    function refreshTimeAxisFromOpeningHours() {
+      FIXED_TIME_LABELS = buildFixedTimeAxis();
+      if (globalOpeningHours && globalOpeningHours.openTime && globalOpeningHours.closeTime && !globalOpeningHours.closed) {
+        CHART_TIME_START_HOUR = parseInt(globalOpeningHours.openTime.split(':')[0], 10);
+        CHART_TIME_END_HOUR = parseInt(globalOpeningHours.closeTime.split(':')[0], 10);
+      }
+    }
 
     // Ordnet einen "HH:MM"-Zeitstempel dem nächstgelegenen 15-Minuten-Slot
     // auf der festen Achse zu (falls die tatsächliche Messung z.B. um 10:07
@@ -2498,7 +2589,7 @@
               backgroundColor: 'rgba(245, 158, 11, 0.25)',
               borderWidth: 1.5,
               fill: true,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 0,
               spanGaps: false,
               segment: {
@@ -2514,7 +2605,7 @@
               backgroundColor: 'rgba(16, 185, 129, 0.12)',
               borderWidth: 1.5,
               fill: true,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 0,
               spanGaps: false
             }
@@ -2571,7 +2662,7 @@
               backgroundColor: 'rgba(245, 158, 11, 0.15)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 0,
               pointHoverRadius: 5,
               spanGaps: false,
@@ -2588,7 +2679,7 @@
               backgroundColor: 'rgba(16, 185, 129, 0.08)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 0,
               pointHoverRadius: 5,
               spanGaps: false
@@ -2659,7 +2750,7 @@
               backgroundColor: 'rgba(34, 211, 238, 0.15)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 0,
               pointHoverRadius: 5,
               spanGaps: false
@@ -2672,7 +2763,7 @@
               backgroundColor: 'rgba(16, 185, 129, 0.08)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 0,
               pointHoverRadius: 5,
               spanGaps: false
@@ -2953,7 +3044,7 @@
             backgroundColor: 'rgba(245, 158, 11, 0.15)',
             borderWidth: 2.5,
             fill: true,
-            tension: 0.3,
+            tension: 0,
             pointRadius: 0,
             pointHoverRadius: 5,
             spanGaps: true
@@ -3448,7 +3539,7 @@
             backgroundColor: 'rgba(245, 158, 11, 0.15)',
             borderWidth: 2.5,
             fill: true,
-            tension: 0.3,
+            tension: 0,
             pointRadius: 0,
             pointHoverRadius: 5,
             spanGaps: false,
@@ -3513,11 +3604,17 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    window.onload = function() {
+    window.onload = async function() {
       updateNotifyIcon();
-      loadPhantasialandData();
       loadContextData();
-      loadOpeningHours();
+
+      // Öffnungszeiten ZUERST laden (awaited), damit der Vor-9-Uhr-Filter
+      // (applyOfficialHoursOverride) schon beim allerersten Live-Daten-Render
+      // greift, statt erst ab dem zweiten Refresh. Schlägt das fehl, läuft
+      // loadPhantasialandData() trotzdem an (isWithinOfficialParkHours() lässt
+      // dann alles durch, statt fälschlich zu blockieren).
+      await loadOpeningHours();
+      loadPhantasialandData();
       startAutoRefresh();
 
       // Öffnungszeiten stündlich neu abrufen, synchron zum serverseitigen
