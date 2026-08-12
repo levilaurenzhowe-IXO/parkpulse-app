@@ -499,6 +499,31 @@
           </div>
         </div>
 
+        <!-- Intelligente Ähnlichkeits-Prognose: durchsucht alle historischen
+             Tage mit ähnlichem Besucheraufkommen/Wetter/Ferien-Situation und
+             sagt daraus die nächsten Stunden voraus, statt nur einen groben
+             Wochentags-Ø zu nehmen. Zeigt außerdem Risiko-Zeitfenster für
+             Ausfälle. -->
+        <div id="intelligentForecastBox" class="hidden bg-slate-950 border border-purple-500/40 rounded-xl p-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-[11px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-brain"></i> Intelligente Prognose (ähnliche Tage)
+            </h3>
+            <span id="intelligentForecastMeta" class="text-[9px] font-mono text-slate-500"></span>
+          </div>
+
+          <div id="intelligentForecastRiskBox" class="hidden bg-red-500/10 border border-red-500/30 rounded-lg p-2 flex items-start gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-red-400 text-xs mt-0.5 shrink-0"></i>
+            <p id="intelligentForecastRiskText" class="text-[11px] text-red-300 leading-relaxed"></p>
+          </div>
+
+          <div class="h-32 w-full bg-black border border-slate-800 rounded-lg p-1.5">
+            <canvas id="intelligentForecastChart"></canvas>
+          </div>
+
+          <p id="intelligentForecastNote" class="text-[9px] text-slate-600"></p>
+        </div>
+
         <!-- Der eigentliche Verlaufs-Graf -->
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
           <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
@@ -775,6 +800,17 @@
       if (globalOpeningHours.closed) return false;
       const nowStr = date.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
       return nowStr >= globalOpeningHours.openTime && nowStr <= globalOpeningHours.closeTime;
+    }
+
+    // Wandelt einen "HH:MM"-Zeitstempel (wie er in globalHistoryData/history
+    // vorkommt) in ein Date-Objekt für HEUTE um, damit isWithinOfficialParkHours()
+    // damit prüfen kann, ob dieser historische Messpunkt vom heutigen Tag
+    // innerhalb der offiziellen Öffnungszeit lag.
+    function parseSlotTimeToDateToday(timeStr) {
+      const [h, m] = (timeStr || '').split(':').map(Number);
+      const d = new Date();
+      if (!isNaN(h) && !isNaN(m)) d.setHours(h, m, 0, 0);
+      return d;
     }
 
     // Erzwingt "geschlossen" für eine Ride-Live-Meldung, falls wir gerade
@@ -1417,6 +1453,12 @@
       const guestPoints = globalHistoryData.map(h => {
         if (!h.rides) return null;
         if (h.isCompleteSnapshot === false) return null;
+        // Vor der offiziellen Parköffnung (bzw. nach Schließung) darf die
+        // Besucherzahl-Kurve nicht ansteigen, selbst wenn queue-times.com für
+        // einzelne Attraktionen fälschlich schon "offen" meldet - exakt
+        // dasselbe Problem wie bei den einzelnen Wartezeiten, siehe
+        // applyOfficialHoursOverride().
+        if (!isWithinOfficialParkHours(parseSlotTimeToDateToday(h.time))) return null;
         let qPeople = 0;
         h.rides.forEach(r => {
           if (!hidden.includes(r.name) && r.isOpen) {
@@ -1823,10 +1865,45 @@
         actualPoints[slot] = found.isOpen ? found.waitTime : 0;
       });
 
-      const queuePoints = actualPoints.map(w => {
-        if (w === null) return null;
-        return calculateQueueMetrics(rideName, w, w > 0).people;
-      });
+      // Queue-Punkte (Personen in der Schlange) berechnen. Bei einem AUSFALL
+      // (w=0, aber die Attraktion war davor offen mit Schlange) springt die
+      // Personenzahl NICHT abrupt auf 0 - realistischerweise gehen nicht alle
+      // Wartenden sofort, sondern die Schlange klingt über einige Minuten ab
+      // (manche warten noch auf eine Ansage, manche brauchen einfach Zeit zum
+      // Rausgehen). Modelliert als linearer Abfall über QUEUE_DECAY_SLOTS
+      // Zeit-Slots (15 Min je Slot) ab Ausfallbeginn, danach 0.
+      const QUEUE_DECAY_SLOTS = 2; // ~30 Minuten realistisches Abklingen
+      const queuePoints = new Array(FIXED_TIME_LABELS.length).fill(null);
+      let queueAtOutageStart = null; // Personenzahl unmittelbar vor Ausfallbeginn
+      let slotsIntoOutage = 0;
+
+      for (let i = 0; i < actualPoints.length; i++) {
+        const w = actualPoints[i];
+        if (w === null) { queuePoints[i] = null; queueAtOutageStart = null; slotsIntoOutage = 0; continue; }
+
+        if (w > 0) {
+          // Attraktion läuft normal - Ausfall-Zustand zurücksetzen
+          queuePoints[i] = calculateQueueMetrics(rideName, w, true).people;
+          queueAtOutageStart = null;
+          slotsIntoOutage = 0;
+        } else {
+          // w === 0: Ausfall (oder Parkschluss/vor Öffnung, macht hier keinen
+          // Unterschied - die Abklingkurve ist in beiden Fällen realistisch)
+          if (queueAtOutageStart === null) {
+            // Ausfallbeginn: Personenzahl vom letzten bekannten Wert davor übernehmen
+            const prevQueue = i > 0 ? queuePoints[i - 1] : null;
+            queueAtOutageStart = prevQueue !== null && prevQueue > 0 ? prevQueue : 0;
+            slotsIntoOutage = 0;
+          }
+          slotsIntoOutage++;
+          if (queueAtOutageStart > 0 && slotsIntoOutage <= QUEUE_DECAY_SLOTS) {
+            const fraction = 1 - (slotsIntoOutage / QUEUE_DECAY_SLOTS);
+            queuePoints[i] = Math.max(0, Math.round(queueAtOutageStart * fraction));
+          } else {
+            queuePoints[i] = 0;
+          }
+        }
+      }
 
       // Letzten bekannten Slot ermitteln, um nahtlos an die Prognose überzugehen
       const knownIndices = [];
@@ -2558,10 +2635,15 @@
       });
       if (outageSet.size === 0) return () => normalColor;
 
+      // WICHTIG: Ein Segment wird nur rot, wenn BEIDE Endpunkte (p0 und p1)
+      // im Ausfallbereich liegen - nicht schon, wenn nur einer der beiden es
+      // ist. Sonst würde auch das Segment vom letzten Ausfall-Punkt zum ersten
+      // wieder-geöffneten Punkt (der Wiederanstieg der Linie) fälschlich rot
+      // gefärbt, obwohl dieser Anstieg selbst kein Ausfall mehr ist.
       return (ctx) => {
         const i0 = ctx.p0DataIndex;
         const i1 = ctx.p1DataIndex;
-        if (outageSet.has(i0) || outageSet.has(i1)) return '#ef4444';
+        if (outageSet.has(i0) && outageSet.has(i1)) return '#ef4444';
         return normalColor;
       };
     }
@@ -3294,6 +3376,7 @@
 
         loadRideHistoryAverage();
         loadSmartForecast();
+        loadIntelligentForecast();
       }
     }
 
@@ -3355,6 +3438,129 @@
         console.error('Fehler beim Laden der smarten Prognose:', err);
         box.classList.add('hidden');
       }
+    }
+
+    let intelligentForecastChartInstance = null;
+
+    // ---------- Intelligente Ähnlichkeits-Prognose laden & anzeigen ----------
+    // Ruft den neuen /api/smart-day-forecast Endpoint auf, der aus ALLEN
+    // historisch ähnlichen Tagen (nach Wetter/Ferien/Besucheraufkommen) eine
+    // Prognose für die nächsten paar Stunden berechnet, plus Risiko-Zeitfenster
+    // für gehäufte Ausfälle. Die Berechnung darf serverseitig dauern (bewusst
+    // gecacht dort), das Frontend zeigt bis dahin einen Ladezustand.
+    async function loadIntelligentForecast() {
+      if (!statsSelectedRide) return;
+
+      const box = document.getElementById('intelligentForecastBox');
+      const metaEl = document.getElementById('intelligentForecastMeta');
+      const noteEl = document.getElementById('intelligentForecastNote');
+      const riskBox = document.getElementById('intelligentForecastRiskBox');
+      const riskText = document.getElementById('intelligentForecastRiskText');
+
+      box.classList.remove('hidden');
+      metaEl.textContent = 'Analysiere ähnliche Tage...';
+      noteEl.textContent = '';
+      riskBox.classList.add('hidden');
+
+      try {
+        const url = `${SERVER_URL}/api/smart-day-forecast?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(statsSelectedRide)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (!data.slots || data.slots.length === 0) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        // Meta-Info: wie viele ähnliche Tage flossen ein, welche Methode
+        if (data.method === 'fallback') {
+          metaEl.textContent = 'Wochentags-Ø (keine ähnlichen Tage gefunden)';
+          metaEl.className = 'text-[9px] font-mono text-amber-400';
+        } else {
+          metaEl.textContent = `${data.similarDaysCount} ähnliche Tage (Ø Ähnlichkeit ${Math.round(data.avgSimilarity * 100)}%)`;
+          metaEl.className = 'text-[9px] font-mono text-purple-400';
+        }
+
+        // Risiko-Zeitfenster: prüfen, ob JETZT (bzw. die kommenden Stunden)
+        // in einem Fenster mit gehäuften historischen Ausfällen liegen -
+        // das ist die konkrete "würde ich mich jetzt anstellen"-Warnung
+        if (data.riskWindows && data.riskWindows.length > 0) {
+          const nowStr = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
+          const relevantWindows = data.riskWindows.filter(w => {
+            // Fenster ist relevant, wenn "jetzt" davor oder darin liegt (nicht
+            // wenn es schon lange vorbei ist)
+            return w.endTime >= nowStr;
+          });
+
+          if (relevantWindows.length > 0) {
+            const currentlyIn = relevantWindows.find(w => nowStr >= w.startTime && nowStr <= w.endTime);
+            const windowList = relevantWindows
+              .map(w => `${w.startTime}–${w.endTime} Uhr${w.frequencyPercent !== null ? ` (${w.frequencyPercent}% der Vergleichstage)` : ''}`)
+              .join(', ');
+
+            riskBox.classList.remove('hidden');
+            riskText.innerHTML = currentlyIn
+              ? `<b>Achtung:</b> Genau jetzt liegt historisch eine der häufigsten Ausfallzeiten (${currentlyIn.startTime}–${currentlyIn.endTime} Uhr). Bei ähnlichen Tagen gab es hier öfter Probleme.`
+              : `Historisch häufige Ausfallzeiten heute: ${windowList}. Falls du dich in diesem Fenster anstellst, gab es bei ähnlichen Tagen öfter Probleme.`;
+          }
+        }
+
+        // Chart: Prognose-Linie für die nächsten Stunden
+        renderIntelligentForecastChart(data.slots);
+
+        noteEl.textContent = data.method === 'fallback'
+          ? 'Noch nicht genug ähnliche historische Tage gefunden - basiert auf dem allgemeinen Wochentags-Durchschnitt.'
+          : 'Prognose berücksichtigt nur Tage mit ähnlichem Wetter, Ferienstatus und Besucheraufkommen wie heute. Ausfälle fließen nicht in den Durchschnitt ein.';
+
+      } catch (err) {
+        console.error('Fehler beim Laden der intelligenten Prognose:', err);
+        metaEl.textContent = 'Fehler beim Laden.';
+      }
+    }
+
+    function renderIntelligentForecastChart(slots) {
+      const ctx = document.getElementById('intelligentForecastChart');
+      if (!ctx) return;
+      if (intelligentForecastChartInstance) intelligentForecastChartInstance.destroy();
+
+      const labels = slots.map(s => s.time);
+      const values = slots.map(s => s.forecast);
+
+      intelligentForecastChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Prognose',
+            data: values,
+            borderColor: '#a855f7',
+            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0,
+            pointRadius: 2,
+            pointBackgroundColor: '#a855f7',
+            pointHoverRadius: 5,
+            spanGaps: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: buildExternalTooltipConfig('intelligentForecastChart', (dp) => {
+              return `Prognose: ${dp.raw} Min`;
+            })
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
+          }
+        }
+      });
     }
 
     // ---------- Kalender ----------
