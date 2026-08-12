@@ -215,6 +215,13 @@
         </div>
       </div>
 
+      <!-- Warnung, falls der automatische Öffnungszeiten-Abruf von
+           wartezeiten.app gerade fehlschlägt (nur sichtbar bei echtem Problem) -->
+      <div id="openingHoursWarningBox" class="hidden bg-amber-500/10 border border-amber-500/40 rounded-xl px-3 py-2 flex items-start gap-2">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400 text-xs mt-0.5 shrink-0"></i>
+        <p id="openingHoursWarningText" class="text-[11px] text-amber-200 leading-relaxed"></p>
+      </div>
+
       <!-- Tages-Zusammenfassung: aggregiert Wetter, Ferien und Trend park-weit
            zu einer verständlichen Ein-Satz-Einschätzung, statt dass Nutzer
            jede Attraktion einzeln interpretieren müssen -->
@@ -742,6 +749,13 @@
 
     // ---------- WETTER & FERIEN/FEIERTAGE ----------
     let globalContextData = null; // Antwort von /api/context (Wetter, Ferien, Kalender)
+
+    // Aktuell bekannte Park-Öffnungszeiten für heute (von /api/opening-hours),
+    // inkl. Info ob der letzte automatische Abruf fehlgeschlagen ist. Wird
+    // genutzt, um in den Graphen zuverlässig zwischen "Attraktion ausgefallen"
+    // und "Park ist einfach noch zu / schon geschlossen" zu unterscheiden -
+    // wichtig gerade an Tagen mit spontan verlängerten Öffnungszeiten.
+    let globalOpeningHours = null; // { openTime, closeTime, source, closed, scrapeError }
     let holidayCalendarViewYear = null;
     let holidayCalendarViewMonth = null;
     let openHolidayPopoverKey = null; // welcher Kalendertag gerade sein Popover zeigt (Klick-Modus)
@@ -804,6 +818,43 @@
       } catch (err) {
         console.error('Fehler beim Laden von Wetter/Ferien:', err);
         document.getElementById('holidayStatusText').textContent = 'Fehler beim Laden.';
+      }
+    }
+
+    // ---------- Park-Öffnungszeiten laden (von wartezeiten.app gescraped,
+    // serverseitig mit dreistufigem Fallback abgesichert) ----------
+    // Wird beim Start UND stündlich neu geladen (synchron zum serverseitigen
+    // Scrape-Rhythmus). Zeigt bei scrapeError!=null eine sichtbare, aber
+    // dezente Warnung im Live-Tab, damit klar ist, dass der automatische
+    // Öffnungszeiten-Abruf gerade klemmt (auch wenn dank Fallback weiterhin
+    // plausible Zeiten angezeigt werden).
+    async function loadOpeningHours() {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/opening-hours?park=${PHANTASIALAND_ID}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        globalOpeningHours = data;
+        renderOpeningHoursWarning(data);
+      } catch (err) {
+        console.error('Fehler beim Laden der Öffnungszeiten:', err);
+        // Bei komplettem Verbindungsfehler zum eigenen Server bleibt
+        // globalOpeningHours auf dem letzten bekannten Stand (oder null beim
+        // allerersten Laden) - die Warnung wird trotzdem angezeigt, damit der
+        // Nutzer weiß, dass gerade keine frischen Daten reinkommen
+        renderOpeningHoursWarning({ scrapeError: 'Verbindung zum Server fehlgeschlagen' });
+      }
+    }
+
+    function renderOpeningHoursWarning(data) {
+      const box = document.getElementById('openingHoursWarningBox');
+      const textEl = document.getElementById('openingHoursWarningText');
+      if (!box || !textEl) return;
+
+      if (data && data.scrapeError) {
+        textEl.textContent = `Automatischer Abruf der Öffnungszeiten klemmt gerade (${data.scrapeError}). Es werden die zuletzt bekannten bzw. angenommenen Zeiten verwendet (aktuell: ${globalOpeningHours && globalOpeningHours.openTime ? `${globalOpeningHours.openTime}–${globalOpeningHours.closeTime} Uhr` : '09:00–19:00 Uhr, Standardannahme'}).`;
+        box.classList.remove('hidden');
+      } else {
+        box.classList.add('hidden');
       }
     }
 
@@ -1730,9 +1781,16 @@
       // Prüfen, ob der letzte bekannte Zustand ein LAUFENDER Ausfall ist
       // (aktuelle Wartezeit = 0 UND dieser Slot liegt in einer erkannten
       // Ausfall-Range, die bis zum letzten bekannten Slot reicht oder darüber
-      // hinausgeht)
+      // hinausgeht). WICHTIG: nur relevant, wenn der Park laut bekannten
+      // Öffnungszeiten JETZT noch offen sein sollte - liegt der letzte
+      // bekannte Slot bereits auf/nach der Park-Schließzeit, ist "wait=0"
+      // schlicht normales Tagesende und keine Ausfall-Prognose nötig.
       let resumeIndex = lastKnownIndex + 1; // Slot, ab dem die normale Prognose wieder greift
-      if (lastKnownIndex >= 0 && lastVal === 0 && reliability && reliability.avgOutageDurationMinutes) {
+      const parkIsPastCloseTime = globalOpeningHours && globalOpeningHours.closeTime && lastKnownIndex >= 0
+        ? (FIXED_TIME_LABELS[lastKnownIndex] >= globalOpeningHours.closeTime)
+        : false;
+
+      if (lastKnownIndex >= 0 && lastVal === 0 && reliability && reliability.avgOutageDurationMinutes && !parkIsPastCloseTime) {
         const currentOutageRange = outageRanges
           .find(r => r.startIdx <= lastKnownIndex && lastKnownIndex <= r.endIdx + 1);
         if (currentOutageRange) {
@@ -1753,19 +1811,37 @@
         }
       }
 
+      // Prognose-Slots, die auf/nach der bekannten Park-Schließzeit liegen,
+      // werden NICHT gefüllt - der Park hat dann zu, eine Wartezeit-Prognose
+      // ergibt dort keinen Sinn und die Linie soll sichtbar enden statt eine
+      // Phantom-Vorhersage für die Zeit nach Ladenschluss zu zeigen.
+      const closeTimeSlotIdx = globalOpeningHours && globalOpeningHours.closeTime
+        ? FIXED_TIME_LABELS.findIndex(t => t >= globalOpeningHours.closeTime)
+        : -1;
+      const forecastCutoffIdx = closeTimeSlotIdx === -1 ? FIXED_TIME_LABELS.length : closeTimeSlotIdx;
+
       // Für alle Slots NACH dem letzten bekannten Messpunkt (bzw. nach dem
       // erwarteten Ende eines laufenden Ausfalls) die serverseitige
-      // 30-Tage-Prognose einsetzen, sofern vorhanden
-      for (let i = resumeIndex; i < FIXED_TIME_LABELS.length; i++) {
+      // 30-Tage-Prognose einsetzen, sofern vorhanden - aber nur bis zur
+      // bekannten Park-Schließzeit
+      for (let i = resumeIndex; i < Math.min(forecastCutoffIdx, FIXED_TIME_LABELS.length); i++) {
         if (serverForecast[i] !== null) {
           forecastPoints[i] = serverForecast[i];
         }
       }
+      // Direkt am Schließzeit-Slot die Prognose sichtbar auf 0 ziehen, damit
+      // die Linie dort erkennbar zu Ende geht statt offen zu wirken
+      if (closeTimeSlotIdx !== -1 && closeTimeSlotIdx < FIXED_TIME_LABELS.length) {
+        forecastPoints[closeTimeSlotIdx] = 0;
+      }
       // Falls heute noch gar keine Messung vorliegt (Park noch nicht offen),
       // die komplette Prognose als vorausschauende Linie anzeigen
       if (lastKnownIndex === -1) {
-        for (let i = 0; i < FIXED_TIME_LABELS.length; i++) {
+        for (let i = 0; i < Math.min(forecastCutoffIdx, FIXED_TIME_LABELS.length); i++) {
           if (serverForecast[i] !== null) forecastPoints[i] = serverForecast[i];
+        }
+        if (closeTimeSlotIdx !== -1 && closeTimeSlotIdx < FIXED_TIME_LABELS.length) {
+          forecastPoints[closeTimeSlotIdx] = 0;
         }
       }
 
@@ -3441,7 +3517,12 @@
       updateNotifyIcon();
       loadPhantasialandData();
       loadContextData();
+      loadOpeningHours();
       startAutoRefresh();
+
+      // Öffnungszeiten stündlich neu abrufen, synchron zum serverseitigen
+      // Scrape-Rhythmus (siehe cron.schedule('0 * * * *', ...) im Server)
+      setInterval(loadOpeningHours, 60 * 60 * 1000);
     };
   </script>
 </body>
