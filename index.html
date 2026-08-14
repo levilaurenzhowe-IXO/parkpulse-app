@@ -103,6 +103,13 @@
 </head>
 <body class="bg-black text-slate-100 min-h-screen p-2 sm:p-5 font-sans selection:bg-amber-500/30">
 
+  <!-- Pull-to-Refresh Indikator: erscheint oben, wenn der Nutzer auf einem
+       Touch-Gerät ganz oben in der Seite nach unten zieht. Rein CSS/JS
+       basiert, keine externe Library nötig. -->
+  <div id="pullToRefreshIndicator" class="fixed top-0 left-1/2 -translate-x-1/2 z-[60] flex items-center justify-center w-10 h-10 rounded-full bg-slate-950 border border-amber-500/40 shadow-lg transition-opacity duration-150" style="opacity: 0; pointer-events: none; margin-top: -50px;">
+    <i class="fa-solid fa-rotate-right text-amber-400 text-sm" id="pullToRefreshIcon"></i>
+  </div>
+
   <div class="max-w-4xl mx-auto space-y-3">
 
     <!-- Header -->
@@ -332,129 +339,70 @@
     <!-- ================= STATISTIK-TAB ================= -->
     <div id="tabContentStats" class="hidden space-y-3">
 
-      <!-- Smarter Zusatz-Graf: Wochentags-Vergleich -->
-      <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-            <i class="fa-solid fa-calendar-week"></i> Bester Wochentag zum Besuchen
+      <!-- Sub-Navigation: trennt "Park-Übersicht" (Wochentag + Auslastung)
+           von "Attraktionen" (Suche + Detail-Prognosen), damit nicht alles
+           auf einer langen, unübersichtlichen Seite gestapelt ist. -->
+      <div class="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
+        <button onclick="switchStatsSubTab('park')" id="statsSubTabBtnPark" class="flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-chart-simple"></i> Park-Übersicht
+        </button>
+        <button onclick="switchStatsSubTab('rides')" id="statsSubTabBtnRides" class="flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-dragon"></i> Attraktionen
+        </button>
+      </div>
+
+      <!-- ========== SUB-TAB: PARK-ÜBERSICHT ========== -->
+      <div id="statsSubTabPark" class="space-y-3">
+
+        <!-- Smarter Zusatz-Graf: Wochentags-Vergleich -->
+        <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-calendar-week"></i> Bester Wochentag zum Besuchen
+            </h2>
+          </div>
+          <p id="weekdayBestBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
+          <div class="h-44 w-full bg-black border border-slate-800 rounded-lg p-2">
+            <canvas id="weekdayChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Park-Auslastung: historischer Verlauf, analog zur Ride-Statistik -->
+        <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
+          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+            <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
           </h2>
-        </div>
-        <p id="weekdayBestBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
-        <div class="h-44 w-full bg-black border border-slate-800 rounded-lg p-2">
-          <canvas id="weekdayChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Park-Auslastung: historischer Verlauf, analog zur Ride-Statistik -->
-      <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-500/5">
-        <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-          <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
-        </h2>
-
-        <!-- Modus-Umschalter: Einzeltag vs. Durchschnitt -->
-        <div class="flex items-center gap-1 bg-black border border-slate-800 rounded-lg p-1 mb-3">
-          <button onclick="setCrowdStatsMode('day')" id="crowdStatsModeBtnDay" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
-            <i class="fa-solid fa-calendar-day mr-1"></i> Einzelner Tag
-          </button>
-          <button onclick="setCrowdStatsMode('average')" id="crowdStatsModeBtnAverage" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
-            <i class="fa-solid fa-chart-line mr-1"></i> Durchschnitt
-          </button>
-        </div>
-
-        <!-- Einzeltag-Modus: Kalender -->
-        <div id="crowdStatsDayModeContent" class="hidden space-y-2 mb-3">
-          <div class="flex items-center justify-between">
-            <button onclick="shiftCrowdCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
-              <i class="fa-solid fa-chevron-left text-[10px]"></i>
-            </button>
-            <span id="crowdCalendarMonthLabel" class="text-xs font-bold text-slate-200"></span>
-            <button onclick="shiftCrowdCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
-              <i class="fa-solid fa-chevron-right text-[10px]"></i>
-            </button>
-          </div>
-          <div id="crowdCalendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
-          <p class="text-[9px] text-slate-600 text-center">Nur markierte Tage haben vollständig aufgezeichnete Auslastungsdaten.</p>
-        </div>
-
-        <!-- Durchschnitt-Modus: Zeitraum-Auswahl -->
-        <div id="crowdStatsAverageModeContent" class="hidden mb-3">
-          <div class="flex items-center gap-2">
-            <span class="text-[11px] font-bold text-slate-400 shrink-0">Zeitraum:</span>
-            <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="flex-1 bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-              <option value="7">Letzte 7 Tage</option>
-              <option value="14">Letzte 14 Tage</option>
-              <option value="30" selected>Letzte 30 Tage</option>
-              <option value="90">Letzte 90 Tage</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between mb-1">
-          <h3 id="crowdChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
-          <span id="crowdChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
-        </div>
-        <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
-          <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
-          <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
-        </div>
-        <div id="crowdChartWrap" class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
-          <canvas id="crowdStatsChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Attraktions-Auswahl -->
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-        <div class="relative w-full">
-          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-          <input type="text" id="statsRideSearch" oninput="renderStatsRideList()" placeholder="Attraktion auswählen..."
-            class="w-full bg-black border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
-        </div>
-        <div id="statsRideList" class="mt-2 max-h-40 overflow-y-auto space-y-1"></div>
-      </div>
-
-      <!-- Nichts ausgewählt -->
-      <div id="statsNoRideSelected" class="py-10 text-center text-slate-500 bg-slate-950 border border-slate-800 rounded-xl">
-        <i class="fa-solid fa-hand-pointer text-2xl text-amber-400 mb-2"></i>
-        <p class="text-xs font-bold">Wähle oben eine Attraktion aus</p>
-        <p class="text-[11px] text-slate-600 mt-1">Um Verlaufsdaten und Empfehlungen zu sehen.</p>
-      </div>
-
-      <!-- Statistik-Inhalt für ausgewählte Attraktion -->
-      <div id="statsRideDetail" class="hidden space-y-3">
-
-        <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3">
-          <h2 id="statsSelectedRideName" class="text-sm font-black text-amber-400 mb-2"></h2>
 
           <!-- Modus-Umschalter: Einzeltag vs. Durchschnitt -->
           <div class="flex items-center gap-1 bg-black border border-slate-800 rounded-lg p-1 mb-3">
-            <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+            <button onclick="setCrowdStatsMode('day')" id="crowdStatsModeBtnDay" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
               <i class="fa-solid fa-calendar-day mr-1"></i> Einzelner Tag
             </button>
-            <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+            <button onclick="setCrowdStatsMode('average')" id="crowdStatsModeBtnAverage" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
               <i class="fa-solid fa-chart-line mr-1"></i> Durchschnitt
             </button>
           </div>
 
           <!-- Einzeltag-Modus: Kalender -->
-          <div id="statsDayModeContent" class="hidden space-y-2">
+          <div id="crowdStatsDayModeContent" class="hidden space-y-2 mb-3">
             <div class="flex items-center justify-between">
-              <button onclick="shiftCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+              <button onclick="shiftCrowdCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
                 <i class="fa-solid fa-chevron-left text-[10px]"></i>
               </button>
-              <span id="calendarMonthLabel" class="text-xs font-bold text-slate-200"></span>
-              <button onclick="shiftCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+              <span id="crowdCalendarMonthLabel" class="text-xs font-bold text-slate-200"></span>
+              <button onclick="shiftCrowdCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
                 <i class="fa-solid fa-chevron-right text-[10px]"></i>
               </button>
             </div>
-            <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
-            <p class="text-[9px] text-slate-600 text-center">Nur markierte Tage haben aufgezeichnete Daten.</p>
+            <div id="crowdCalendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
+            <p class="text-[9px] text-slate-600 text-center">Nur markierte Tage haben vollständig aufgezeichnete Auslastungsdaten.</p>
           </div>
 
           <!-- Durchschnitt-Modus: Zeitraum-Auswahl -->
-          <div id="statsAverageModeContent" class="hidden">
+          <div id="crowdStatsAverageModeContent" class="hidden mb-3">
             <div class="flex items-center gap-2">
               <span class="text-[11px] font-bold text-slate-400 shrink-0">Zeitraum:</span>
-              <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="flex-1 bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+              <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="flex-1 bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
                 <option value="7">Letzte 7 Tage</option>
                 <option value="14">Letzte 14 Tage</option>
                 <option value="30" selected>Letzte 30 Tage</option>
@@ -462,92 +410,192 @@
               </select>
             </div>
           </div>
-        </div>
 
-        <!-- Empfehlung (nur im Durchschnitt-Modus) -->
-        <div id="statsRecommendationBox" class="hidden bg-gradient-to-r from-amber-500/10 to-amber-400/5 border border-amber-500/40 rounded-xl p-3 flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-            <i class="fa-solid fa-lightbulb text-amber-400"></i>
+          <div class="flex items-center justify-between mb-1">
+            <h3 id="crowdChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
+            <span id="crowdChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
           </div>
-          <div class="min-w-0">
-            <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Empfehlung</p>
-            <p id="statsRecommendationText" class="text-xs font-bold text-slate-100"></p>
-          </div>
-        </div>
-
-        <!-- Smarte Jetzt-Prognose: kombiniert Wochentag + Wetter + Ferien + Live-Trend -->
-        <div id="smartForecastBox" class="hidden bg-slate-950 border border-cyan-500/40 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-[11px] font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> Smarte Prognose für jetzt
-            </h3>
-            <span id="smartForecastConfidence" class="text-[9px] font-mono px-2 py-0.5 rounded border"></span>
-          </div>
-          <div class="flex items-center gap-3 mb-2">
-            <span id="smartForecastValue" class="text-3xl font-black text-cyan-400 font-mono"></span>
-            <span class="text-xs text-slate-400">Min. erwartete Wartezeit</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-[10px]">
-            <div class="bg-black border border-slate-800 rounded-lg p-2">
-              <span class="text-slate-500 block text-[9px] uppercase">Wetter-Einfluss</span>
-              <strong id="smartForecastWeather" class="text-slate-200"></strong>
-            </div>
-            <div class="bg-black border border-slate-800 rounded-lg p-2">
-              <span class="text-slate-500 block text-[9px] uppercase">Ferien-Einfluss</span>
-              <strong id="smartForecastHoliday" class="text-slate-200"></strong>
-            </div>
-          </div>
-        </div>
-
-        <!-- Intelligente Ähnlichkeits-Prognose: durchsucht alle historischen
-             Tage mit ähnlichem Besucheraufkommen/Wetter/Ferien-Situation und
-             sagt daraus die nächsten Stunden voraus, statt nur einen groben
-             Wochentags-Ø zu nehmen. Zeigt außerdem Risiko-Zeitfenster für
-             Ausfälle. -->
-        <div id="intelligentForecastBox" class="hidden bg-slate-950 border border-purple-500/40 rounded-xl p-3 space-y-3">
-          <div class="flex items-center justify-between">
-            <h3 class="text-[11px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-brain"></i> Intelligente Prognose (ähnliche Tage)
-            </h3>
-            <span id="intelligentForecastMeta" class="text-[9px] font-mono text-slate-500"></span>
-          </div>
-
-          <div id="intelligentForecastRiskBox" class="hidden bg-red-500/10 border border-red-500/30 rounded-lg p-2 flex items-start gap-2">
-            <i class="fa-solid fa-triangle-exclamation text-red-400 text-xs mt-0.5 shrink-0"></i>
-            <p id="intelligentForecastRiskText" class="text-[11px] text-red-300 leading-relaxed"></p>
-          </div>
-
-          <div class="h-32 w-full bg-black border border-slate-800 rounded-lg p-1.5">
-            <canvas id="intelligentForecastChart"></canvas>
-          </div>
-
-          <p id="intelligentForecastNote" class="text-[9px] text-slate-600"></p>
-        </div>
-
-        <!-- Der eigentliche Verlaufs-Graf -->
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
-            <h3 id="statsChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
-            <span id="statsChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
-          </div>
-          <div id="statsChartOverlayLegend" class="hidden flex items-center gap-3 mb-1.5 text-[9px] text-slate-400">
-            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
-            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-sky-400"></span> Regen</span>
-          </div>
-          <div id="statsChartEmpty" class="hidden py-10 text-center text-slate-500">
+          <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
             <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
             <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
           </div>
-          <div id="statsChartWrap" class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
-            <canvas id="statsRideChart"></canvas>
+          <div id="crowdChartWrap" class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
+            <canvas id="crowdStatsChart"></canvas>
           </div>
         </div>
 
       </div>
+      <!-- ========== ENDE SUB-TAB: PARK-ÜBERSICHT ========== -->
+
+      <!-- ========== SUB-TAB: ATTRAKTIONEN ========== -->
+      <div id="statsSubTabRides" class="hidden space-y-3">
+
+        <!-- Attraktions-Auswahl -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+          <div class="relative w-full">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+            <input type="text" id="statsRideSearch" oninput="renderStatsRideList()" placeholder="Attraktion auswählen..."
+              class="w-full bg-black border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+          </div>
+          <div id="statsRideList" class="mt-2 max-h-40 overflow-y-auto space-y-1"></div>
+        </div>
+
+        <!-- Nichts ausgewählt -->
+        <div id="statsNoRideSelected" class="py-10 text-center text-slate-500 bg-slate-950 border border-slate-800 rounded-xl">
+          <i class="fa-solid fa-hand-pointer text-2xl text-amber-400 mb-2"></i>
+          <p class="text-xs font-bold">Wähle oben eine Attraktion aus</p>
+          <p class="text-[11px] text-slate-600 mt-1">Um Verlaufsdaten und Prognosen zu sehen.</p>
+        </div>
+
+        <!-- Statistik-Inhalt für ausgewählte Attraktion -->
+        <div id="statsRideDetail" class="hidden space-y-3">
+
+          <!-- Kopfbereich: Name + Modus-Umschalter + Kalender/Zeitraum. Das
+               ist der einzige Bereich, der IMMER offen ist - alles andere
+               (Prognosen, Empfehlung) ist in aufklappbare Sektionen verlegt,
+               damit der Fokus klar auf dem Graphen liegt. -->
+          <div class="bg-slate-950 border border-amber-500/40 rounded-xl p-3">
+            <h2 id="statsSelectedRideName" class="text-sm font-black text-amber-400 mb-2"></h2>
+
+            <div class="flex items-center gap-1 bg-black border border-slate-800 rounded-lg p-1 mb-3">
+              <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+                <i class="fa-solid fa-calendar-day mr-1"></i> Einzelner Tag
+              </button>
+              <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-md text-[11px] font-bold transition">
+                <i class="fa-solid fa-chart-line mr-1"></i> Durchschnitt
+              </button>
+            </div>
+
+            <div id="statsDayModeContent" class="hidden space-y-2">
+              <div class="flex items-center justify-between">
+                <button onclick="shiftCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+                  <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                </button>
+                <span id="calendarMonthLabel" class="text-xs font-bold text-slate-200"></span>
+                <button onclick="shiftCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-black border border-slate-800 text-slate-300 hover:border-amber-500/50 transition">
+                  <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+              </div>
+              <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
+              <p class="text-[9px] text-slate-600 text-center">Nur markierte Tage haben aufgezeichnete Daten.</p>
+            </div>
+
+            <div id="statsAverageModeContent" class="hidden">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold text-slate-400 shrink-0">Zeitraum:</span>
+                <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="flex-1 bg-black border border-slate-800 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+                  <option value="7">Letzte 7 Tage</option>
+                  <option value="14">Letzte 14 Tage</option>
+                  <option value="30" selected>Letzte 30 Tage</option>
+                  <option value="90">Letzte 90 Tage</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Der eigentliche Verlaufs-Graf - jetzt GANZ OBEN direkt nach dem
+               Kopfbereich, statt ganz unten unter 4 Prognose-Boxen versteckt -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+            <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+              <h3 id="statsChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
+              <span id="statsChartBadge" class="text-[10px] font-mono text-slate-400 bg-black px-2 py-0.5 rounded border border-slate-800"></span>
+            </div>
+            <div id="statsChartOverlayLegend" class="hidden flex items-center gap-3 mb-1.5 text-[9px] text-slate-400">
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-sky-400"></span> Regen</span>
+            </div>
+            <div id="statsChartEmpty" class="hidden py-10 text-center text-slate-500">
+              <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
+              <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
+            </div>
+            <div id="statsChartWrap" class="h-56 w-full bg-black border border-slate-800 rounded-lg p-2">
+              <canvas id="statsRideChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Empfehlung: bleibt immer sichtbar wenn vorhanden, da kurz & prägnant -->
+          <div id="statsRecommendationBox" class="hidden bg-gradient-to-r from-amber-500/10 to-amber-400/5 border border-amber-500/40 rounded-xl p-3 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+              <i class="fa-solid fa-lightbulb text-amber-400"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Empfehlung</p>
+              <p id="statsRecommendationText" class="text-xs font-bold text-slate-100"></p>
+            </div>
+          </div>
+
+          <!-- Prognosen: als aufklappbare Sektion zusammengefasst, damit sie
+               nicht drei separate große Boxen bilden, die den Blick vom
+               eigentlichen Verlaufs-Graphen ablenken. Standardmäßig
+               eingeklappt, außer es gibt eine akute Risiko-Warnung. -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+            <button onclick="toggleForecastSection()" class="w-full px-3 py-2.5 flex items-center justify-between hover:bg-slate-900/80 transition">
+              <span class="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-brain"></i> Prognosen & Risiko-Zeiten
+                <span id="forecastSectionRiskBadge" class="hidden bg-red-500/20 text-red-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-red-500/40">⚠ Risiko jetzt</span>
+              </span>
+              <i id="forecastSectionChevron" class="fa-solid fa-chevron-down text-xs text-purple-400 transition-transform duration-200"></i>
+            </button>
+
+            <div id="forecastSectionContent" class="hidden p-3 pt-0 space-y-3 border-t border-slate-800/80">
+
+              <!-- Intelligente Ähnlichkeits-Prognose (Hauptprognose) -->
+              <div id="intelligentForecastBox" class="hidden bg-black border border-purple-500/40 rounded-xl p-3 space-y-3 mt-3">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-[11px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-brain"></i> Ähnliche Tage
+                  </h3>
+                  <span id="intelligentForecastMeta" class="text-[9px] font-mono text-slate-500"></span>
+                </div>
+
+                <div id="intelligentForecastRiskBox" class="hidden bg-red-500/10 border border-red-500/30 rounded-lg p-2 flex items-start gap-2">
+                  <i class="fa-solid fa-triangle-exclamation text-red-400 text-xs mt-0.5 shrink-0"></i>
+                  <p id="intelligentForecastRiskText" class="text-[11px] text-red-300 leading-relaxed"></p>
+                </div>
+
+                <div class="h-28 w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5">
+                  <canvas id="intelligentForecastChart"></canvas>
+                </div>
+
+                <p id="intelligentForecastNote" class="text-[9px] text-slate-600"></p>
+              </div>
+
+              <!-- Smarte Jetzt-Prognose (Wetter/Ferien-Faktoren im Detail) -->
+              <div id="smartForecastBox" class="hidden bg-black border border-cyan-500/40 rounded-xl p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-[11px] font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Einfluss-Faktoren
+                  </h3>
+                  <span id="smartForecastConfidence" class="text-[9px] font-mono px-2 py-0.5 rounded border"></span>
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                  <span id="smartForecastValue" class="text-2xl font-black text-cyan-400 font-mono"></span>
+                  <span class="text-xs text-slate-400">Min. erwartete Wartezeit</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[10px]">
+                  <div class="bg-slate-950 border border-slate-800 rounded-lg p-2">
+                    <span class="text-slate-500 block text-[9px] uppercase">Wetter-Einfluss</span>
+                    <strong id="smartForecastWeather" class="text-slate-200"></strong>
+                  </div>
+                  <div class="bg-slate-950 border border-slate-800 rounded-lg p-2">
+                    <span class="text-slate-500 block text-[9px] uppercase">Ferien-Einfluss</span>
+                    <strong id="smartForecastHoliday" class="text-slate-200"></strong>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- ========== ENDE SUB-TAB: ATTRAKTIONEN ========== -->
+
     </div>
     <!-- ================= ENDE STATISTIK-TAB ================= -->
 
   </div>
+
 
   <!-- Custom Modal: Glocke / Schwellenwert Schieberegler -->
   <div id="thresholdModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
@@ -1262,7 +1310,53 @@
           loadStatsRideList();
           loadWeekdayStats();
           initCrowdStats();
+          switchStatsSubTab('park'); // initialer Zustand: Park-Übersicht aktiv
         }
+      }
+    }
+
+    // ---------- STATISTIK: Sub-Tab-Navigation (Park-Übersicht vs. Attraktionen) ----------
+    let currentStatsSubTab = 'park';
+    function switchStatsSubTab(tab) {
+      currentStatsSubTab = tab;
+      const parkContent = document.getElementById('statsSubTabPark');
+      const ridesContent = document.getElementById('statsSubTabRides');
+      const btnPark = document.getElementById('statsSubTabBtnPark');
+      const btnRides = document.getElementById('statsSubTabBtnRides');
+
+      if (tab === 'park') {
+        parkContent.classList.remove('hidden');
+        ridesContent.classList.add('hidden');
+        btnPark.classList.add('bg-amber-500', 'text-slate-950');
+        btnPark.classList.remove('text-slate-400');
+        btnRides.classList.remove('bg-amber-500', 'text-slate-950');
+        btnRides.classList.add('text-slate-400');
+      } else {
+        ridesContent.classList.remove('hidden');
+        parkContent.classList.add('hidden');
+        btnRides.classList.add('bg-amber-500', 'text-slate-950');
+        btnRides.classList.remove('text-slate-400');
+        btnPark.classList.remove('bg-amber-500', 'text-slate-950');
+        btnPark.classList.add('text-slate-400');
+      }
+    }
+
+    // ---------- STATISTIK: Prognosen-Sektion auf-/zuklappen ----------
+    let forecastSectionExpanded = false;
+    function toggleForecastSection() {
+      forecastSectionExpanded = !forecastSectionExpanded;
+      applyForecastSectionState();
+    }
+    function applyForecastSectionState() {
+      const content = document.getElementById('forecastSectionContent');
+      const chevron = document.getElementById('forecastSectionChevron');
+      if (!content || !chevron) return;
+      if (forecastSectionExpanded) {
+        content.classList.remove('hidden');
+        chevron.classList.add('rotate-180');
+      } else {
+        content.classList.add('hidden');
+        chevron.classList.remove('rotate-180');
       }
     }
 
@@ -1444,34 +1538,41 @@
       if (parkGuestsChartInstance) parkGuestsChartInstance.destroy();
 
       const hidden = getHiddenRides();
-      const labels = globalHistoryData.map(h => h.time);
-      // Zeitpunkte, an denen der Server weniger als die Mindestanzahl an
-      // Attraktionen gefunden hat (isCompleteSnapshot=false), werden NICHT in
-      // die Andrangs-Berechnung einbezogen - stattdessen bleibt der Punkt eine
-      // echte Lücke (null), damit Chart.js dort keine künstliche Delle zeichnet,
-      // die durch kurzzeitig fehlende Attraktionen in der Live-API entsteht.
-      const guestPoints = globalHistoryData.map(h => {
-        if (!h.rides) return null;
-        if (h.isCompleteSnapshot === false) return null;
+
+      // WICHTIG: Statt die rohen Zeitstempel aus globalHistoryData direkt als
+      // X-Achsen-Labels zu nehmen (die z.B. auch Messungen von weit vor
+      // Öffnung oder tief in der Nacht enthalten können, wenn der Server
+      // außerhalb der Öffnungszeit noch einen Zyklus fährt), wird hier die
+      // FESTE, an die echten Öffnungszeiten angepasste Zeitachse genutzt
+      // (dieselbe wie bei den Ride-Graphen). So beginnt/endet der Graph
+      // IMMER exakt bei Parköffnung/-schluss, nie "tief in der Nacht".
+      const guestPoints = new Array(FIXED_TIME_LABELS.length).fill(null);
+      globalHistoryData.forEach(h => {
+        if (!h.rides) return;
+        if (h.isCompleteSnapshot === false) return;
         // Vor der offiziellen Parköffnung (bzw. nach Schließung) darf die
         // Besucherzahl-Kurve nicht ansteigen, selbst wenn queue-times.com für
         // einzelne Attraktionen fälschlich schon "offen" meldet - exakt
         // dasselbe Problem wie bei den einzelnen Wartezeiten, siehe
         // applyOfficialHoursOverride().
-        if (!isWithinOfficialParkHours(parseSlotTimeToDateToday(h.time))) return null;
+        if (!isWithinOfficialParkHours(parseSlotTimeToDateToday(h.time))) return;
+
+        const slot = findNearestSlotIndex(h.time);
+        if (slot === -1) return; // liegt außerhalb der Öffnungszeiten-Achse -> ignorieren
+
         let qPeople = 0;
         h.rides.forEach(r => {
           if (!hidden.includes(r.name) && r.isOpen) {
             qPeople += calculateQueueMetrics(r.name, r.waitTime, true).people;
           }
         });
-        return Math.round(qPeople * 1.55);
+        guestPoints[slot] = Math.round(qPeople * 1.55);
       });
 
       parkGuestsChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels,
+          labels: FIXED_TIME_LABELS,
           datasets: [{
             label: 'Geschätzte Gäste',
             data: guestPoints,
@@ -1482,7 +1583,7 @@
             tension: 0,
             pointRadius: 0,
             pointHoverRadius: 4,
-            spanGaps: true
+            spanGaps: false
           }]
         },
         options: {
@@ -1496,7 +1597,23 @@
             })
           },
           scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } },
+            x: {
+              min: 0,
+              max: FIXED_TIME_LABELS.length - 1,
+              grid: { display: false },
+              ticks: {
+                color: '#64748b',
+                font: { size: 9 },
+                autoSkip: false,
+                maxRotation: 0,
+                callback: function(value, index) {
+                  const label = FIXED_TIME_LABELS[index];
+                  if (!label) return '';
+                  const [, m] = label.split(':');
+                  return m === '00' ? label : '';
+                }
+              }
+            },
             y: { 
               beginAtZero: true, 
               max: MAX_PARK_CAPACITY,
@@ -1801,12 +1918,19 @@
     // Wandelt Ausfall-/Regen-Zeitfenster (startTime/endTime als "HH:MM") in
     // Start-/End-Indizes auf der festen Zeitachse um, geclampt auf den
     // sichtbaren Bereich - für die Overlay-Zeichnung im Chart.js Plugin.
+    // Wandelt eine Ausfall-/Regen-Zeitspanne ("HH:MM"-Strings) in Start-/End-
+    // Slot-Indizes auf der aktuellen festen Zeitachse um. WICHTIG: Liegt
+    // startTime oder endTime außerhalb der aktuellen Achse (z.B. weil sich
+    // die Öffnungszeiten seither geändert haben, oder der Ausfall aus den
+    // Rohdaten technisch fehlerhafte Zeiten hat), wird die Range komplett
+    // verworfen (null) statt geraten auf 0/Ende - eine geratene Range hat
+    // früher dazu geführt, dass ein einzelner ungültiger Ausfall-Zeitpunkt
+    // den KOMPLETTEN Graphen von Anfang bis Ende rot eingefärbt hat.
     function timeRangeToSlotRange(startTime, endTime) {
-      let startIdx = findNearestSlotIndex(startTime);
-      let endIdx = findNearestSlotIndex(endTime);
-      if (startIdx === -1) startIdx = 0;
-      if (endIdx === -1) endIdx = FIXED_TIME_LABELS.length - 1;
-      if (endIdx < startIdx) endIdx = startIdx;
+      const startIdx = findNearestSlotIndex(startTime);
+      const endIdx = findNearestSlotIndex(endTime);
+      if (startIdx === -1 || endIdx === -1) return null;
+      if (endIdx < startIdx) return { startIdx: endIdx, endIdx: startIdx };
       return { startIdx, endIdx };
     }
 
@@ -1914,16 +2038,17 @@
       // Ausfall-Ranges (rot) aus dem Cache holen, falls schon geladen (heutiges
       // Datum) - VOR der Prognoseberechnung, da diese die aktuelle Ausfall-
       // Range braucht, um die Prognose während eines laufenden Ausfalls
-      // realistisch zu halten (siehe weiter unten)
+      // realistisch zu halten (siehe weiter unten). Ungültige Ranges (null)
+      // werden herausgefiltert, siehe timeRangeToSlotRange().
       const outageData = outageCache[`${rideName}|today`];
       const outageRanges = outageData && outageData.outages
-        ? outageData.outages.map(o => timeRangeToSlotRange(o.startTime, o.endTime))
+        ? outageData.outages.map(o => timeRangeToSlotRange(o.startTime, o.endTime)).filter(r => r !== null)
         : [];
 
       // Regen-Ranges (blau) aus dem Cache holen (parkweit, heutiges Datum)
       const rainData = rainPeriodsCache['today'];
       const rainRanges = rainData && rainData.periods
-        ? rainData.periods.map(p => timeRangeToSlotRange(p.startTime, p.endTime))
+        ? rainData.periods.map(p => timeRangeToSlotRange(p.startTime, p.endTime)).filter(r => r !== null)
         : [];
 
       // Serverseitige 30-Tage-Prognose (Wochentag+Uhrzeit-Ø, korrigiert um
@@ -3309,6 +3434,14 @@
       document.getElementById('statsRideDetail').classList.remove('hidden');
       renderStatsRideList(); // Auswahl-Hervorhebung aktualisieren
 
+      // Prognosen-Sektion beim Wechsel zu einer neuen Attraktion zurücksetzen
+      // (eingeklappt, Badge weg), damit nicht der Zustand der vorherigen
+      // Attraktion fälschlich weiter angezeigt wird, bis die neuen Daten da sind
+      forecastSectionExpanded = false;
+      applyForecastSectionState();
+      const riskBadge = document.getElementById('forecastSectionRiskBadge');
+      if (riskBadge) riskBadge.classList.add('hidden');
+
       // Verfügbare Tage für diese Attraktion laden (für den Kalender)
       try {
         const response = await fetch(`${SERVER_URL}/api/ride-days?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}`);
@@ -3456,11 +3589,13 @@
       const noteEl = document.getElementById('intelligentForecastNote');
       const riskBox = document.getElementById('intelligentForecastRiskBox');
       const riskText = document.getElementById('intelligentForecastRiskText');
+      const riskBadge = document.getElementById('forecastSectionRiskBadge');
 
       box.classList.remove('hidden');
       metaEl.textContent = 'Analysiere ähnliche Tage...';
       noteEl.textContent = '';
       riskBox.classList.add('hidden');
+      if (riskBadge) riskBadge.classList.add('hidden');
 
       try {
         const url = `${SERVER_URL}/api/smart-day-forecast?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(statsSelectedRide)}`;
@@ -3503,6 +3638,16 @@
             riskText.innerHTML = currentlyIn
               ? `<b>Achtung:</b> Genau jetzt liegt historisch eine der häufigsten Ausfallzeiten (${currentlyIn.startTime}–${currentlyIn.endTime} Uhr). Bei ähnlichen Tagen gab es hier öfter Probleme.`
               : `Historisch häufige Ausfallzeiten heute: ${windowList}. Falls du dich in diesem Fenster anstellst, gab es bei ähnlichen Tagen öfter Probleme.`;
+
+            // Bei einer AKUTEN Warnung (wir befinden uns gerade jetzt in
+            // einem Risiko-Fenster) die Prognosen-Sektion automatisch
+            // aufklappen und ein Badge im eingeklappten Header zeigen, damit
+            // die Warnung nicht in einer eingeklappten Sektion übersehen wird.
+            if (currentlyIn) {
+              if (riskBadge) riskBadge.classList.remove('hidden');
+              forecastSectionExpanded = true;
+              applyForecastSectionState();
+            }
           }
         }
 
@@ -3653,8 +3798,8 @@
           ensureOutages(statsSelectedRide, dateStr),
           ensureRainPeriods(dateStr)
         ]);
-        const outageRanges = (outageData.outages || []).map(o => timeRangeToSlotRange(o.startTime, o.endTime));
-        const rainRanges = (rainData.periods || []).map(p => timeRangeToSlotRange(p.startTime, p.endTime));
+        const outageRanges = (outageData.outages || []).map(o => timeRangeToSlotRange(o.startTime, o.endTime)).filter(r => r !== null);
+        const rainRanges = (rainData.periods || []).map(p => timeRangeToSlotRange(p.startTime, p.endTime)).filter(r => r !== null);
 
         document.getElementById('statsChartOverlayLegend').classList.remove('hidden');
         renderStatsRideChart(values, null, outageRanges, rainRanges);
@@ -3809,6 +3954,84 @@
       if (!str) return '';
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
+
+    // ---------- PULL-TO-REFRESH ----------
+    // Nativ per Touch-Events umgesetzt (keine externe Library): der Nutzer
+    // zieht ganz oben auf der Seite (scrollTop === 0) nach unten, ab einer
+    // Mindest-Zugdistanz wird beim Loslassen ein voller Refresh ausgelöst
+    // (Live-Daten, Wetter/Ferien, Öffnungszeiten - alles was auch der
+    // "Aktualisieren"-Button auslöst).
+    (function setupPullToRefresh() {
+      const PULL_TRIGGER_DISTANCE = 70; // px, ab der beim Loslassen refresht wird
+      const PULL_MAX_VISUAL_DISTANCE = 110; // px, ab der der Indikator nicht weiter wandert
+
+      const indicator = document.getElementById('pullToRefreshIndicator');
+      const icon = document.getElementById('pullToRefreshIcon');
+      if (!indicator || !icon) return;
+
+      let startY = null;
+      let currentPullDistance = 0;
+      let isPulling = false;
+      let isRefreshing = false;
+
+      function getScrollTop() {
+        return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      }
+
+      document.addEventListener('touchstart', (e) => {
+        if (isRefreshing) return;
+        if (getScrollTop() > 0) { startY = null; return; } // nur ganz oben auslösen
+        startY = e.touches[0].clientY;
+        isPulling = false;
+      }, { passive: true });
+
+      document.addEventListener('touchmove', (e) => {
+        if (startY === null || isRefreshing) return;
+        const deltaY = e.touches[0].clientY - startY;
+        if (deltaY <= 0) { currentPullDistance = 0; indicator.style.opacity = 0; indicator.style.marginTop = '-50px'; return; }
+        if (getScrollTop() > 0) return; // während des Ziehens doch gescrollt -> abbrechen
+
+        isPulling = true;
+        currentPullDistance = Math.min(deltaY, PULL_MAX_VISUAL_DISTANCE);
+
+        const progress = Math.min(1, currentPullDistance / PULL_TRIGGER_DISTANCE);
+        indicator.style.opacity = progress;
+        indicator.style.marginTop = `${-50 + currentPullDistance * 0.6}px`;
+        icon.style.transform = `rotate(${progress * 360}deg)`;
+        icon.classList.remove('fa-spin');
+      }, { passive: true });
+
+      document.addEventListener('touchend', () => {
+        if (!isPulling || isRefreshing) { startY = null; isPulling = false; return; }
+
+        if (currentPullDistance >= PULL_TRIGGER_DISTANCE) {
+          isRefreshing = true;
+          indicator.style.opacity = 1;
+          indicator.style.marginTop = '20px';
+          icon.classList.add('fa-spin');
+
+          Promise.all([
+            loadPhantasialandData(),
+            loadContextData(),
+            loadOpeningHours()
+          ]).finally(() => {
+            setTimeout(() => {
+              indicator.style.opacity = 0;
+              indicator.style.marginTop = '-50px';
+              icon.classList.remove('fa-spin');
+              isRefreshing = false;
+            }, 400);
+          });
+        } else {
+          indicator.style.opacity = 0;
+          indicator.style.marginTop = '-50px';
+        }
+
+        startY = null;
+        isPulling = false;
+        currentPullDistance = 0;
+      }, { passive: true });
+    })();
 
     window.onload = async function() {
       updateNotifyIcon();
