@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Phantasialand Pulse</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -36,6 +36,35 @@
     }
 
     body { background-color: var(--bg-void) !important; }
+
+    /* ============================================================
+       MOBILE: verhindert, dass sich die Seite herauszoomen lässt.
+       - user-scalable=no im Viewport-Tag deckt Pinch-Zoom ab
+       - touch-action verhindert zusätzlich Doppeltipp-/Pinch-Gesten
+         direkt auf Elementebene (Safari ignoriert user-scalable teils)
+       - Alle Formularfelder (input/select/textarea) auf min. 16px Schrift,
+         da iOS Safari beim Fokussieren automatisch reinzoomt, wenn die
+         Schrift kleiner als 16px ist - unabhängig vom Viewport-Tag
+       ============================================================ */
+    html {
+      touch-action: pan-x pan-y;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      overflow-x: hidden;
+    }
+    body {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+    /* Innerhalb kompakter Pillen/Filter darf die sichtbare Größe wieder
+       kleiner wirken - das Feld selbst bleibt aber bei genau 16px Schrift,
+       nur mit reduziertem Innenabstand, damit es nicht zu groß aussieht */
+    #searchInput, #statsRideSearch {
+      font-size: 16px;
+    }
 
     /* Wiederverwendbare Panel-Klasse: neutrales Dunkelgrau statt slate-950,
        stark abgerundet, dezenter grauer statt bläulicher Rahmen */
@@ -260,7 +289,7 @@
       <div class="relative w-full">
         <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
         <input type="text" id="searchInput" oninput="renderUI()" placeholder="Attraktion suchen..." autofocus
-          class="w-full pill pl-9 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+          class="w-full pill pl-9 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
       </div>
     </div>
 
@@ -493,7 +522,7 @@
 
               <div id="crowdStatsAverageModeContent" class="hidden">
                 <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
-                <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="w-full pill text-slate-100 text-xs px-3 py-2 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+                <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
                   <option value="7">Letzte 7 Tage</option>
                   <option value="14">Letzte 14 Tage</option>
                   <option value="30" selected>Letzte 30 Tage</option>
@@ -531,7 +560,7 @@
           <div class="relative w-full">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
             <input type="text" id="statsRideSearch" oninput="renderStatsRideList()" placeholder="Attraktion auswählen..."
-              class="w-full pill pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+              class="w-full pill pl-9 pr-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
           </div>
           <div id="statsRideList" class="mt-2 max-h-40 overflow-y-auto space-y-1"></div>
         </div>
@@ -584,7 +613,7 @@
 
               <div id="statsAverageModeContent" class="hidden">
                 <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
-                <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="w-full pill text-slate-100 text-xs px-3 py-2 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+                <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
                   <option value="7">Letzte 7 Tage</option>
                   <option value="14">Letzte 14 Tage</option>
                   <option value="30" selected>Letzte 30 Tage</option>
