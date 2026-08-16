@@ -2,7 +2,18 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- Macht die Seite zu einer echten "installierten" Web-App auf iOS, wenn
+       sie über "Zum Home-Bildschirm" hinzugefügt wird: keine Safari-
+       Adressleiste/Toolbar mehr, nur noch der reine Inhalt. Ohne diese Tags
+       nutzt iOS beim Hinzufügen zum Homescreen weiterhin eine abgespeckte
+       Safari-Ansicht, die sich beim Zoom-Verhalten teils anders verhält als
+       ein normaler Browser-Tab. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Phantasialand">
+  <meta name="format-detection" content="telephone=no">
   <title>Phantasialand Pulse</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -46,15 +57,15 @@
          da iOS Safari beim Fokussieren automatisch reinzoomt, wenn die
          Schrift kleiner als 16px ist - unabhängig vom Viewport-Tag
        ============================================================ */
-    html {
+    html, body {
       touch-action: pan-x pan-y;
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
       overflow-x: hidden;
     }
     body {
-      overflow-x: hidden;
       max-width: 100vw;
+      overscroll-behavior-y: contain;
     }
     input, select, textarea {
       font-size: 16px !important;
@@ -595,20 +606,44 @@
                 </button>
               </div>
 
-              <!-- Einzeltag-Kalender: kompakter, granularer als zuvor - kleinere
-                   Zellen mit klarerem Zustand (heute/ausgewählt/hat-Daten) -->
+              <!-- Einzeltag-Auswahl: kompakte Datums-Zeile mit Vor/Zurück-
+                   Pfeilen UND Swipe-Unterstützung (über das Datum selbst nach
+                   links/rechts wischen wechselt den Tag) - der volle Kalender
+                   darunter lässt sich einklappen, um Platz zu sparen, sobald
+                   man weiß wonach man sucht bzw. nur schnell durchblättern will. -->
               <div id="statsDayModeContent" class="hidden space-y-2">
-                <div class="flex items-center justify-between">
-                  <button onclick="shiftCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
-                    <i class="fa-solid fa-chevron-left text-[9px]"></i>
+                <div id="statsDaySwipeArea" class="panel-raised px-2 py-2.5 flex items-center justify-between select-none cursor-default">
+                  <button onclick="shiftSelectedStatsDay(-1)" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
+                    <i class="fa-solid fa-chevron-left text-[11px]"></i>
                   </button>
-                  <span id="calendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
-                  <button onclick="shiftCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
-                    <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                  <div class="text-center min-w-0 px-1">
+                    <p id="statsSelectedDayLabel" class="text-[12px] font-bold text-slate-100 truncate">–</p>
+                    <p class="text-[8px] text-slate-500 uppercase tracking-wider">Wischen zum Wechseln</p>
+                  </div>
+                  <button onclick="shiftSelectedStatsDay(1)" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
+                    <i class="fa-solid fa-chevron-right text-[11px]"></i>
                   </button>
                 </div>
-                <div id="calendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
-                <p class="text-[9px] text-slate-600 text-center leading-relaxed">Markierte Tage haben Daten.</p>
+
+                <button onclick="toggleRideCalendarCollapse()" id="statsCalendarToggleBtn" class="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition py-1">
+                  <i class="fa-solid fa-calendar-days"></i>
+                  <span id="statsCalendarToggleLabel">Kalender anzeigen</span>
+                  <i id="statsCalendarToggleChevron" class="fa-solid fa-chevron-down text-[8px] transition-transform duration-200"></i>
+                </button>
+
+                <div id="statsCalendarCollapsible" class="hidden space-y-2">
+                  <div class="flex items-center justify-between">
+                    <button onclick="shiftCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
+                      <i class="fa-solid fa-chevron-left text-[9px]"></i>
+                    </button>
+                    <span id="calendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
+                    <button onclick="shiftCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
+                      <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                    </button>
+                  </div>
+                  <div id="calendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
+                  <p class="text-[9px] text-slate-600 text-center leading-relaxed">Markierte Tage haben Daten.</p>
+                </div>
               </div>
 
               <div id="statsAverageModeContent" class="hidden">
@@ -763,6 +798,45 @@
   </div>
 
   <script>
+    // ============================================================
+    // HARTE ZOOM-SPERRE (zusätzlich zu Viewport-Tag und CSS touch-action)
+    // ============================================================
+    // Als installierte Web-App im iOS-Standalone-Modus (Homescreen-Icon,
+    // "black-translucent" Statusleiste) reicht der Viewport-Meta-Tag allein
+    // oft nicht: Safari lässt die Pinch-/Doppeltipp-Geste kurz zu und
+    // "springt" dann sichtbar zurück, statt den Zoom von vornherein zu
+    // ignorieren. Diese Listener fangen beide Gesten aktiv per
+    // preventDefault() ab, BEVOR der Browser überhaupt anfängt zu zoomen -
+    // das verhindert das kurze Reinzoomen komplett, nicht nur das Ergebnis.
+    // { passive: false } ist zwingend nötig, sonst greift preventDefault() nicht.
+    document.addEventListener('touchmove', function(e) {
+      // Mehr als ein Finger = Pinch-Geste -> blockieren. Normales
+      // Ein-Finger-Scrollen (für die Seite selbst, Kalender-Swipes, etc.)
+      // bleibt davon komplett unberührt.
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    let lastTouchEndTime = 0;
+    document.addEventListener('touchend', function(e) {
+      // Doppeltipp-Zoom erkennen: zwei touchend-Events innerhalb von 300ms
+      // auf derselben Stelle lösen in Safari einen Zoom aus - wird hier
+      // unterbunden, ohne normales einzelnes Antippen (Buttons, Karten) zu beeinträchtigen.
+      const now = Date.now();
+      if (now - lastTouchEndTime <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEndTime = now;
+    }, { passive: false });
+
+    // Zusätzliche Absicherung: falls iOS trotzdem kurzzeitig einen
+    // Zoom-Faktor setzt (z.B. durch Formularfokus bei Edge Cases), wird der
+    // Viewport hier hart auf 1.0 zurückgezwungen.
+    document.addEventListener('gesturestart', function(e) {
+      e.preventDefault();
+    });
+
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
@@ -3668,6 +3742,7 @@
       }
 
       setStatsMode(statsMode); // aktuellen Modus neu anwenden (lädt auch Daten)
+      updateStatsSelectedDayLabel();
     }
 
     function setStatsMode(mode) {
@@ -3869,7 +3944,77 @@
     function pickCalendarDate(dateStr) {
       statsSelectedDate = dateStr;
       renderCalendar();
+      updateStatsSelectedDayLabel();
       loadRideHistoryDay(dateStr);
+    }
+
+    // Aktualisiert die kompakte Datums-Anzeige über dem (ggf. eingeklappten)
+    // Kalender, inkl. Wochentag für schnellere Orientierung
+    function updateStatsSelectedDayLabel() {
+      const el = document.getElementById('statsSelectedDayLabel');
+      if (!el) return;
+      if (!statsSelectedDate) { el.textContent = 'Kein Tag ausgewählt'; return; }
+      const [y, m, d] = statsSelectedDate.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      const weekday = WEEKDAY_NAMES_DE[dateObj.getDay()];
+      el.textContent = `${weekday}, ${formatDateShort(statsSelectedDate)}`;
+    }
+
+    // Wechselt zum vorigen/nächsten Tag MIT VERFÜGBAREN DATEN (nicht einfach
+    // Kalendertag ±1, da dazwischenliegende Tage oft keine Aufzeichnungen
+    // haben) - wird sowohl von den Pfeil-Buttons als auch vom Swipe-Handler
+    // auf der Datums-Zeile genutzt. direction: -1 = zurück, 1 = vor.
+    function shiftSelectedStatsDay(direction) {
+      if (!statsAvailableDays || statsAvailableDays.length === 0) return;
+      const sorted = [...statsAvailableDays].sort();
+
+      if (!statsSelectedDate) {
+        statsSelectedDate = direction > 0 ? sorted[0] : sorted[sorted.length - 1];
+      } else {
+        const idx = sorted.indexOf(statsSelectedDate);
+        let newIdx;
+        if (idx === -1) {
+          // Aktuelles Datum liegt nicht in den verfügbaren Tagen (Rand-/
+          // Ferienfall) - auf den nächstgelegenen verfügbaren Tag springen
+          newIdx = direction > 0
+            ? sorted.findIndex(d => d > statsSelectedDate)
+            : [...sorted].reverse().findIndex(d => d < statsSelectedDate);
+          if (newIdx === -1) return; // kein passender Tag in diese Richtung
+          if (direction < 0) newIdx = sorted.length - 1 - newIdx;
+        } else {
+          newIdx = idx + direction;
+        }
+        if (newIdx < 0 || newIdx >= sorted.length) return; // schon am Rand
+        statsSelectedDate = sorted[newIdx];
+      }
+
+      // Kalenderansicht mitziehen, falls der neue Tag in einem anderen Monat liegt
+      const [y, m] = statsSelectedDate.split('-').map(Number);
+      calendarViewYear = y;
+      calendarViewMonth = m - 1;
+
+      renderCalendar();
+      updateStatsSelectedDayLabel();
+      loadRideHistoryDay(statsSelectedDate);
+    }
+
+    // ---------- Kalender ein-/ausklappen (spart Platz) ----------
+    let rideCalendarExpanded = false;
+    function toggleRideCalendarCollapse() {
+      rideCalendarExpanded = !rideCalendarExpanded;
+      const box = document.getElementById('statsCalendarCollapsible');
+      const chevron = document.getElementById('statsCalendarToggleChevron');
+      const label = document.getElementById('statsCalendarToggleLabel');
+      if (!box) return;
+      if (rideCalendarExpanded) {
+        box.classList.remove('hidden');
+        chevron.classList.add('rotate-180');
+        label.textContent = 'Kalender ausblenden';
+      } else {
+        box.classList.add('hidden');
+        chevron.classList.remove('rotate-180');
+        label.textContent = 'Kalender anzeigen';
+      }
     }
 
     // ---------- Daten laden: Einzeltag ----------
@@ -4062,7 +4207,89 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // ---------- PULL-TO-REFRESH ----------
+    // ---------- SWIPE-GESTEN: generische Horizontal-Wisch-Erkennung ----------
+    // Wiederverwendbare Hilfsfunktion, die auf einem Element horizontale
+    // Wisch-Gesten erkennt und einen Callback mit der Richtung ('left'/'right')
+    // aufruft. Ignoriert Gesten, die auf einem <canvas> (Chart.js-Graph)
+    // beginnen, damit das gewohnte Wischen/Scrollen über Diagramme (Tooltip-
+    // Anzeige, Chart.js-eigene Interaktion) nicht versehentlich einen Tab-
+    // oder Tageswechsel auslöst. Erkennt außerdem, ob die Geste eher
+    // horizontal oder vertikal war (Scrollen bleibt vertikal ungestört).
+    // exclusiveZoneSelector: falls die Geste innerhalb eines Elements startet,
+    // das diesem Selektor entspricht (z.B. die Tag-Swipe-Zone), wird sie NICHT
+    // gewertet - verhindert, dass ein Wisch über das Datum gleichzeitig auch
+    // einen Tab-Wechsel auslöst, wenn beide Swipe-Zonen verschachtelt sind.
+    function setupSwipeDetection(element, onSwipe, options = {}) {
+      const MIN_DISTANCE = options.minDistance || 60; // px, Mindest-Wischweite
+      const MAX_VERTICAL_RATIO = options.maxVerticalRatio || 0.55; // vertikale Abweichung erlaubt
+      const exclusiveZoneSelector = options.excludeSelector || null;
+
+      let startX = null;
+      let startY = null;
+      let startedOnCanvas = false;
+      let startedInExcludedZone = false;
+
+      element.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) { startX = null; return; }
+        // Geste, die auf einem Chart.js-Canvas beginnt, nicht als Swipe werten -
+        // dort soll ausschließlich die Chart.js-eigene Touch-Interaktion greifen
+        startedOnCanvas = !!(e.target.closest && e.target.closest('canvas'));
+        startedInExcludedZone = !!(exclusiveZoneSelector && e.target.closest && e.target.closest(exclusiveZoneSelector));
+        if (startedOnCanvas || startedInExcludedZone) { startX = null; return; }
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+
+      element.addEventListener('touchend', (e) => {
+        if (startX === null || startY === null || startedOnCanvas || startedInExcludedZone) { startX = null; return; }
+        const endX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : startX;
+        const endY = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientY : startY;
+        const deltaX = endX - startX;
+        const deltaY = endY - startY;
+
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+
+        // Nur werten, wenn die Bewegung überwiegend horizontal war (nicht
+        // primär ein vertikaler Scroll-Versuch) und die Mindestdistanz erreicht ist
+        if (absX >= MIN_DISTANCE && absY / Math.max(absX, 1) <= MAX_VERTICAL_RATIO) {
+          onSwipe(deltaX > 0 ? 'right' : 'left');
+        }
+
+        startX = null;
+        startY = null;
+      }, { passive: true });
+    }
+
+    // ---------- SWIPE ZUM TAB-WECHSEL (Live <-> Statistik) ----------
+    // Auf dem gesamten Hauptinhalt registriert, aber Canvas-Elemente (Graphen)
+    // UND die Tag-Swipe-Zone (#statsDaySwipeArea) sind ausgenommen, damit
+    // sich beide Gesten nicht gegenseitig stören. Nach links wischen
+    // wechselt vorwärts (Live -> Statistik), nach rechts wischen zurück.
+    document.addEventListener('DOMContentLoaded', () => {
+      const mainContent = document.querySelector('.max-w-4xl');
+      if (!mainContent) return;
+
+      setupSwipeDetection(mainContent, (direction) => {
+        if (direction === 'left' && currentTab === 'live') {
+          switchTab('stats');
+        } else if (direction === 'right' && currentTab === 'stats') {
+          switchTab('live');
+        }
+      }, { excludeSelector: '#statsDaySwipeArea' });
+
+      // ---------- SWIPE ZUM TAG-WECHSEL (in der Attraktions-Detailansicht) ----------
+      // Über die kompakte Datums-Zeile nach links/rechts wischen springt zum
+      // vorigen/nächsten Tag MIT Daten (siehe shiftSelectedStatsDay).
+      const daySwipeArea = document.getElementById('statsDaySwipeArea');
+      if (daySwipeArea) {
+        setupSwipeDetection(daySwipeArea, (direction) => {
+          shiftSelectedStatsDay(direction === 'left' ? 1 : -1);
+        }, { minDistance: 40 });
+      }
+    });
+
+
     // Nativ per Touch-Events umgesetzt (keine externe Library): der Nutzer
     // zieht ganz oben auf der Seite (scrollTop === 0) nach unten, ab einer
     // Mindest-Zugdistanz wird beim Loslassen ein voller Refresh ausgelöst
