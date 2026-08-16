@@ -714,6 +714,45 @@
     </div>
     <!-- ================= ENDE STATISTIK-TAB ================= -->
 
+    <!-- ================= FERIEN-TAB ================= -->
+    <!-- Einfache, klassische Tabellen-Ansicht wie bei schulferien.org: Zeilen
+         = Länder/Regionen, Spalten = Tage (Datum + Wochentag-Kürzel oben),
+         Zellen einfarbig grün (Ferien) oder rot (Feiertag) - bewusst OHNE
+         Detailinfos in der Zelle selbst, ganze Jahr horizontal durchscrollbar. -->
+    <div id="tabContentHolidays" class="hidden space-y-3">
+      <div class="panel p-3.5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-calendar-days"></i> Ferien & Feiertage
+          </h2>
+          <div class="flex items-center gap-3 text-[10px] text-slate-400">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block"></span>Ferien</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block"></span>Feiertag</span>
+          </div>
+        </div>
+
+        <div id="holidayTableLoading" class="py-10 text-center text-slate-500">
+          <i class="fa-solid fa-spinner fa-spin text-xl text-amber-400 mb-2"></i>
+          <p class="text-xs font-bold">Lade Ferienkalender...</p>
+        </div>
+
+        <div id="holidayTableWrap" class="hidden overflow-x-auto no-scrollbar">
+          <table class="border-collapse text-[10px]">
+            <thead>
+              <tr id="holidayTableDateHeaderRow"></tr>
+              <tr id="holidayTableWeekdayHeaderRow"></tr>
+            </thead>
+            <tbody id="holidayTableBody"></tbody>
+          </table>
+        </div>
+
+        <p class="text-[9px] text-slate-600 mt-3 leading-relaxed">
+          "Deutschland" zeigt die Vereinigung aller 16 Bundesländer (Ferien, sobald mindestens ein Bundesland frei hat). Horizontal wischen/scrollen für das ganze Jahr.
+        </p>
+      </div>
+    </div>
+    <!-- ================= ENDE FERIEN-TAB ================= -->
+
     <!-- Platzhalter, damit Inhalt nicht hinter der fixierten Bottom-Tab-Bar
          verschwindet (nur auf schmalen Bildschirmen relevant, siehe CSS) -->
     <div class="bottom-nav-spacer"></div>
@@ -736,6 +775,12 @@
         <span class="tab-icon-pill flex items-center gap-1.5">
           <i class="fa-solid fa-chart-column text-sm"></i>
           <span class="text-[10px] sm:text-xs font-black uppercase tracking-wider">Statistik</span>
+        </span>
+      </button>
+      <button onclick="switchTab('holidays')" id="tabBtnHolidays" class="tab-btn-bottom flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-500 transition px-2 py-1 sm:py-3">
+        <span class="tab-icon-pill flex items-center gap-1.5">
+          <i class="fa-solid fa-calendar-days text-sm"></i>
+          <span class="text-[10px] sm:text-xs font-black uppercase tracking-wider">Ferien</span>
         </span>
       </button>
     </div>
@@ -857,6 +902,7 @@
     let currentlyExpandedCardId = null;
     let currentTab = 'live';
     let statsAlreadyLoaded = false;
+    let holidayTableLoaded = false;
 
     // Tagesprognosen pro Attraktion (vom neuen /api/day-forecast Endpoint),
     // gecacht damit wir sie nicht für jede Mini-Grafik einzeln neu abrufen
@@ -1440,19 +1486,24 @@
       currentTab = tab;
       const liveContent = document.getElementById('tabContentLive');
       const statsContent = document.getElementById('tabContentStats');
+      const holidaysContent = document.getElementById('tabContentHolidays');
       const tabBtnLive = document.getElementById('tabBtnLive');
       const tabBtnStats = document.getElementById('tabBtnStats');
+      const tabBtnHolidays = document.getElementById('tabBtnHolidays');
+
+      liveContent.classList.add('hidden');
+      statsContent.classList.add('hidden');
+      holidaysContent.classList.add('hidden');
+      tabBtnLive.classList.remove('active');
+      tabBtnStats.classList.remove('active');
+      tabBtnHolidays.classList.remove('active');
 
       if (tab === 'live') {
         liveContent.classList.remove('hidden');
-        statsContent.classList.add('hidden');
         tabBtnLive.classList.add('active');
-        tabBtnStats.classList.remove('active');
-      } else {
-        liveContent.classList.add('hidden');
+      } else if (tab === 'stats') {
         statsContent.classList.remove('hidden');
         tabBtnStats.classList.add('active');
-        tabBtnLive.classList.remove('active');
 
         // Attraktionsliste und park-weite Grafen nur beim ersten Öffnen laden
         if (!statsAlreadyLoaded) {
@@ -1461,6 +1512,15 @@
           loadWeekdayStats();
           initCrowdStats();
           switchStatsSubTab('park'); // initialer Zustand: Park-Übersicht aktiv
+        }
+      } else if (tab === 'holidays') {
+        holidaysContent.classList.remove('hidden');
+        tabBtnHolidays.classList.add('active');
+
+        // Ferienkalender nur beim ersten Öffnen laden
+        if (!holidayTableLoaded) {
+          holidayTableLoaded = true;
+          loadHolidayTable();
         }
       }
     }
@@ -4189,6 +4249,135 @@
     function escapeHtml(str) {
       if (!str) return '';
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // ---------- FERIEN-TAB: klassische Tabellen-Ansicht ----------
+    // Baut eine Tabelle mit einer Zeile pro Region und einer Spalte pro Tag
+    // für das ganze Jahr (heute bis +365 Tage), horizontal durchscrollbar.
+    // Bewusst simpel gehalten wie im Referenzdesign: nur zwei Zustände pro
+    // Zelle (Ferien = grün, Feiertag = rot), keine weiteren Details in der
+    // Zelle selbst - die Farbe allein reicht für die schnelle Übersicht.
+    let holidayTableData = null; // Rohdaten vom Server, gecacht für Re-Renders
+
+    const HOLIDAY_TABLE_DAYS_AHEAD = 365;
+    const WEEKDAY_SHORT_2LETTER_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+    async function loadHolidayTable() {
+      const loadingEl = document.getElementById('holidayTableLoading');
+      const wrapEl = document.getElementById('holidayTableWrap');
+
+      try {
+        const response = await fetch(`${SERVER_URL}/api/holidays-overview`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        holidayTableData = data;
+
+        renderHolidayTable();
+
+        loadingEl.classList.add('hidden');
+        wrapEl.classList.remove('hidden');
+
+        // Direkt zum heutigen Tag scrollen, statt beim 1. Januar/ältesten
+        // sichtbaren Tag zu starten - der Nutzer will primär "was ist jetzt/
+        // bald" sehen, nicht erst durch vergangene Monate scrollen müssen
+        requestAnimationFrame(() => {
+          const wrap = document.getElementById('holidayTableWrap');
+          const todayCell = wrap.querySelector('[data-today-marker="1"]');
+          if (todayCell && wrap) {
+            wrap.scrollLeft = Math.max(0, todayCell.offsetLeft - 40);
+          }
+        });
+
+      } catch (err) {
+        console.error('Fehler beim Laden des Ferienkalenders:', err);
+        loadingEl.innerHTML = `
+          <i class="fa-solid fa-triangle-exclamation text-xl text-red-400 mb-2"></i>
+          <p class="text-xs font-bold text-red-300">Ferienkalender konnte nicht geladen werden.</p>
+        `;
+      }
+    }
+
+    function renderHolidayTable() {
+      if (!holidayTableData) return;
+
+      const dateHeaderRow = document.getElementById('holidayTableDateHeaderRow');
+      const weekdayHeaderRow = document.getElementById('holidayTableWeekdayHeaderRow');
+      const body = document.getElementById('holidayTableBody');
+
+      // Feste Liste aller Tage von heute bis +365 Tage bauen
+      const days = [];
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      for (let i = 0; i < HOLIDAY_TABLE_DAYS_AHEAD; i++) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + i);
+        days.push(d);
+      }
+      const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+
+      // ---------- Kopfzeilen: Datum (nur bei Monatswechsel/1. des Monats
+      // größer beschriftet) + Wochentags-Kürzel je Tag, analog zum
+      // Referenzdesign (Tag oben, Wochentag darunter, kompakt) ----------
+      let dateHeaderHtml = `<th class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1 text-left text-[9px] text-slate-500 font-bold min-w-[110px]"></th>`;
+      let weekdayHeaderHtml = `<th class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1"></th>`;
+
+      let lastMonth = null;
+      days.forEach(d => {
+        const dateStr = d.toLocaleDateString('sv-SE');
+        const isToday = dateStr === todayStr;
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const month = d.getMonth();
+        const showMonthLabel = month !== lastMonth;
+        lastMonth = month;
+
+        const dayNum = String(d.getDate()).padStart(2, '0');
+        const monthLabel = showMonthLabel ? MONTH_NAMES_DE[month].slice(0, 3) : '';
+
+        dateHeaderHtml += `
+          <th class="px-1 py-1 text-center font-mono font-bold ${isToday ? 'text-amber-400' : isWeekend ? 'text-slate-500' : 'text-slate-300'} ${isToday ? 'bg-amber-500/10' : ''}" style="min-width:26px;">
+            ${showMonthLabel ? `<div class="text-[8px] text-cyan-400 uppercase mb-0.5">${monthLabel}</div>` : ''}
+            ${dayNum}
+          </th>
+        `;
+        weekdayHeaderHtml += `
+          <th class="px-1 pb-1.5 text-center text-[8px] font-medium ${isToday ? 'text-amber-400 bg-amber-500/10' : isWeekend ? 'text-slate-600' : 'text-slate-600'}" ${isToday ? 'data-today-marker="1"' : ''}>
+            ${WEEKDAY_SHORT_2LETTER_DE[d.getDay()]}
+          </th>
+        `;
+      });
+      dateHeaderRow.innerHTML = dateHeaderHtml;
+      weekdayHeaderRow.innerHTML = weekdayHeaderHtml;
+
+      // ---------- Körper: eine Zeile pro Region, eine Zelle pro Tag ----------
+      const publicHolidaysByDate = {};
+      (holidayTableData.publicHolidays || []).forEach(h => {
+        if (!publicHolidaysByDate[h.startDate]) publicHolidaysByDate[h.startDate] = [];
+        publicHolidaysByDate[h.startDate].push(h);
+      });
+
+      let bodyHtml = '';
+      (holidayTableData.rows || []).forEach(row => {
+        let rowHtml = `<td class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1.5 text-[10px] font-bold text-slate-200 whitespace-nowrap">${escapeHtml(row.country)}</td>`;
+
+        days.forEach(d => {
+          const dateStr = d.toLocaleDateString('sv-SE');
+          const isSchoolHoliday = (row.schoolHolidays || []).some(h => dateStr >= h.startDate && dateStr <= h.endDate);
+          // Feiertage gelten für ALLE Zeilen gleich (bundesweit bzw. landesweit),
+          // aber nur die, die zu genau dieser Region gehören
+          const isPublicHoliday = (publicHolidaysByDate[dateStr] || []).some(h => h.country === row.country);
+
+          let cellColor = 'bg-transparent';
+          if (isPublicHoliday) cellColor = 'bg-red-500';
+          else if (isSchoolHoliday) cellColor = 'bg-green-500';
+
+          const isToday = dateStr === todayStr;
+
+          rowHtml += `<td class="p-0" style="min-width:26px; height:22px;"><div class="w-full h-full ${cellColor} ${isToday ? 'ring-1 ring-inset ring-amber-400' : ''}"></div></td>`;
+        });
+
+        bodyHtml += `<tr>${rowHtml}</tr>`;
+      });
+      body.innerHTML = bodyHtml;
     }
 
     // ---------- SWIPE-GESTEN: generische Horizontal-Wisch-Erkennung ----------
