@@ -51,21 +51,21 @@
     /* ============================================================
        MOBILE: verhindert, dass sich die Seite herauszoomen lässt.
        - user-scalable=no im Viewport-Tag deckt Pinch-Zoom ab
-       - touch-action verhindert zusätzlich Doppeltipp-/Pinch-Gesten
-         direkt auf Elementebene (Safari ignoriert user-scalable teils)
+       - touch-action: pan-y erlaubt normales vertikales Scrollen
+         ausdrücklich (auf allen Geräten, auch Desktop-Trackpad), verhindert
+         aber die Browser-eigene Pinch-Zoom-Handhabung auf Touch-Geräten
        - Alle Formularfelder (input/select/textarea) auf min. 16px Schrift,
          da iOS Safari beim Fokussieren automatisch reinzoomt, wenn die
          Schrift kleiner als 16px ist - unabhängig vom Viewport-Tag
        ============================================================ */
     html, body {
-      touch-action: pan-x pan-y;
+      touch-action: pan-y;
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
       overflow-x: hidden;
     }
     body {
       max-width: 100vw;
-      overscroll-behavior-y: contain;
     }
     input, select, textarea {
       font-size: 16px !important;
@@ -799,40 +799,24 @@
 
   <script>
     // ============================================================
-    // HARTE ZOOM-SPERRE (zusätzlich zu Viewport-Tag und CSS touch-action)
+    // ZOOM-SPERRE (zusätzlich zu Viewport-Tag und CSS touch-action)
     // ============================================================
-    // Als installierte Web-App im iOS-Standalone-Modus (Homescreen-Icon,
-    // "black-translucent" Statusleiste) reicht der Viewport-Meta-Tag allein
-    // oft nicht: Safari lässt die Pinch-/Doppeltipp-Geste kurz zu und
-    // "springt" dann sichtbar zurück, statt den Zoom von vornherein zu
-    // ignorieren. Diese Listener fangen beide Gesten aktiv per
-    // preventDefault() ab, BEVOR der Browser überhaupt anfängt zu zoomen -
-    // das verhindert das kurze Reinzoomen komplett, nicht nur das Ergebnis.
-    // { passive: false } ist zwingend nötig, sonst greift preventDefault() nicht.
+    // Als installierte Web-App im iOS-Standalone-Modus reicht der Viewport-
+    // Meta-Tag allein oft nicht: Safari lässt die Pinch-Geste kurz zu und
+    // "springt" dann sichtbar zurück. Dieser Listener blockiert AUSSCHLIESSLICH
+    // echte Mehrfinger-Touch-Gesten (e.touches.length > 1) - normales
+    // Ein-Finger-Scrollen auf dem Handy UND normales Scrollen mit Maus/
+    // Trackpad/Mausrad auf dem Desktop bleiben davon komplett unberührt, da
+    // dort niemals mehr als ein "touches"-Eintrag vorkommt (Desktop-Geräte
+    // lösen touchmove in aller Regel ohnehin gar nicht aus).
     document.addEventListener('touchmove', function(e) {
-      // Mehr als ein Finger = Pinch-Geste -> blockieren. Normales
-      // Ein-Finger-Scrollen (für die Seite selbst, Kalender-Swipes, etc.)
-      // bleibt davon komplett unberührt.
-      if (e.touches.length > 1) {
+      if (e.touches && e.touches.length > 1) {
         e.preventDefault();
       }
     }, { passive: false });
 
-    let lastTouchEndTime = 0;
-    document.addEventListener('touchend', function(e) {
-      // Doppeltipp-Zoom erkennen: zwei touchend-Events innerhalb von 300ms
-      // auf derselben Stelle lösen in Safari einen Zoom aus - wird hier
-      // unterbunden, ohne normales einzelnes Antippen (Buttons, Karten) zu beeinträchtigen.
-      const now = Date.now();
-      if (now - lastTouchEndTime <= 300) {
-        e.preventDefault();
-      }
-      lastTouchEndTime = now;
-    }, { passive: false });
-
-    // Zusätzliche Absicherung: falls iOS trotzdem kurzzeitig einen
-    // Zoom-Faktor setzt (z.B. durch Formularfokus bei Edge Cases), wird der
-    // Viewport hier hart auf 1.0 zurückgezwungen.
+    // Safari-spezifisches Pinch-Zoom-Gesture-Event (existiert nur in Safari/
+    // WebKit, wird von anderen Browsern ignoriert, daher unbedenklich global)
     document.addEventListener('gesturestart', function(e) {
       e.preventDefault();
     });
@@ -4266,7 +4250,13 @@
     // UND die Tag-Swipe-Zone (#statsDaySwipeArea) sind ausgenommen, damit
     // sich beide Gesten nicht gegenseitig stören. Nach links wischen
     // wechselt vorwärts (Live -> Statistik), nach rechts wischen zurück.
-    document.addEventListener('DOMContentLoaded', () => {
+    // WICHTIG: Kein 'DOMContentLoaded'-Listener hier - dieses <script>-Tag
+    // steht am Ende des <body>, das DOM ist zu diesem Zeitpunkt bereits
+    // vollständig geparst. Ein Listener auf 'DOMContentLoaded' würde HIER NIE
+    // feuern, da das Event schon vorbei ist, bevor der Listener registriert
+    // wird - das war der Grund, warum die Swipe-Gesten zuvor nicht
+    // funktionierten. Direkter Aufruf statt Event-Wartezeit.
+    (function initSwipeGestures() {
       const mainContent = document.querySelector('.max-w-4xl');
       if (!mainContent) return;
 
@@ -4287,7 +4277,7 @@
           shiftSelectedStatsDay(direction === 'left' ? 1 : -1);
         }, { minDistance: 40 });
       }
-    });
+    })();
 
 
     // Nativ per Touch-Events umgesetzt (keine externe Library): der Nutzer
