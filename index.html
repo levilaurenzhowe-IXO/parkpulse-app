@@ -104,6 +104,64 @@
       border-radius: 10px;
     }
 
+    /* ============================================================
+       MIKRO-ANIMATIONEN: sorgen für ein durchgehend "smoothes" Gefühl bei
+       Tap-Feedback, Auf-/Zuklappen und Karten-Wechseln, ohne dabei albern
+       oder verspielt zu wirken - dezent und schnell (150-250ms).
+       ============================================================ */
+
+    /* Sanftes Tap-Feedback für alle klickbaren Karten/Buttons statt hartem
+       Zustandswechsel ohne jede Bewegung */
+    .panel, .panel-raised, .pill {
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    }
+    button {
+      transition: transform 0.12s ease, opacity 0.12s ease, background-color 0.15s ease, color 0.15s ease;
+    }
+    button:active {
+      transform: scale(0.96);
+    }
+
+    /* Ride-Card: sanftes Andocken beim Antippen (nicht nur der interne
+       Button-Scale, sondern die ganze Karte reagiert minimal) */
+    .ride-card {
+      transition: transform 0.12s ease, border-color 0.2s ease;
+    }
+    .ride-card:active {
+      transform: scale(0.985);
+    }
+
+    /* Aufklapp-Bereich einer Ride-Card: sanftes Ausklappen mit Fade statt
+       hartem display:none/block-Wechsel. Wird durch Hinzufügen/Entfernen der
+       Klasse "expanded" gesteuert (siehe toggleAccordion). max-height-Trick
+       erlaubt eine CSS-Transition für Höhenänderung, die display:none nicht
+       animierbar macht. */
+    .accordion-body {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+    }
+    .accordion-body.expanded {
+      max-height: 2000px; /* großzügig genug für den vollen Inhalt */
+      opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .accordion-body { transition: none; }
+      .ride-card:active, button:active { transform: none; }
+    }
+
+    /* Sanftes Einblenden für Chart-Container, sobald Chart.js fertig
+       gezeichnet hat (Klasse wird per JS nach dem Rendern hinzugefügt),
+       statt dass Graphen abrupt "aufpoppen" sobald die Daten da sind */
+    .chart-frame canvas {
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .chart-frame canvas.chart-ready {
+      opacity: 1;
+    }
+
     /* Versteckt die Scrollbar bei horizontal überlaufenden Pillen-Reihen
        (z.B. die Status-Zeile auf sehr schmalen Bildschirmen), Scrollen
        bleibt per Touch/Wheel weiterhin möglich */
@@ -201,42 +259,93 @@
     .holiday-day-popover .pop-row { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
     .holiday-day-popover .pop-row:first-child { margin-top: 0; }
 
-    /* Bottom-Tab-Bar: fixiert am unteren Bildschirmrand für Daumen-Bedienung
-       auf Mobilgeräten. Auf größeren Screens (sm+) wird sie wieder als
-       normale Inline-Navigation oben angezeigt (siehe Media Query unten). */
+    /* Bottom-Tab-Bar: JETZT eine frei schwebende Pillen-Insel (statt einer
+       kantenlosen Vollbreiten-Leiste) - mit sichtbarem Abstand zu allen
+       Bildschirmrändern, eigenem Schatten und komplett abgerundeter Form,
+       wie eine "Insel"-Navigation. Fixiert am unteren Rand für bequeme
+       Daumen-Bedienung auf Mobilgeräten. Auf größeren Screens (sm+) wird sie
+       wieder als normale Inline-Navigation oben angezeigt. */
     .bottom-tab-bar {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
+      left: 50%;
+      bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%);
       z-index: 55;
-      background-color: rgba(5, 5, 5, 0.92);
-      backdrop-filter: blur(12px);
-      border-top: 1px solid var(--border-subtle);
-      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background-color: rgba(18, 18, 18, 0.85);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+      padding: 5px;
+    }
+    .bottom-tab-bar .tab-btn-bottom {
+      transition: color 0.2s ease;
     }
     .bottom-tab-bar .tab-btn-bottom.active {
-      color: var(--accent-amber);
+      color: #000;
     }
     .bottom-tab-bar .tab-btn-bottom.active .tab-icon-pill {
-      background-color: rgba(245, 158, 11, 0.15);
+      background-color: var(--accent-amber);
+      color: #000;
+      box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
     }
     .tab-icon-pill {
       border-radius: 999px;
-      padding: 4px 18px;
-      transition: background-color 0.15s ease;
+      padding: 8px 18px;
+      transition: background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, transform 0.15s ease;
     }
-    /* Platzhalter am Seitenende, damit Inhalt nicht hinter der fixierten
-       Bottom-Bar verschwindet (Höhe der Bar + Sicherheitsabstand) */
-    .bottom-nav-spacer { height: 72px; }
+    .tab-btn-bottom:active .tab-icon-pill {
+      transform: scale(0.92);
+    }
+
+    /* Sanfte Slide+Fade-Übergangsanimation beim Tab-Wechsel (per Swipe oder
+       Tap auf die Bottom-Bar). Richtung wird per data-Attribut gesteuert:
+       "left" = neuer Inhalt kommt von rechts rein (vorwärts navigiert),
+       "right" = neuer Inhalt kommt von links rein (rückwärts navigiert).
+       @keyframes statt reinem transition, da Ein- und Ausblenden in einem
+       Rutsch animiert werden und die Klasse nach Ablauf automatisch entfernt
+       wird (siehe switchTab). prefers-reduced-motion wird respektiert. */
+    @keyframes tabSlideInFromRight {
+      from { opacity: 0; transform: translateX(16px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes tabSlideInFromLeft {
+      from { opacity: 0; transform: translateX(-16px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .tab-content-enter-left {
+      animation: tabSlideInFromRight 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .tab-content-enter-right {
+      animation: tabSlideInFromLeft 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tab-content-enter-left, .tab-content-enter-right { animation: none; }
+    }
+
+    /* Platzhalter am Seitenende, damit Inhalt nicht hinter der schwebenden
+       Bottom-Bar verschwindet */
+    .bottom-nav-spacer { height: 84px; }
 
     @media (min-width: 640px) {
       .bottom-tab-bar {
         position: static;
+        left: auto;
+        bottom: auto;
+        transform: none;
         background: transparent;
         backdrop-filter: none;
-        border-top: none;
-        padding-bottom: 0;
+        -webkit-backdrop-filter: none;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+      .bottom-tab-bar .tab-btn-bottom.active { color: var(--accent-amber); }
+      .bottom-tab-bar .tab-btn-bottom.active .tab-icon-pill {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: var(--accent-amber);
+        box-shadow: none;
       }
       .bottom-nav-spacer { display: none; }
     }
@@ -309,10 +418,10 @@
 
       <!-- EINE kompakte Status-Zeile statt vier separater Boxen (Wetter,
            Öffnungszeiten, Ferien, Auslastung) - fasst alles zusammen und
-           klappt bei Klick alle Details gemeinsam auf. Das war der
-           "unaufgeräumte" Teil, der jetzt auf einen Blick passt. -->
+           klappt bei Klick alle Details gemeinsam auf, jetzt klar in
+           benannte Sektionen gegliedert statt einer langen losen Liste. -->
       <div class="panel overflow-hidden">
-        <button onclick="toggleWeatherBox()" class="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition">
+        <button onclick="toggleWeatherBox()" class="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition active:bg-white/10">
           <div class="flex items-center gap-2.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             <span class="pill flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-slate-200 shrink-0">
               <i id="weatherIcon" class="fa-solid fa-cloud text-cyan-400"></i>
@@ -330,68 +439,60 @@
           <i id="weatherBoxChevron" class="fa-solid fa-chevron-down text-xs text-slate-500 transition-transform duration-200 shrink-0 ml-2"></i>
         </button>
 
-        <div id="weatherBoxContent" class="hidden p-4 pt-0 space-y-4">
+        <div id="weatherBoxContent" class="hidden">
+          <div class="px-4 pb-4 pt-1 space-y-4">
 
-          <!-- Tages-Einschätzung: direkt hier integriert statt eigener Box -->
-          <div id="daySummaryBox" class="hidden panel-raised px-3.5 py-2.5">
-            <p class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> Tages-Einschätzung
+          <!-- SEKTION: Einschätzung & Warnungen (nur sichtbar wenn relevant) -->
+          <div id="statusAlertsSection" class="hidden space-y-2">
+            <div id="daySummaryBox" class="hidden panel-raised px-3.5 py-2.5">
+              <p class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Tages-Einschätzung
+              </p>
+              <p id="daySummaryText" class="text-[11px] text-slate-300 leading-relaxed"></p>
+            </div>
+            <div id="openingHoursWarningBox" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
+              <i class="fa-solid fa-triangle-exclamation text-amber-400 text-xs mt-0.5 shrink-0"></i>
+              <p id="openingHoursWarningText" class="text-[11px] text-amber-200 leading-relaxed"></p>
+            </div>
+          </div>
+
+          <!-- SEKTION: Wetter -->
+          <div>
+            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-cloud text-cyan-400"></i> Wetter
             </p>
-            <p id="daySummaryText" class="text-[11px] text-slate-300 leading-relaxed"></p>
-          </div>
-
-          <!-- Öffnungszeiten-Scrape-Warnung: nur sichtbar bei echtem Problem -->
-          <div id="openingHoursWarningBox" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
-            <i class="fa-solid fa-triangle-exclamation text-amber-400 text-xs mt-0.5 shrink-0"></i>
-            <p id="openingHoursWarningText" class="text-[11px] text-amber-200 leading-relaxed"></p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2 text-center font-mono">
-            <div class="panel-raised p-2.5">
-              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Wetter jetzt</span>
-              <span id="weatherDetailText" class="text-xs font-black text-cyan-400">--</span>
-            </div>
-            <div class="panel-raised p-2.5">
-              <span class="block text-[9px] text-slate-500 uppercase font-semibold">Niederschlag</span>
-              <span id="weatherPrecipText" class="text-xs font-black text-cyan-400">-- mm</span>
-            </div>
-          </div>
-
-          <div id="holidayDetailBox" class="space-y-1.5"></div>
-
-          <!-- Ferien-/Feiertagskalender: NEU als Kombination aus einem
-               simplen Punkte-Mini-Kalender (nur zur groben visuellen
-               Orientierung, max. 1 Punkt pro Land) UND einer klaren Liste der
-               Zeiträume darunter (wie bei Reise-Apps üblich) - deutlich
-               lesbarer als die vorherigen filigranen Streifen in kleinen
-               Kacheln, die schwer zu entziffern waren. -->
-          <div class="space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <i class="fa-solid fa-calendar-days text-cyan-400"></i> Ferien & Feiertage
-              </span>
-              <div class="flex items-center gap-1">
-                <button onclick="shiftHolidayCalendarMonth(-1)" class="w-7 h-7 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
-                  <i class="fa-solid fa-chevron-left text-[9px]"></i>
-                </button>
-                <span id="holidayCalendarMonthLabel" class="text-[10px] font-bold text-slate-300 w-20 text-center"></span>
-                <button onclick="shiftHolidayCalendarMonth(1)" class="w-7 h-7 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
-                  <i class="fa-solid fa-chevron-right text-[9px]"></i>
-                </button>
+            <div class="grid grid-cols-2 gap-2 text-center font-mono">
+              <div class="panel-raised p-2.5">
+                <span class="block text-[9px] text-slate-500 uppercase font-semibold">Jetzt</span>
+                <span id="weatherDetailText" class="text-xs font-black text-cyan-400">--</span>
+              </div>
+              <div class="panel-raised p-2.5">
+                <span class="block text-[9px] text-slate-500 uppercase font-semibold">Niederschlag</span>
+                <span id="weatherPrecipText" class="text-xs font-black text-cyan-400">-- mm</span>
               </div>
             </div>
-            <div id="holidayCalendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
-            <div id="holidayCalendarLegend" class="flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-slate-400"></div>
-
-            <!-- Klare Liste statt filigraner Kalender-Streifen: eine Karte pro
-                 Zeitraum, der sich mit dem aktuell angezeigten Monat
-                 überschneidet - Land, Bezeichnung und exaktes Datum auf einen
-                 Blick lesbar. -->
-            <div id="holidayPeriodsList" class="space-y-1.5 pt-1"></div>
           </div>
 
-          <!-- Auslastungs-Details -->
-          <div class="space-y-2 pt-1 border-t border-white/5">
+          <!-- SEKTION: Ferien & Feiertage heute - jetzt nur noch eine knappe
+               Text-Zusammenfassung + Link zum vollen Kalender-Tab, statt des
+               früheren eingebauten Mini-Kalenders (der lebt jetzt exklusiv im
+               eigenen "Ferien"-Tab, hier wäre er redundant gewesen). -->
+          <div>
+            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-calendar-days text-cyan-400"></i> Ferien & Feiertage
+            </p>
+            <div id="holidayDetailBox" class="space-y-1.5"></div>
+            <button onclick="switchTab('holidays')" class="w-full mt-1.5 panel-raised px-3.5 py-2 flex items-center justify-between text-[11px] text-slate-300 active:scale-[0.98] transition">
+              <span class="flex items-center gap-1.5"><i class="fa-solid fa-table-list text-cyan-400"></i>Vollen Kalender ansehen</span>
+              <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+            </button>
+          </div>
+
+          <!-- SEKTION: Park-Auslastung -->
+          <div class="space-y-2">
+            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung
+            </p>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
               <div class="panel-raised p-2.5">
                 <span class="block text-[9px] text-slate-500 uppercase font-semibold">In Schlangen</span>
@@ -424,6 +525,7 @@
             </div>
           </div>
 
+          </div>
         </div>
       </div>
 
@@ -759,25 +861,25 @@
 
   </div>
 
-  <!-- Tab-Navigation: fixiert am unteren Bildschirmrand für bequeme
-       Daumen-Bedienung auf dem Handy (typisches App-Pattern). Auf größeren
+  <!-- Tab-Navigation: JETZT eine frei schwebende Pillen-Insel am unteren
+       Bildschirmrand (bequeme Daumen-Bedienung auf dem Handy). Auf größeren
        Bildschirmen (sm+) wird sie automatisch wieder zu einer normalen
        Inline-Leiste (siehe .bottom-tab-bar Media Query). -->
   <nav class="bottom-tab-bar">
-    <div class="max-w-4xl mx-auto flex items-center justify-center gap-2 px-4 py-2.5 sm:py-0 sm:justify-start sm:border-b sm:border-white/5 sm:mb-1">
-      <button onclick="switchTab('live')" id="tabBtnLive" class="tab-btn-bottom active flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-500 transition px-2 py-1 sm:py-3">
+    <div class="flex items-center justify-center gap-1 sm:gap-2 sm:max-w-4xl sm:mx-auto sm:px-4 sm:py-0 sm:justify-start sm:border-b sm:border-white/5 sm:mb-1">
+      <button onclick="switchTab('live')" id="tabBtnLive" class="tab-btn-bottom active flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-400 transition px-1 py-1 sm:py-3">
         <span class="tab-icon-pill flex items-center gap-1.5">
           <i class="fa-solid fa-bolt text-sm"></i>
           <span class="text-[10px] sm:text-xs font-black uppercase tracking-wider">Live</span>
         </span>
       </button>
-      <button onclick="switchTab('stats')" id="tabBtnStats" class="tab-btn-bottom flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-500 transition px-2 py-1 sm:py-3">
+      <button onclick="switchTab('stats')" id="tabBtnStats" class="tab-btn-bottom flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-400 transition px-1 py-1 sm:py-3">
         <span class="tab-icon-pill flex items-center gap-1.5">
           <i class="fa-solid fa-chart-column text-sm"></i>
           <span class="text-[10px] sm:text-xs font-black uppercase tracking-wider">Statistik</span>
         </span>
       </button>
-      <button onclick="switchTab('holidays')" id="tabBtnHolidays" class="tab-btn-bottom flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-500 transition px-2 py-1 sm:py-3">
+      <button onclick="switchTab('holidays')" id="tabBtnHolidays" class="tab-btn-bottom flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 text-slate-400 transition px-1 py-1 sm:py-3">
         <span class="tab-icon-pill flex items-center gap-1.5">
           <i class="fa-solid fa-calendar-days text-sm"></i>
           <span class="text-[10px] sm:text-xs font-black uppercase tracking-wider">Ferien</span>
@@ -867,6 +969,24 @@
     });
 
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
+
+    // Globaler Chart.js-Hook: sobald IRGENDEIN Chart fertig gezeichnet ist,
+    // bekommt sein <canvas> die Klasse "chart-ready", die per CSS-Transition
+    // sanft von opacity:0 auf opacity:1 einblendet (siehe .chart-frame canvas
+    // im <style>-Block). Verhindert das abrupte "Aufpoppen" von Graphen,
+    // sobald Daten verfügbar sind - wirkt dadurch spürbar "smoother", ohne
+    // dass jede einzelne der ca. 10 Chart-Render-Funktionen einzeln
+    // angepasst werden muss.
+    if (typeof Chart !== 'undefined') {
+      Chart.defaults.animation = {
+        duration: 400,
+        easing: 'easeOutCubic',
+        onComplete: function() {
+          if (this.canvas) this.canvas.classList.add('chart-ready');
+        }
+      };
+    }
+
     const PHANTASIALAND_ID = '56';
     const AUTO_REFRESH_SECONDS = 300;
     const MAX_PARK_CAPACITY = 25000;
@@ -975,6 +1095,22 @@
       return { area: 'Sonstige Themenwelt', type: 'Attraktion', desc: 'Spannendes Erlebnis im Phantasialand.', capacity: 500, duration: 'k. A.', opened: 'k. A.', speed: 'k. A.' };
     }
 
+    // Führt eine Liste von Async-Funktionen in kleinen Batches aus (statt
+    // alle gleichzeitig per Promise.all), damit nicht dutzende parallele
+    // Netzwerk-Requests gleichzeitig losgeschickt werden und die UI dadurch
+    // spürbar hängt. Ruft onAllDone() genau einmal auf, nachdem wirklich
+    // ALLE Batches durchgelaufen sind (Erfolg oder Fehler spielt für den
+    // Aufrufer keine Rolle, .catch fängt einzelne Fehler ab, damit ein
+    // fehlgeschlagener Request nicht den ganzen Batch stoppt).
+    async function runInBatches(taskFns, batchSize, onAllDone) {
+      if (!taskFns || taskFns.length === 0) { if (onAllDone) onAllDone(); return; }
+      for (let i = 0; i < taskFns.length; i += batchSize) {
+        const batch = taskFns.slice(i, i + batchSize);
+        await Promise.all(batch.map(fn => fn().catch(err => console.error('Batch-Task fehlgeschlagen:', err))));
+      }
+      if (onAllDone) onAllDone();
+    }
+
     function calculateQueueMetrics(rideName, waitTime, isOpen) {
       if (!isOpen) return { people: 0, meters: 0 };
       const meta = getRideMeta(rideName);
@@ -1076,9 +1212,6 @@
       }
       return ride;
     }
-    let holidayCalendarViewYear = null;
-    let holidayCalendarViewMonth = null;
-    let openHolidayPopoverKey = null; // welcher Kalendertag gerade sein Popover zeigt (Klick-Modus)
 
     // WMO-Wettercodes in lesbare deutsche Beschreibungen + Icon übersetzen
     const WEATHER_CODE_MAP = {
@@ -1125,14 +1258,6 @@
 
         renderWeatherSummary(data);
         renderHolidaySummary(data);
-
-        // Kalenderansicht auf den aktuellen Monat setzen (nur beim ersten Laden)
-        if (holidayCalendarViewYear === null) {
-          const now = new Date();
-          holidayCalendarViewYear = now.getFullYear();
-          holidayCalendarViewMonth = now.getMonth();
-        }
-        renderHolidayCalendar();
         renderDaySummary(data);
 
       } catch (err) {
@@ -1321,168 +1446,34 @@
       detailBox.innerHTML = detailHtml;
     }
 
-    function shiftHolidayCalendarMonth(delta) {
-      holidayCalendarViewMonth += delta;
-      if (holidayCalendarViewMonth > 11) { holidayCalendarViewMonth = 0; holidayCalendarViewYear++; }
-      if (holidayCalendarViewMonth < 0) { holidayCalendarViewMonth = 11; holidayCalendarViewYear--; }
-      openHolidayPopoverKey = null;
-      renderHolidayCalendar();
-    }
+    // Der Live-Tab-Ferienkalender wurde entfernt (lebt jetzt ausschließlich
+    // im eigenen "Ferien"-Tab mit besserer Tabellenansicht, siehe
+    // loadHolidayTable()/renderHolidayTable() weiter unten in dieser Datei).
+    // holidayDetailBox (Textzusammenfassung) bleibt weiterhin bestehen, wird
+    // von renderHolidaySummary() befüllt.
 
-    // Feste Farbzuordnung pro Land für den Kalender (konsistent über die ganze
-    // App) - deutlich unterscheidbare Farben, damit Länder klar auseinander-
-    // zuhalten sind. COUNTRY_ROW_ORDER legt zusätzlich die feste vertikale
-    // Position jedes Landes im Kalender fest (oben nach unten), damit
-    // Frankreich z.B. immer in derselben Zeile erscheint, egal welche Länder
-    // an einem bestimmten Tag betroffen sind.
-    const COUNTRY_COLORS = {
-      'Frankreich': '#3b82f6',           // Blau
-      'Deutschland (NRW)': '#f59e0b',    // Amber/Orange
-      'Niederlande': '#eab308',          // Gelb (statt Pink - klassischer, gut unterscheidbar)
-      'Belgien': '#22c55e',              // Grün (statt Violett)
-      'Luxemburg': '#06b6d4'             // Cyan
-    };
-    const COUNTRY_ROW_ORDER = ['Frankreich', 'Deutschland (NRW)', 'Niederlande', 'Belgien', 'Luxemburg'];
-    const PUBLIC_HOLIDAY_COLOR = '#ef4444';
-
-    function renderHolidayCalendar() {
-      if (!globalContextData) return;
-
-      const label = document.getElementById('holidayCalendarMonthLabel');
-      label.textContent = `${MONTH_NAMES_DE[holidayCalendarViewMonth]} ${holidayCalendarViewYear}`;
-
-      const grid = document.getElementById('holidayCalendarGrid');
-      const legend = document.getElementById('holidayCalendarLegend');
-      const periodsList = document.getElementById('holidayPeriodsList');
-
-      const firstOfMonth = new Date(holidayCalendarViewYear, holidayCalendarViewMonth, 1);
-      let startOffset = firstOfMonth.getDay() - 1;
-      if (startOffset < 0) startOffset = 6;
-      const daysInMonth = new Date(holidayCalendarViewYear, holidayCalendarViewMonth + 1, 0).getDate();
-      const monthStr = String(holidayCalendarViewMonth + 1).padStart(2, '0');
-      const firstOfMonthStr = `${holidayCalendarViewYear}-${monthStr}-01`;
-      const lastOfMonthStr = `${holidayCalendarViewYear}-${monthStr}-${String(daysInMonth).padStart(2, '0')}`;
-      const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
-
-      // ---------- 1) MINI-KALENDER: nur ein Punkt pro betroffenem Land ----------
-      // Bewusst stark vereinfacht gegenüber der vorherigen Streifen-Optik:
-      // dient nur der groben visuellen Orientierung ("wann im Monat ist was
-      // los"), die eigentlichen Details (welches Land, welcher Zeitraum genau)
-      // stehen klar lesbar in der Liste darunter - getrennte Zuständigkeit
-      // statt zu versuchen, alles in eine winzige Kalenderzelle zu quetschen.
-      let headerHtml = WEEKDAY_LETTERS_DE.map(d => `<div class="text-[8px] text-slate-600 font-bold py-0.5">${d[0]}</div>`).join('');
-      let bodyHtml = '';
-      for (let i = 0; i < startOffset; i++) bodyHtml += `<div></div>`;
-
-      const usedCountries = new Set();
-      let usedPublicHoliday = false;
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${holidayCalendarViewYear}-${monthStr}-${String(day).padStart(2, '0')}`;
-        const schoolMatches = globalContextData.schoolHolidays.filter(h => dateStr >= h.startDate && dateStr <= h.endDate);
-        const publicMatches = globalContextData.publicHolidays.filter(h => h.startDate === dateStr);
-        const dayCountries = [...new Set(schoolMatches.map(m => m.country))];
-        dayCountries.forEach(c => usedCountries.add(c));
-        if (publicMatches.length > 0) usedPublicHoliday = true;
-        const isToday = dateStr === todayStr;
-
-        const dotsHtml = dayCountries.slice(0, 3).map(c => {
-          const color = COUNTRY_COLORS[c] || '#64748b';
-          return `<span class="w-1 h-1 rounded-full inline-block" style="background-color:${color}"></span>`;
-        }).join('');
-        const publicDot = publicMatches.length > 0 ? `<span class="w-1 h-1 rounded-full inline-block" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span>` : '';
-
-        let cellClass = 'w-full aspect-square flex flex-col items-center justify-center rounded-full text-[9px] font-bold transition ';
-        cellClass += (schoolMatches.length > 0 || publicMatches.length > 0) ? 'text-slate-200' : 'text-slate-600';
-        if (isToday) cellClass += ' ring-1 ring-inset ring-amber-500/50';
-
-        bodyHtml += `
-          <div class="${cellClass}">
-            <span class="leading-none">${day}</span>
-            <span class="flex items-center gap-0.5 h-1.5 mt-0.5">${publicDot}${dotsHtml}</span>
-          </div>
-        `;
-      }
-      grid.innerHTML = headerHtml + bodyHtml;
-
-      const legendParts = COUNTRY_ROW_ORDER
-        .filter(country => usedCountries.has(country))
-        .map(country => {
-          const color = COUNTRY_COLORS[country] || '#64748b';
-          return `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background-color: ${color}"></span>${country}</span>`;
-        });
-      if (usedPublicHoliday) {
-        legendParts.push(`<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span>Feiertag</span>`);
-      }
-      legend.innerHTML = legendParts.join('');
-
-      // ---------- 2) KLARE LISTE: alle Zeiträume, die sich mit dem Monat überschneiden ----------
-      // Bewährtes Muster aus Reise-Apps: eine Karte pro Zeitraum mit Land,
-      // Bezeichnung und exaktem Datum - viel einfacher zu lesen als Streifen
-      // in Miniatur-Kalenderzellen.
-      const overlappingSchool = globalContextData.schoolHolidays
-        .filter(h => h.startDate <= lastOfMonthStr && h.endDate >= firstOfMonthStr)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate));
-      const overlappingPublic = globalContextData.publicHolidays
-        .filter(h => h.startDate >= firstOfMonthStr && h.startDate <= lastOfMonthStr)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate));
-
-      if (overlappingSchool.length === 0 && overlappingPublic.length === 0) {
-        periodsList.innerHTML = `<p class="text-[10px] text-slate-600 text-center py-2">Keine Ferien oder Feiertage in diesem Monat.</p>`;
-      } else {
-        let listHtml = '';
-        overlappingPublic.forEach(h => {
-          listHtml += `
-            <div class="flex items-center gap-2.5 panel-raised px-3 py-2">
-              <span class="w-2 h-2 rounded-full shrink-0" style="background-color:${PUBLIC_HOLIDAY_COLOR}"></span>
-              <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-bold text-slate-100 truncate">${escapeHtml(h.name)}</p>
-                <p class="text-[9px] text-slate-500">${formatDateShort(h.startDate)} · ${escapeHtml(h.country)} · Feiertag</p>
-              </div>
-            </div>
-          `;
-        });
-        overlappingSchool.forEach(h => {
-          const color = COUNTRY_COLORS[h.country] || '#64748b';
-          const rangeText = h.startDate === h.endDate
-            ? formatDateShort(h.startDate)
-            : `${formatDateShort(h.startDate)} – ${formatDateShort(h.endDate)}`;
-          listHtml += `
-            <div class="flex items-center gap-2.5 panel-raised px-3 py-2">
-              <span class="w-2 h-2 rounded-full shrink-0" style="background-color:${color}"></span>
-              <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-bold text-slate-100 truncate">Schulferien ${escapeHtml(h.country)}</p>
-                <p class="text-[9px] text-slate-500">${rangeText}</p>
-              </div>
-            </div>
-          `;
-        });
-        periodsList.innerHTML = listHtml;
-      }
-    }
-
-    // Klick auf einen Tag: Popover an/aus (funktioniert auch auf Touch-Geräten,
-    // wo es kein echtes "Hover" gibt)
-    function toggleHolidayPopover(dayKey) {
-      openHolidayPopoverKey = openHolidayPopoverKey === dayKey ? null : dayKey;
-      renderHolidayCalendar();
-    }
-    function showHolidayPopover(dayKey) {
-      // Nur per echtem Maus-Hover automatisch öffnen (Touch löst KEIN mouseenter aus)
-      if (openHolidayPopoverKey !== dayKey) {
-        openHolidayPopoverKey = dayKey;
-        renderHolidayCalendar();
-      }
-    }
-    function hideHolidayPopoverOnLeave(dayKey) {
-      if (openHolidayPopoverKey === dayKey) {
-        openHolidayPopoverKey = null;
-        renderHolidayCalendar();
-      }
-    }
 
     // ---------- TAB-NAVIGATION ----------
-    function switchTab(tab) {
+    // Feste Reihenfolge der Haupt-Tabs, genutzt für Swipe-Navigation
+    // (welcher Tab kommt bei "nach links wischen" als nächstes) UND für die
+    // automatische Richtungserkennung beim Tab-Wechsel per Tap.
+    const TAB_ORDER = ['live', 'stats', 'holidays'];
+
+    function switchTab(tab, direction) {
+      // direction: 'left' (vorwärts, z.B. Live->Statistik) oder 'right'
+      // (rückwärts) - steuert, aus welcher Richtung der neue Tab-Inhalt
+      // sanft einschwebt. Ohne explizite Angabe (z.B. bei Klick auf die
+      // Bottom-Bar statt Swipe) wird die Richtung automatisch aus der
+      // Tab-Reihenfolge (TAB_ORDER) abgeleitet, damit auch Tap-Wechsel den
+      // gleichen "smooth" Übergang bekommen wie Swipe-Wechsel.
+      if (!direction) {
+        const fromIdx = TAB_ORDER.indexOf(currentTab);
+        const toIdx = TAB_ORDER.indexOf(tab);
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          direction = toIdx > fromIdx ? 'left' : 'right';
+        }
+      }
+
       currentTab = tab;
       const liveContent = document.getElementById('tabContentLive');
       const statsContent = document.getElementById('tabContentStats');
@@ -1498,12 +1489,24 @@
       tabBtnStats.classList.remove('active');
       tabBtnHolidays.classList.remove('active');
 
+      const animClass = direction === 'right' ? 'tab-content-enter-right' : 'tab-content-enter-left';
+      const applyEnterAnimation = (el) => {
+        el.classList.remove('tab-content-enter-left', 'tab-content-enter-right');
+        // Reflow erzwingen, damit die Animation bei erneutem Hinzufügen der
+        // Klasse zuverlässig neu startet (sonst würde der Browser die
+        // Klassenänderung teils ignorieren, wenn sie identisch zur vorherigen ist)
+        void el.offsetWidth;
+        el.classList.add(animClass);
+      };
+
       if (tab === 'live') {
         liveContent.classList.remove('hidden');
         tabBtnLive.classList.add('active');
+        applyEnterAnimation(liveContent);
       } else if (tab === 'stats') {
         statsContent.classList.remove('hidden');
         tabBtnStats.classList.add('active');
+        applyEnterAnimation(statsContent);
 
         // Attraktionsliste und park-weite Grafen nur beim ersten Öffnen laden
         if (!statsAlreadyLoaded) {
@@ -1516,6 +1519,7 @@
       } else if (tab === 'holidays') {
         holidaysContent.classList.remove('hidden');
         tabBtnHolidays.classList.add('active');
+        applyEnterAnimation(holidaysContent);
 
         // Ferienkalender nur beim ersten Öffnen laden
         if (!holidayTableLoaded) {
@@ -2414,7 +2418,7 @@
       const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
 
       return `
-        <div id="rideCard-${cardId}" class="panel ${isFav ? 'border-amber-400/60' : ''} p-3 transition duration-200 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
+        <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} p-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
           
           <div class="flex items-center justify-between gap-2.5">
             
@@ -2470,7 +2474,8 @@
           <!-- AUSKLAPPBEREICH: neu strukturiert nach dem Prinzip "so schmal
                und kompakt wie möglich" - alle Infos als schmale Pillen-Zeilen
                statt großer Kästen, damit der Fokus auf den Graphen bleibt. -->
-          <div id="chartContainer-${cardId}" class="hidden mt-3.5 pt-3.5 border-t border-white/5 space-y-3 cursor-default" onclick="event.stopPropagation()">
+          <div id="chartContainer-${cardId}" class="accordion-body space-y-3 cursor-default" onclick="event.stopPropagation()">
+            <div class="mt-3.5 pt-3.5 border-t border-white/5 space-y-3">
             
             <!-- BUTTONS AUF MOBILE ANZEIGEN WENN AUSGEKLAPPT -->
             <div class="flex sm:hidden items-center justify-end gap-2 pb-2">
@@ -2555,6 +2560,7 @@
             </div>
 
           </div>
+          </div>
 
 
         </div>
@@ -2564,18 +2570,18 @@
     function toggleAccordion(cardId) {
       if (currentlyExpandedCardId && currentlyExpandedCardId !== cardId) {
         const prevContainer = document.getElementById(`chartContainer-${currentlyExpandedCardId}`);
-        if (prevContainer) prevContainer.classList.add('hidden');
+        if (prevContainer) prevContainer.classList.remove('expanded');
       }
 
       const targetContainer = document.getElementById(`chartContainer-${cardId}`);
       if (targetContainer) {
-        const isHidden = targetContainer.classList.contains('hidden');
-        if (isHidden) {
-          targetContainer.classList.remove('hidden');
+        const isExpanded = targetContainer.classList.contains('expanded');
+        if (!isExpanded) {
+          targetContainer.classList.add('expanded');
           currentlyExpandedCardId = cardId;
           loadExpandedCardExtras(cardId);
         } else {
-          targetContainer.classList.add('hidden');
+          targetContainer.classList.remove('expanded');
           currentlyExpandedCardId = null;
         }
       }
@@ -2866,52 +2872,37 @@
           });
 
           // Für alle sichtbaren Attraktionen, deren Prognose noch nicht im
-          // Cache liegt, jetzt im Hintergrund nachladen und danach die
-          // Grafen einmalig neu zeichnen (kein voller renderUI()-Rerun nötig,
-          // das würde Akkordeon-Status & Scroll-Position durcheinanderbringen)
+          // Cache liegt, jetzt im Hintergrund GESTAFFELT (in kleinen Batches,
+          // nicht alle auf einmal) nachladen. Bei vielen Attraktionen (~35)
+          // wurden vorher bei jedem renderUI()-Aufruf potenziell 100+
+          // parallele Requests gleichzeitig losgeschickt (Prognose + Ausfälle
+          // + Zuverlässigkeit je Attraktion) - das hat spürbar zum "Hängen"
+          // beigetragen. Batches von je 6 gleichzeitigen Requests halten die
+          // UI durchgehend reaktionsfähig, auch wenn das Gesamtladen dadurch
+          // minimal länger dauert.
           const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
-          if (missing.length > 0) {
-            Promise.all(missing.map(item => ensureDayForecast(item.rideName))).then(() => {
-              // Nur die Graphen neu zeichnen, nicht die ganze Liste (verhindert Flackern/Reset)
-              renderedItems.forEach(item => {
-                const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-                renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-                if (item.cardId === currentlyExpandedCardId) {
-                  renderDetailedChart(`chart-${item.cardId}`, dataObj);
-                  renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-                }
-              });
-            });
-          }
-
-          // WICHTIG: Ausfälle (für die rote Linien-Färbung), Regen (blaue
-          // Balken) und Zuverlässigkeit (für die Warteschlangen-Abklingkurve)
-          // werden jetzt PROAKTIV für ALLE sichtbaren Karten geladen, nicht
-          // erst beim Aufklappen einer einzelnen Karte - vorher waren
-          // Ausfälle erst nach einem Klick auf die Karte rot markiert, was
-          // verwirrend war, da man auf den ersten Blick nicht sah, welche
-          // Attraktionen gerade Probleme hatten.
           const missingOutages = renderedItems.filter(item => !outageCache[`${item.rideName}|today`]);
           const missingReliability = renderedItems.filter(item => !reliabilityCache[item.rideName]);
           const needsRainLoad = !rainPeriodsCache['today'];
 
-          const backgroundLoads = [];
-          if (missingOutages.length > 0) backgroundLoads.push(...missingOutages.map(item => ensureOutages(item.rideName)));
-          if (needsRainLoad) backgroundLoads.push(ensureRainPeriods());
-          if (missingReliability.length > 0) backgroundLoads.push(...missingReliability.map(item => ensureReliability(item.rideName)));
-
-          if (backgroundLoads.length > 0) {
-            Promise.all(backgroundLoads).then(() => {
-              renderedItems.forEach(item => {
-                const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-                renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-                if (item.cardId === currentlyExpandedCardId) {
-                  renderDetailedChart(`chart-${item.cardId}`, dataObj);
-                  renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-                }
-              });
+          runInBatches([
+            ...missing.map(item => () => ensureDayForecast(item.rideName)),
+            ...(needsRainLoad ? [() => ensureRainPeriods()] : []),
+            ...missingOutages.map(item => () => ensureOutages(item.rideName)),
+            ...missingReliability.map(item => () => ensureReliability(item.rideName))
+          ], 6, () => {
+            // Nur die Graphen neu zeichnen, nicht die ganze Liste (verhindert
+            // Flackern/Reset); wird EINMAL am Ende aller Batches aufgerufen,
+            // nicht nach jedem einzelnen Request, um unnötige Re-Renders zu vermeiden
+            renderedItems.forEach(item => {
+              const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+              if (item.cardId === currentlyExpandedCardId) {
+                renderDetailedChart(`chart-${item.cardId}`, dataObj);
+                renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+              }
             });
-          }
+          });
         }
       } catch (e) {
         console.error("Chart Rendering Fehler:", e);
@@ -4434,11 +4425,13 @@
       }, { passive: true });
     }
 
-    // ---------- SWIPE ZUM TAB-WECHSEL (Live <-> Statistik) ----------
+    // ---------- SWIPE ZUM TAB-WECHSEL (Live <-> Statistik <-> Ferien) ----------
     // Auf dem gesamten Hauptinhalt registriert, aber Canvas-Elemente (Graphen)
     // UND die Tag-Swipe-Zone (#statsDaySwipeArea) sind ausgenommen, damit
-    // sich beide Gesten nicht gegenseitig stören. Nach links wischen
-    // wechselt vorwärts (Live -> Statistik), nach rechts wischen zurück.
+    // sich beide Gesten nicht gegenseitig stören. Nach links wischen springt
+    // zum nächsten Tab in der Reihenfolge Live -> Statistik -> Ferien, nach
+    // rechts wischen einen zurück - funktioniert jetzt mit allen drei Tabs,
+    // nicht nur den ursprünglichen zwei.
     // WICHTIG: Kein 'DOMContentLoaded'-Listener hier - dieses <script>-Tag
     // steht am Ende des <body>, das DOM ist zu diesem Zeitpunkt bereits
     // vollständig geparst. Ein Listener auf 'DOMContentLoaded' würde HIER NIE
@@ -4450,11 +4443,11 @@
       if (!mainContent) return;
 
       setupSwipeDetection(mainContent, (direction) => {
-        if (direction === 'left' && currentTab === 'live') {
-          switchTab('stats');
-        } else if (direction === 'right' && currentTab === 'stats') {
-          switchTab('live');
-        }
+        const currentIdx = TAB_ORDER.indexOf(currentTab);
+        if (currentIdx === -1) return;
+        const nextIdx = direction === 'left' ? currentIdx + 1 : currentIdx - 1;
+        if (nextIdx < 0 || nextIdx >= TAB_ORDER.length) return; // am Rand -> nichts tun
+        switchTab(TAB_ORDER[nextIdx], direction);
       }, { excludeSelector: '#statsDaySwipeArea' });
 
       // ---------- SWIPE ZUM TAG-WECHSEL (in der Attraktions-Detailansicht) ----------
