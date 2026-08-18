@@ -970,6 +970,76 @@
 
     const SERVER_URL = 'https://parkpulse-server.onrender.com';
 
+    // ============================================================
+    // LOKALES CACHING (localStorage) - "Stale-While-Revalidate"
+    // ============================================================
+    // Der größte Geschwindigkeits-Hebel: viele Endpoints (Statistik-Tab,
+    // Ferienkalender, Attraktionslisten) ändern sich nur alle paar Minuten
+    // bis einmal täglich, wurden aber bisher bei JEDEM Tab-Öffnen komplett
+    // neu vom Server geladen - inklusive Render-Kaltstart-Wartezeit, falls
+    // der kostenlose Render-Server gerade "eingeschlafen" war. Jetzt gilt:
+    // 1) Beim ersten Aufruf wird IMMER ein evtl. vorhandener Cache-Eintrag
+    //    SOFORT (0ms, synchron aus localStorage) angezeigt, egal wie alt.
+    // 2) Parallel dazu läuft im Hintergrund IMMER ein frischer Request, der
+    //    bei Erfolg den Cache aktualisiert und die Anzeige nachzieht.
+    // Das macht wiederholte Besuche gefühlt "blitzschnell" (Inhalt ist
+    // sofort da), ohne je veraltete Daten dauerhaft anzuzeigen.
+    const CACHE_PREFIX = 'pp_cache_';
+    const CACHE_VERSION = 'v1'; // hochzählen, falls sich Datenformate ändern
+
+    function cacheGet(key) {
+      try {
+        const raw = localStorage.getItem(CACHE_PREFIX + CACHE_VERSION + '_' + key);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function cacheSet(key, data) {
+      try {
+        localStorage.setItem(CACHE_PREFIX + CACHE_VERSION + '_' + key, JSON.stringify({
+          data,
+          cachedAt: Date.now()
+        }));
+      } catch (err) {
+        // localStorage kann voll sein (Safari privater Modus, Quota) -
+        // in diesem Fall funktioniert die App einfach ohne Cache weiter
+        console.warn('Konnte Cache nicht schreiben:', err.message);
+      }
+    }
+
+    // Zentrale Fetch-Funktion mit Stale-While-Revalidate: gibt SOFORT
+    // gecachte Daten zurück (falls vorhanden) via onCacheHit-Callback, holt
+    // parallel frische Daten und ruft onFreshData auf, sobald diese da sind.
+    // maxAgeMs: falls der Cache-Eintrag älter ist, wird onCacheHit trotzdem
+    // aufgerufen (bessere gefühlte Performance als "nichts zeigen"), aber
+    // der Hintergrund-Request wird priorisiert geloggt.
+    async function fetchWithCache(url, cacheKey, onCacheHit, onFreshData, onError) {
+      const cached = cacheGet(cacheKey);
+      if (cached && onCacheHit) {
+        onCacheHit(cached.data, cached.cachedAt);
+      }
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const freshData = await response.json();
+        cacheSet(cacheKey, freshData);
+        if (onFreshData) onFreshData(freshData);
+        return freshData;
+      } catch (err) {
+        console.error(`Fehler beim Laden von ${url}:`, err);
+        // Kein Cache-Treffer UND Request fehlgeschlagen -> Fehler melden
+        if (!cached && onError) onError(err);
+        // Bei vorhandenem (auch veraltetem) Cache bleibt einfach der bereits
+        // angezeigte Stand stehen, statt eine Fehlermeldung über funktionierende
+        // (wenn auch alte) Daten zu legen
+        return cached ? cached.data : null;
+      }
+    }
+
     // Globaler Chart.js-Hook: sobald IRGENDEIN Chart fertig gezeichnet ist,
     // bekommt sein <canvas> die Klasse "chart-ready", die per CSS-Transition
     // sanft von opacity:0 auf opacity:1 einblendet (siehe .chart-frame canvas
@@ -1280,6 +1350,7 @@
         const data = await response.json();
         const previousOpenClose = globalOpeningHours ? `${globalOpeningHours.openTime}-${globalOpeningHours.closeTime}` : null;
         globalOpeningHours = data;
+        cacheSet('opening-hours', data);
         renderOpeningHoursWarning(data);
 
         // Zeitachse neu berechnen, sobald sich die bekannten Öffnungszeiten
@@ -1845,13 +1916,33 @@
       autoRefreshInterval = setInterval(loadPhantasialandData, AUTO_REFRESH_SECONDS * 1000);
     }
 
+    let isFirstLiveLoad = true; // steuert, ob beim Laden zuerst der Cache gezeigt wird
+
     async function loadPhantasialandData() {
       const label = document.getElementById('headerRefreshLabel');
       const dot = document.getElementById('headerLiveDot');
       const icon = document.getElementById('refreshIcon');
 
+      // Beim ALLERERSTEN Laden (App-Start) sofort mit dem letzten bekannten
+      // Stand aus dem Cache rendern, bevor der eigentliche Netzwerk-Request
+      // überhaupt zurückkommt - verhindert einen leeren/wartenden Bildschirm
+      // beim App-Start, besonders spürbar nach einem Render-Kaltstart.
+      // Bei jedem weiteren (automatischen) Refresh wird das übersprungen, da
+      // dort bereits Live-Daten sichtbar sind und ein Zwischenschritt nur
+      // unnötig flackern würde.
+      if (isFirstLiveLoad) {
+        const cachedPark = cacheGet('park-data');
+        if (cachedPark && cachedPark.data && cachedPark.data.history && cachedPark.data.history.length > 0) {
+          globalHistoryData = cachedPark.data.history;
+          const latestCached = globalHistoryData[globalHistoryData.length - 1];
+          globalRidesData = (latestCached.rides || []).map(applyOfficialHoursOverride);
+          renderUI();
+          label.textContent = 'Aktualisiere...';
+        }
+      }
+
       icon.classList.add('fa-spin');
-      label.textContent = 'Lädt...';
+      if (!isFirstLiveLoad || globalRidesData.length === 0) label.textContent = 'Lädt...';
       dot.classList.remove('bg-emerald-500', 'bg-red-500');
       dot.classList.add('bg-slate-950');
 
@@ -1861,15 +1952,28 @@
 
         const data = await response.json();
         globalHistoryData = data.history || [];
+        cacheSet('park-data', data); // für den nächsten App-Start cachen
 
       } catch (err) {
         console.error("Verbindungsfehler:", err);
-        label.textContent = 'Fehler';
-        dot.classList.remove('bg-slate-950', 'animate-pulse');
-        dot.classList.add('bg-red-500');
+        // Bei Fehler UND vorhandenen (ggf. gecachten) Daten einfach den
+        // zuletzt bekannten Stand stehen lassen, statt eine harte
+        // Fehlermeldung über funktionierende Altdaten zu legen
+        if (globalRidesData.length === 0) {
+          label.textContent = 'Fehler';
+          dot.classList.remove('bg-slate-950', 'animate-pulse');
+          dot.classList.add('bg-red-500');
+        } else {
+          label.textContent = 'Verbindung unterbrochen';
+          dot.classList.remove('bg-slate-950', 'animate-pulse');
+          dot.classList.add('bg-red-500');
+        }
         icon.classList.remove('fa-spin');
+        isFirstLiveLoad = false;
         return;
       }
+
+      isFirstLiveLoad = false;
 
       if (globalHistoryData.length === 0) {
         label.textContent = 'Erste Messung läuft...';
@@ -3618,16 +3722,13 @@
     }
 
     async function loadWeekdayStats() {
-      try {
-        const response = await fetch(`${SERVER_URL}/api/weekday-stats?park=${PHANTASIALAND_ID}&days=90`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        renderWeekdayChart(data.weekdayStats || []);
-      } catch (err) {
-        console.error('Fehler beim Laden der Wochentags-Statistik:', err);
-        document.getElementById('weekdayBestBadge').textContent = 'Fehler beim Laden.';
-      }
+      await fetchWithCache(
+        `${SERVER_URL}/api/weekday-stats?park=${PHANTASIALAND_ID}&days=90`,
+        'weekday-stats',
+        (cachedData) => renderWeekdayChart(cachedData.weekdayStats || []),
+        (freshData) => renderWeekdayChart(freshData.weekdayStats || []),
+        () => document.getElementById('weekdayBestBadge').textContent = 'Fehler beim Laden.'
+      );
     }
 
     function renderWeekdayChart(weekdayStats) {
@@ -3708,18 +3809,24 @@
     let statsAllRideNames = []; // vom Server geladene Liste aller bekannten Attraktionsnamen
 
     async function loadStatsRideList() {
-      try {
-        const response = await fetch(`${SERVER_URL}/api/rides-list?park=${PHANTASIALAND_ID}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        statsAllRideNames = data.rides || [];
-        renderStatsRideList();
-      } catch (err) {
-        console.error('Fehler beim Laden der Attraktionsliste:', err);
-        document.getElementById('statsRideList').innerHTML = `
-          <p class="text-[11px] text-red-400 text-center py-2">Fehler beim Laden der Liste.</p>
-        `;
-      }
+      await fetchWithCache(
+        `${SERVER_URL}/api/rides-list?park=${PHANTASIALAND_ID}`,
+        'rides-list',
+        (cachedData) => {
+          // Sofort aus dem Cache anzeigen (0ms), noch bevor der Netzwerk-Request fertig ist
+          statsAllRideNames = cachedData.rides || [];
+          renderStatsRideList();
+        },
+        (freshData) => {
+          statsAllRideNames = freshData.rides || [];
+          renderStatsRideList();
+        },
+        () => {
+          document.getElementById('statsRideList').innerHTML = `
+            <p class="text-[11px] text-red-400 text-center py-2">Fehler beim Laden der Liste.</p>
+          `;
+        }
+      );
     }
 
     function renderStatsRideList() {
@@ -4257,20 +4364,7 @@
       const loadingEl = document.getElementById('holidayTableLoading');
       const wrapEl = document.getElementById('holidayTableWrap');
 
-      try {
-        const response = await fetch(`${SERVER_URL}/api/holidays-overview`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        holidayTableData = data;
-
-        renderHolidayTable();
-
-        loadingEl.classList.add('hidden');
-        wrapEl.classList.remove('hidden');
-
-        // Direkt zum heutigen Tag scrollen, statt beim 1. Januar/ältesten
-        // sichtbaren Tag zu starten - der Nutzer will primär "was ist jetzt/
-        // bald" sehen, nicht erst durch vergangene Monate scrollen müssen
+      function scrollToToday() {
         requestAnimationFrame(() => {
           const wrap = document.getElementById('holidayTableWrap');
           const todayCell = wrap.querySelector('[data-today-marker="1"]');
@@ -4278,14 +4372,34 @@
             wrap.scrollLeft = Math.max(0, todayCell.offsetLeft - 40);
           }
         });
-
-      } catch (err) {
-        console.error('Fehler beim Laden des Ferienkalenders:', err);
-        loadingEl.innerHTML = `
-          <i class="fa-solid fa-triangle-exclamation text-xl text-red-400 mb-2"></i>
-          <p class="text-xs font-bold text-red-300">Ferienkalender konnte nicht geladen werden.</p>
-        `;
       }
+
+      await fetchWithCache(
+        `${SERVER_URL}/api/holidays-overview`,
+        'holidays-overview',
+        (cachedData) => {
+          // Sofortige Anzeige aus dem Cache - bei 365 Tagen x 5 Regionen ist
+          // das der spürbarste "blitzschnell"-Effekt der ganzen App
+          holidayTableData = cachedData;
+          renderHolidayTable();
+          loadingEl.classList.add('hidden');
+          wrapEl.classList.remove('hidden');
+          scrollToToday();
+        },
+        (freshData) => {
+          holidayTableData = freshData;
+          renderHolidayTable();
+          loadingEl.classList.add('hidden');
+          wrapEl.classList.remove('hidden');
+          scrollToToday();
+        },
+        () => {
+          loadingEl.innerHTML = `
+            <i class="fa-solid fa-triangle-exclamation text-xl text-red-400 mb-2"></i>
+            <p class="text-xs font-bold text-red-300">Ferienkalender konnte nicht geladen werden.</p>
+          `;
+        }
+      );
     }
 
     function renderHolidayTable() {
@@ -4541,14 +4655,27 @@
 
     window.onload = async function() {
       updateNotifyIcon();
-      loadContextData();
 
-      // Öffnungszeiten ZUERST laden (awaited), damit der Vor-9-Uhr-Filter
-      // (applyOfficialHoursOverride) schon beim allerersten Live-Daten-Render
-      // greift, statt erst ab dem zweiten Refresh. Schlägt das fehl, läuft
-      // loadPhantasialandData() trotzdem an (isWithinOfficialParkHours() lässt
-      // dann alles durch, statt fälschlich zu blockieren).
-      await loadOpeningHours();
+      // Öffnungszeiten SYNCHRON aus dem Cache vorladen (0ms, kein await
+      // nötig), damit applyOfficialHoursOverride() und die Zeitachsen-
+      // Berechnung schon beim allerersten Render eine sinnvolle Grundlage
+      // haben, OHNE dass dafür erst ein Netzwerk-Request abgewartet werden
+      // muss. Das war vorher der größte Bremsfaktor beim App-Start: ein
+      // "await loadOpeningHours()" hat den kompletten ersten Render
+      // blockiert, bis dieser eine Request durch war.
+      const cachedHours = cacheGet('opening-hours');
+      if (cachedHours && cachedHours.data) {
+        globalOpeningHours = cachedHours.data;
+        refreshTimeAxisFromOpeningHours();
+      }
+
+      // Alle drei Haupt-Requests jetzt PARALLEL starten statt sequenziell
+      // hintereinander - loadPhantasialandData() zeigt dank fetchWithCache/
+      // dem obigen Öffnungszeiten-Vorladen sofort sinnvolle Daten, während
+      // loadOpeningHours() und loadContextData() im Hintergrund die
+      // wirklich aktuellen Werte nachladen und bei Bedarf neu rendern.
+      loadContextData();
+      loadOpeningHours();
       loadPhantasialandData();
       startAutoRefresh();
 
