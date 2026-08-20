@@ -941,13 +941,13 @@
           </select>
         </div>
 
-        <!-- Kartencontainer -->
+        <!-- Kartencontainer: IMMER sichtbar, auch ohne gesetzte Positionen,
+             da sie ja gerade zum Setzen der ersten Position gebraucht wird -->
         <div id="parkMapContainer" class="chart-frame overflow-hidden" style="height: 60vh; min-height: 400px;"></div>
 
-        <div id="mapNoCoordsHint" class="hidden py-6 text-center text-slate-500">
-          <i class="fa-solid fa-map-pin text-2xl text-slate-700 mb-2"></i>
-          <p class="text-xs font-bold">Noch keine Positionen gesetzt</p>
-          <p class="text-[11px] text-slate-600 mt-1">Tippe oben auf "Positionen bearbeiten", um loszulegen.</p>
+        <div id="mapNoCoordsHint" class="hidden bg-cyan-500/10 border border-cyan-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
+          <i class="fa-solid fa-circle-info text-cyan-400 text-xs mt-0.5 shrink-0"></i>
+          <p class="text-[11px] text-cyan-200 leading-relaxed">Noch keine Positionen gesetzt. Tippe oben auf "Positionen bearbeiten", wähle eine Attraktion und anschließend eine Stelle auf der Karte.</p>
         </div>
 
         <p class="text-[9px] text-slate-600 leading-relaxed">
@@ -4543,16 +4543,20 @@
         rideCoordinatesCache = {};
         mapLiveRidesData.forEach(r => { rideCoordinatesCache[r.name] = { latitude: r.latitude, longitude: r.longitude }; });
 
+        // WICHTIG: Die Karte selbst bleibt IMMER sichtbar, auch wenn noch
+        // keine einzige Attraktion eine Koordinate hat - sie wird ja gerade
+        // dafür gebraucht, die ersten Positionen per Klick zu setzen. Vorher
+        // wurde der Kartencontainer bei 0 Attraktionen komplett versteckt,
+        // was das Setzen der allerersten Position unmöglich machte (Bug).
+        // Der Hinweis "Noch keine Positionen gesetzt" erscheint jetzt nur
+        // noch als kleiner Zusatztext UNTER der weiterhin sichtbaren Karte.
         const noCoordsHint = document.getElementById('mapNoCoordsHint');
-        const mapContainer = document.getElementById('parkMapContainer');
         if (mapLiveRidesData.length === 0) {
           noCoordsHint.classList.remove('hidden');
-          mapContainer.classList.add('hidden');
         } else {
           noCoordsHint.classList.add('hidden');
-          mapContainer.classList.remove('hidden');
-          if (parkMapInstance) setTimeout(() => parkMapInstance.invalidateSize(), 50);
         }
+        if (parkMapInstance) setTimeout(() => parkMapInstance.invalidateSize(), 50);
 
         renderMapMarkersLayer();
         renderMapHeatmapLayer();
