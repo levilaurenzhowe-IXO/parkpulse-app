@@ -219,6 +219,17 @@
     .leaflet-container {
       background: #1a1a1a;
       font-family: inherit;
+      /* WICHTIG: erzeugt einen eigenen Stapelkontext (stacking context) für
+         die Karte. Leaflet nutzt intern selbst sehr hohe z-index-Werte für
+         seine Panes (Kacheln, Marker, Controls - teils über 1000), die ohne
+         diese Begrenzung während des Verschiebens/Zoomens über andere fixierte
+         App-Elemente wie die Bottom-Tab-Bar oder Modals hinausragen konnten -
+         das war der Grund, warum die Karte beim Bewegen "ganz viel verdeckt"
+         hat. isolation:isolate sorgt dafür, dass Leaflets interne z-index-
+         Werte NUR innerhalb der Karte selbst wirken, nie außerhalb. */
+      isolation: isolate;
+      position: relative;
+      z-index: 0;
     }
     .map-tooltip {
       background: rgba(5, 5, 5, 0.95) !important;
@@ -1320,6 +1331,21 @@
         await Promise.all(batch.map(fn => fn().catch(err => console.error('Batch-Task fehlgeschlagen:', err))));
       }
       if (onAllDone) onAllDone();
+    }
+
+    // Wie runInBatches, aber ruft onBatchDone(batchEntries) NACH JEDEM
+    // EINZELNEN Batch auf (nicht erst am Ende aller Batches) - dadurch
+    // aktualisiert sich die UI fortlaufend, sobald jeweils ein paar
+    // Attraktionen fertig geladen sind, statt dass man bei vielen
+    // Attraktionen lange auf den allerletzten Batch warten muss, bevor
+    // überhaupt irgendetwas sichtbar wird. entries: Array von { item, task }.
+    async function runInBatchesWithProgress(entries, batchSize, onBatchDone) {
+      if (!entries || entries.length === 0) return;
+      for (let i = 0; i < entries.length; i += batchSize) {
+        const batch = entries.slice(i, i + batchSize);
+        await Promise.all(batch.map(entry => entry.task().catch(err => console.error('Batch-Task fehlgeschlagen:', err))));
+        if (onBatchDone) onBatchDone(batch);
+      }
     }
 
     function calculateQueueMetrics(rideName, waitTime, isOpen) {
@@ -3160,36 +3186,61 @@
 
           // Für alle sichtbaren Attraktionen, deren Prognose noch nicht im
           // Cache liegt, jetzt im Hintergrund GESTAFFELT (in kleinen Batches,
-          // nicht alle auf einmal) nachladen. Bei vielen Attraktionen (~35)
-          // wurden vorher bei jedem renderUI()-Aufruf potenziell 100+
-          // parallele Requests gleichzeitig losgeschickt (Prognose + Ausfälle
-          // + Zuverlässigkeit je Attraktion) - das hat spürbar zum "Hängen"
-          // beigetragen. Batches von je 6 gleichzeitigen Requests halten die
-          // UI durchgehend reaktionsfähig, auch wenn das Gesamtladen dadurch
-          // minimal länger dauert.
+          // nicht alle auf einmal) nachladen. WICHTIG: Anders als vorher wird
+          // jetzt NACH JEDEM EINZELNEN BATCH neu gezeichnet, nicht erst ganz
+          // am Ende - bei ~35 Attraktionen und 3 Datenquellen pro Attraktion
+          // ergaben sich vorher gut 100 Tasks in Batches von 6, was heißt:
+          // ~17 Batches mussten komplett durchlaufen sein, bevor überhaupt
+          // EINE Karte ihre grüne Prognose oder rote Ausfall-Markierung zeigte
+          // - das war der Grund, warum praktisch nur die zufällig schon
+          // gecachten Karten sofort vollständig aussahen. Jetzt aktualisiert
+          // sich jede Karte, sobald IHRE Daten fertig geladen sind, nicht
+          // erst wenn ALLE Attraktionen durch sind.
           const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
           const missingOutages = renderedItems.filter(item => !outageCache[`${item.rideName}|today`]);
           const missingReliability = renderedItems.filter(item => !reliabilityCache[item.rideName]);
           const needsRainLoad = !rainPeriodsCache['today'];
 
-          runInBatches([
-            ...missing.map(item => () => ensureDayForecast(item.rideName)),
-            ...(needsRainLoad ? [() => ensureRainPeriods()] : []),
-            ...missingOutages.map(item => () => ensureOutages(item.rideName)),
-            ...missingReliability.map(item => () => ensureReliability(item.rideName))
-          ], 6, () => {
-            // Nur die Graphen neu zeichnen, nicht die ganze Liste (verhindert
-            // Flackern/Reset); wird EINMAL am Ende aller Batches aufgerufen,
-            // nicht nach jedem einzelnen Request, um unnötige Re-Renders zu vermeiden
-            renderedItems.forEach(item => {
+          // Tasks so gruppieren, dass PRO ATTRAKTION alle drei Datenquellen
+          // (Prognose, Ausfälle, Zuverlässigkeit) gemeinsam in einem Batch
+          // landen - dadurch ist eine Karte nach ihrem eigenen Batch bereits
+          // KOMPLETT fertig (Linie + Prognose + rote Markierung zusammen),
+          // statt dass die drei Infos einer Karte über verschiedene,
+          // zeitlich weit auseinanderliegende Batches verteilt eintrudeln.
+          const perRideTasks = renderedItems.map(item => async () => {
+            const jobs = [];
+            if (!dayForecastCache[item.rideName]) jobs.push(ensureDayForecast(item.rideName));
+            if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
+            if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
+            if (jobs.length > 0) await Promise.all(jobs);
+          });
+
+          const rerenderCard = (item) => {
+            try {
               const dataObj = calculateSmartHistoryAndForecast(item.rideName);
               renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
               if (item.cardId === currentlyExpandedCardId) {
                 renderDetailedChart(`chart-${item.cardId}`, dataObj);
                 renderQueueChart(`queueChart-${item.cardId}`, dataObj);
               }
-            });
-          });
+            } catch (e) {
+              console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
+            }
+          };
+
+          if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+
+          runInBatchesWithProgress(
+            renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+            6,
+            (batchEntries) => {
+              // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
+              // fertig geladen wurden (nicht die ganze Liste), das hält die
+              // Reaktionsfähigkeit hoch und vermeidet unnötige Re-Renders
+              // bereits fertiger Karten
+              batchEntries.forEach(({ item }) => rerenderCard(item));
+            }
+          );
         }
       } catch (e) {
         console.error("Chart Rendering Fehler:", e);
@@ -5226,49 +5277,77 @@
     // (Live-Daten, Wetter/Ferien, Öffnungszeiten - alles was auch der
     // "Aktualisieren"-Button auslöst).
     (function setupPullToRefresh() {
-      const PULL_TRIGGER_DISTANCE = 70; // px, ab der beim Loslassen refresht wird
-      const PULL_MAX_VISUAL_DISTANCE = 110; // px, ab der der Indikator nicht weiter wandert
+      // Deutlich erhöhter Widerstand: vorher reichte ein kurzes, oft
+      // versehentliches Herunterziehen (nur 70px linear) für einen Refresh -
+      // das passierte leicht aus Versehen beim normalen Scrollen ganz oben
+      // auf der Seite. Jetzt gilt:
+      // 1) Eine höhere Trigger-Distanz (130px statt 70px)
+      // 2) Ein NICHT-LINEARER Widerstand (wie bei iOS/Android üblich): je
+      //    weiter man zieht, desto "zäher" wird es - die ersten Pixel ziehen
+      //    sich normal, aber ab der Mitte wird es spürbar schwerer, den
+      //    Trigger-Punkt zu erreichen. Das verhindert ein versehentliches
+      //    Auslösen bei kurzen/schnellen Zug-Gesten zuverlässig.
+      const PULL_TRIGGER_DISTANCE = 130; // px an ECHTER Fingerbewegung, nicht visueller Distanz
+      const PULL_MAX_RAW_DISTANCE = 220; // px, ab der noch mehr Ziehen keinen Unterschied macht
+      const PULL_MAX_VISUAL_DISTANCE = 100; // px, wie weit der Indikator visuell wandert
 
       const indicator = document.getElementById('pullToRefreshIndicator');
       const icon = document.getElementById('pullToRefreshIcon');
       if (!indicator || !icon) return;
 
       let startY = null;
-      let currentPullDistance = 0;
+      let currentRawDistance = 0; // ECHTE Fingerbewegung in px, für den Trigger-Vergleich
       let isPulling = false;
       let isRefreshing = false;
+      let startedOnMap = false;
 
       function getScrollTop() {
         return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
       }
 
+      // Wandelt die rohe Fingerbewegung in eine "gedämpfte" visuelle Distanz
+      // um (typisches Pull-to-Refresh-Gefühl: leicht am Anfang, zäh gegen Ende)
+      function applyResistance(raw) {
+        const t = Math.min(1, raw / PULL_MAX_RAW_DISTANCE);
+        // Quadratische Abflachung statt linear - fühlt sich "widerständig" an
+        return PULL_MAX_VISUAL_DISTANCE * (1 - Math.pow(1 - t, 2));
+      }
+
       document.addEventListener('touchstart', (e) => {
         if (isRefreshing) return;
         if (getScrollTop() > 0) { startY = null; return; } // nur ganz oben auslösen
+
+        // WICHTIG: Beginnt die Geste auf der Leaflet-Karte (Karten-Tab), wird
+        // Pull-to-Refresh komplett deaktiviert für diese Geste - dort erwartet
+        // der Nutzer normales Karten-Ziehen/Schwenken (Pan), kein Seiten-Refresh.
+        startedOnMap = !!(e.target.closest && e.target.closest('.leaflet-container'));
+        if (startedOnMap) { startY = null; return; }
+
         startY = e.touches[0].clientY;
         isPulling = false;
       }, { passive: true });
 
       document.addEventListener('touchmove', (e) => {
-        if (startY === null || isRefreshing) return;
+        if (startY === null || isRefreshing || startedOnMap) return;
         const deltaY = e.touches[0].clientY - startY;
-        if (deltaY <= 0) { currentPullDistance = 0; indicator.style.opacity = 0; indicator.style.marginTop = '-50px'; return; }
+        if (deltaY <= 0) { currentRawDistance = 0; indicator.style.opacity = 0; indicator.style.marginTop = '-50px'; return; }
         if (getScrollTop() > 0) return; // während des Ziehens doch gescrollt -> abbrechen
 
         isPulling = true;
-        currentPullDistance = Math.min(deltaY, PULL_MAX_VISUAL_DISTANCE);
+        currentRawDistance = deltaY;
+        const visualDistance = applyResistance(currentRawDistance);
 
-        const progress = Math.min(1, currentPullDistance / PULL_TRIGGER_DISTANCE);
+        const progress = Math.min(1, currentRawDistance / PULL_TRIGGER_DISTANCE);
         indicator.style.opacity = progress;
-        indicator.style.marginTop = `${-50 + currentPullDistance * 0.6}px`;
+        indicator.style.marginTop = `${-50 + visualDistance * 0.6}px`;
         icon.style.transform = `rotate(${progress * 360}deg)`;
         icon.classList.remove('fa-spin');
       }, { passive: true });
 
       document.addEventListener('touchend', () => {
-        if (!isPulling || isRefreshing) { startY = null; isPulling = false; return; }
+        if (!isPulling || isRefreshing || startedOnMap) { startY = null; isPulling = false; return; }
 
-        if (currentPullDistance >= PULL_TRIGGER_DISTANCE) {
+        if (currentRawDistance >= PULL_TRIGGER_DISTANCE) {
           isRefreshing = true;
           indicator.style.opacity = 1;
           indicator.style.marginTop = '20px';
@@ -5293,7 +5372,7 @@
 
         startY = null;
         isPulling = false;
-        currentPullDistance = 0;
+        currentRawDistance = 0;
       }, { passive: true });
     })();
 
