@@ -929,18 +929,7 @@
           </button>
         </div>
 
-        <!-- Ebenen-Umschalter: alle drei unabhängig voneinander an/aus -->
-        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-          <button onclick="toggleMapLayer('markers')" id="mapLayerBtnMarkers" class="pill shrink-0 px-3 py-1.5 text-[11px] font-bold flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-location-dot"></i> Wartezeiten
-          </button>
-          <button onclick="toggleMapLayer('heatmap')" id="mapLayerBtnHeatmap" class="pill shrink-0 px-3 py-1.5 text-[11px] font-bold flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-fire"></i> Heatmap
-          </button>
-          <button onclick="toggleMapLayer('flow')" id="mapLayerBtnFlow" class="pill shrink-0 px-3 py-1.5 text-[11px] font-bold flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-arrows-turn-to-dots"></i> Besucherströme
-          </button>
-        </div>
+     
 
         <!-- Hinweis im Bearbeitungsmodus -->
         <div id="mapEditHint" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
@@ -955,7 +944,7 @@
              auf echten Live-Daten für zukünftige Zeitpunkte (die gibt es
              logischerweise nicht), sondern auf denselben Vorhersagewerten,
              die auch im Live-Tab als grüne Prognose-Kurve erscheinen. -->
-        <div id="mapTimeSliderBox" class="hidden panel-raised px-3.5 py-3 space-y-2">
+                <div id="mapTimeSliderBox" class="panel-raised px-3.5 py-3 space-y-2">
           <div class="flex items-center justify-between">
             <p class="text-[9px] text-cyan-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
               <i class="fa-solid fa-clock-rotate-left"></i> Zeitreise (Prognose)
@@ -4632,21 +4621,20 @@ let mapTimeSliderIsPast = false;
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'
       }).addTo(parkMapInstance);
 
-      mapMarkersLayerGroup = L.layerGroup();
-      mapFlowLayerGroup = L.layerGroup();
+           mapMarkersLayerGroup = L.layerGroup();
+      mapMarkersLayerGroup.addTo(parkMapInstance); // immer sichtbar, kein Umschalter mehr nötig
 
-      // Klick auf die Karte: nur im Bearbeitungsmodus relevant, setzt die
-      // Position der aktuell im Dropdown ausgewählten Attraktion
-    parkMapInstance.on('click', (e) => {
-  if (!mapEditModeActive) return;
-  if (!mapEditSelectedRide) {
-    showMapToast('Bitte zuerst eine Attraktion im Dropdown auswählen', true);
-    return;
-  }
-  saveRideCoordinate(mapEditSelectedRide, e.latlng.lat, e.latlng.lng);
-});
+      parkMapInstance.on('click', (e) => {
+        if (!mapEditModeActive) return;
+        if (!mapEditSelectedRide) {
+          showMapToast('Bitte zuerst eine Attraktion im Dropdown auswählen', true);
+          return;
+        }
+        saveRideCoordinate(mapEditSelectedRide, e.latlng.lat, e.latlng.lng);
+      });
 
       loadMapLiveData();
+      initMapTimeSlider(); // Zeitregler ist jetzt immer aktiv, nicht erst bei "flow"
     }
 
     // Lädt Koordinaten + aktuelle Wartezeiten kombiniert vom Server und baut
@@ -4841,43 +4829,11 @@ function renderMapMarkersLayer() {
     // Wendet den aktuellen Sichtbarkeits-Zustand aller drei Ebenen auf die
     // Karte an (addLayer/removeLayer) UND aktualisiert das aktive Aussehen
     // der drei Umschalt-Buttons
-    function applyMapLayerVisibility() {
-      if (!parkMapInstance) return;
-
-      const markersBtn = document.getElementById('mapLayerBtnMarkers');
-      const heatmapBtn = document.getElementById('mapLayerBtnHeatmap');
-      const flowBtn = document.getElementById('mapLayerBtnFlow');
-
-      if (mapLayersVisible.markers) {
-        mapMarkersLayerGroup.addTo(parkMapInstance);
-        markersBtn.classList.add('bg-amber-500', 'text-black');
-        markersBtn.classList.remove('text-slate-300');
-      } else {
-        parkMapInstance.removeLayer(mapMarkersLayerGroup);
-        markersBtn.classList.remove('bg-amber-500', 'text-black');
-        markersBtn.classList.add('text-slate-300');
-      }
-
-      if (mapLayersVisible.heatmap && mapHeatLayer) {
-        if (!parkMapInstance.hasLayer(mapHeatLayer)) mapHeatLayer.addTo(parkMapInstance);
-        heatmapBtn.classList.add('bg-red-500/80', 'text-white');
-        heatmapBtn.classList.remove('text-slate-300');
-      } else {
-        if (mapHeatLayer && parkMapInstance.hasLayer(mapHeatLayer)) parkMapInstance.removeLayer(mapHeatLayer);
-        heatmapBtn.classList.remove('bg-red-500/80', 'text-white');
-        heatmapBtn.classList.add('text-slate-300');
-      }
-
-      if (mapLayersVisible.flow) {
-        mapFlowLayerGroup.addTo(parkMapInstance);
-        flowBtn.classList.add('bg-cyan-500', 'text-black');
-        flowBtn.classList.remove('text-slate-300');
-      } else {
-        parkMapInstance.removeLayer(mapFlowLayerGroup);
-        flowBtn.classList.remove('bg-cyan-500', 'text-black');
-        flowBtn.classList.add('text-slate-300');
-      }
-    }
+   function applyMapLayerVisibility() {
+  // Kein Umschalter mehr - Marker sind immer sichtbar, Heatmap/Flow entfernt.
+  // Funktion bleibt als No-op bestehen, da sie noch von renderMapMarkersLayer()
+  // aufgerufen wird.
+}
 
     function toggleMapLayer(layer) {
       mapLayersVisible[layer] = !mapLayersVisible[layer];
@@ -4957,14 +4913,16 @@ function renderMapMarkersLayer() {
     // Ziehens). Debounced, damit nicht bei jedem einzelnen Pixel-Schritt ein
     // Server-Request losgeht - erst 150ms nach der letzten Bewegung wird
     // tatsächlich nachgeladen, das Label aktualisiert sich aber sofort.
-   function onMapTimeSliderInput() {
-  const slider = document.getElementById('mapTimeSlider');
-  mapTimeSliderCurrentIndex = parseInt(slider.value, 10);
-  isMapTimeTravelActive = true;
-  const nowStr = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
-  mapTimeSliderIsPast = slotToMinutes(mapTimeSliderSlots[mapTimeSliderCurrentIndex]) < slotToMinutes(nowStr);
-  updateMapTimeSliderLabel();
-  // ... rest unverändert
+    function onMapTimeSliderInput() {
+      const slider = document.getElementById('mapTimeSlider');
+      mapTimeSliderCurrentIndex = parseInt(slider.value, 10);
+
+      const nowStr = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
+      const targetTime = mapTimeSliderSlots[mapTimeSliderCurrentIndex];
+      isMapTimeTravelActive = targetTime !== undefined;
+      mapTimeSliderIsPast = targetTime ? slotToMinutes(targetTime) < slotToMinutes(nowStr) : false;
+
+      updateMapTimeSliderLabel();
 
       clearTimeout(mapTimeSliderDebounceTimer);
       mapTimeSliderDebounceTimer = setTimeout(() => {
@@ -4988,6 +4946,9 @@ function renderMapMarkersLayer() {
       const slider = document.getElementById('mapTimeSlider');
       if (slider) slider.value = closestIdx;
       updateMapTimeSliderLabel();
+
+         isMapTimeTravelActive = false;
+      mapTimeSliderIsPast = false;
 
       // Zurück zu den echten Live-Daten (statt Prognose-/Vergangenheitswerten)
       loadMapLiveData();
@@ -5018,8 +4979,7 @@ function renderMapMarkersLayer() {
           hasLiveData: r.forecastWait !== null
         }));
 
-        renderMapMarkersLayer();
-        renderMapHeatmapLayer();
+               renderMapMarkersLayer();
       } catch (err) {
         console.error('Fehler beim Laden der Zeitreise-Daten:', err);
       }
