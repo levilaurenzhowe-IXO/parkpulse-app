@@ -4993,20 +4993,18 @@ async function loadPhantasialandData() {
     }
 
     // ---------- Bearbeitungsmodus: Positionen per Klick setzen ----------
-    function toggleMapEditMode() {
-      mapEditModeActive = !mapEditModeActive;
-      const btn = document.getElementById('mapEditModeBtn');
-      const label = document.getElementById('mapEditModeLabel');
-      const hint = document.getElementById('mapEditHint');
-      const select = document.getElementById('mapEditRideSelect');
-
-      if (mapEditModeActive) {
-        btn.classList.add('bg-amber-500', 'text-black');
-        label.textContent = 'Bearbeitung beenden';
-        hint.classList.remove('hidden');
-        select.classList.remove('hidden');
-        if (parkMapInstance) parkMapInstance.getContainer().style.cursor = 'crosshair';
-      } else {
+   if (mapEditModeActive) {
+    btn.classList.add('bg-amber-500', 'text-black');
+    label.textContent = 'Bearbeitung beenden';
+    hint.classList.remove('hidden');
+    select.classList.remove('hidden');
+    if (parkMapInstance) parkMapInstance.getContainer().style.cursor = 'crosshair';
+    // Dropdown JETZT aktiv (neu) befüllen, statt nur auf den letzten
+    // loadMapLiveData()-Aufruf zu vertrauen - falls der Fetch beim
+    // Kartenladen fehlgeschlagen ist oder noch nicht fertig war, bekommt
+    // der Nutzer hier eine zweite Chance, ohne den Tab neu öffnen zu müssen.
+    populateMapEditDropdown();
+  } else {
         btn.classList.remove('bg-amber-500', 'text-black');
         label.textContent = 'Positionen bearbeiten';
         hint.classList.add('hidden');
@@ -5016,27 +5014,33 @@ async function loadPhantasialandData() {
       }
     }
 
-    function populateMapEditDropdown() {
-      const dropdown = document.getElementById('mapEditRideDropdown');
-      if (!dropdown) return;
+function populateMapEditDropdown() {
+  const dropdown = document.getElementById('mapEditRideDropdown');
+  if (!dropdown) return;
 
-      // Attraktionsnamen aus der bereits geladenen Liste nutzen, falls
-      // vorhanden (Statistik-Tab lädt sie ohnehin), sonst vom Server holen
-      const namesSource = statsAllRideNames.length > 0
-        ? Promise.resolve(statsAllRideNames)
-        : fetch(`${SERVER_URL}/api/rides-list?park=${PHANTASIALAND_ID}`).then(r => r.json()).then(d => d.rides || []);
+  dropdown.innerHTML = '<option value="">Lädt...</option>';
 
-      namesSource.then(names => {
-        const currentValue = dropdown.value;
-        dropdown.innerHTML = '<option value="">Attraktion auswählen...</option>' +
-          names.map(name => {
-            const hasCoord = !!rideCoordinatesCache[name];
-            const key = escapeHtml(name).replace(/'/g, "\\'");
-            return `<option value="${key}">${hasCoord ? '✓ ' : ''}${escapeHtml(name)}</option>`;
-          }).join('');
-        if (currentValue) dropdown.value = currentValue;
-      });
-    }
+  const namesSource = statsAllRideNames.length > 0
+    ? Promise.resolve(statsAllRideNames)
+    : fetch(`${SERVER_URL}/api/rides-list?park=${PHANTASIALAND_ID}`).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }).then(d => d.rides || []);
+
+  namesSource.then(names => {
+    const currentValue = dropdown.value;
+    dropdown.innerHTML = '<option value="">Attraktion auswählen...</option>' +
+      names.map(name => {
+        const hasCoord = !!rideCoordinatesCache[name];
+        const key = escapeHtml(name).replace(/'/g, "\\'");
+        return `<option value="${key}">${hasCoord ? '✓ ' : ''}${escapeHtml(name)}</option>`;
+      }).join('');
+    if (currentValue) dropdown.value = currentValue;
+  }).catch(err => {
+    console.error('Fehler beim Laden der Attraktionsliste für den Kartenmodus:', err);
+    dropdown.innerHTML = '<option value="">Fehler beim Laden - bitte erneut versuchen</option>';
+  });
+}
 
     // Wird beim Ändern des Dropdowns im Bearbeitungsmodus aufgerufen (siehe
     // onchange-Attribut, das per JS gesetzt wird, sobald das Element existiert)
