@@ -4604,6 +4604,9 @@ async function loadPhantasialandData() {
     let rideCoordinatesCache = {}; // { rideName: { latitude, longitude } }
     let mapLiveRidesData = [];
 
+    let isMapTimeTravelActive = false;
+let mapTimeSliderIsPast = false;
+
     // Welche Ebenen aktuell sichtbar sind - alle drei unabhängig voneinander
     // schaltbar, Startzustand: nur Marker an (Heatmap/Strömung sind "mehr"
     // Information, die man bewusst dazuschalten soll, statt direkt mit allem
@@ -4634,10 +4637,14 @@ async function loadPhantasialandData() {
 
       // Klick auf die Karte: nur im Bearbeitungsmodus relevant, setzt die
       // Position der aktuell im Dropdown ausgewählten Attraktion
-      parkMapInstance.on('click', (e) => {
-        if (!mapEditModeActive || !mapEditSelectedRide) return;
-        saveRideCoordinate(mapEditSelectedRide, e.latlng.lat, e.latlng.lng);
-      });
+    parkMapInstance.on('click', (e) => {
+  if (!mapEditModeActive) return;
+  if (!mapEditSelectedRide) {
+    showMapToast('Bitte zuerst eine Attraktion im Dropdown auswählen', true);
+    return;
+  }
+  saveRideCoordinate(mapEditSelectedRide, e.latlng.lat, e.latlng.lng);
+});
 
       loadMapLiveData();
     }
@@ -4931,10 +4938,14 @@ async function loadPhantasialandData() {
     // Ziehens). Debounced, damit nicht bei jedem einzelnen Pixel-Schritt ein
     // Server-Request losgeht - erst 150ms nach der letzten Bewegung wird
     // tatsächlich nachgeladen, das Label aktualisiert sich aber sofort.
-    function onMapTimeSliderInput() {
-      const slider = document.getElementById('mapTimeSlider');
-      mapTimeSliderCurrentIndex = parseInt(slider.value, 10);
-      updateMapTimeSliderLabel();
+   function onMapTimeSliderInput() {
+  const slider = document.getElementById('mapTimeSlider');
+  mapTimeSliderCurrentIndex = parseInt(slider.value, 10);
+  isMapTimeTravelActive = true;
+  const nowStr = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
+  mapTimeSliderIsPast = slotToMinutes(mapTimeSliderSlots[mapTimeSliderCurrentIndex]) < slotToMinutes(nowStr);
+  updateMapTimeSliderLabel();
+  // ... rest unverändert
 
       clearTimeout(mapTimeSliderDebounceTimer);
       mapTimeSliderDebounceTimer = setTimeout(() => {
@@ -4942,7 +4953,10 @@ async function loadPhantasialandData() {
       }, 150);
     }
 
-    function resetMapTimeSlider() {
+   function resetMapTimeSlider() {
+  isMapTimeTravelActive = false;
+  mapTimeSliderIsPast = false;
+  // ... restlicher bestehender Code unverändert
       if (mapTimeSliderSlots.length === 0) { initMapTimeSlider(); }
       const nowStr = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
       let closestIdx = 0;
@@ -4992,34 +5006,63 @@ async function loadPhantasialandData() {
       }
     }
 
-     // ---------- Bearbeitungsmodus: Positionen per Klick setzen ----------
-    function toggleMapEditMode() {
-      mapEditModeActive = !mapEditModeActive;
-      const btn = document.getElementById('mapEditModeBtn');
-      const label = document.getElementById('mapEditModeLabel');
-      const hint = document.getElementById('mapEditHint');
-      const select = document.getElementById('mapEditRideSelect');
+    // ---------- Kleine Toast-Meldung für Kartenaktionen (Erfolg/Fehler) ----------
+function showMapToast(message, isError) {
+  let toast = document.getElementById('mapActionToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'mapActionToast';
+    toast.style.position = 'fixed';
+    toast.style.bottom = '100px';
+    toast.style.left = '50%';
+    toast.style.transform = 'translateX(-50%)';
+    toast.style.zIndex = '9999';
+    toast.style.padding = '10px 18px';
+    toast.style.borderRadius = '999px';
+    toast.style.fontSize = '12px';
+    toast.style.fontWeight = '700';
+    toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+    toast.style.pointerEvents = 'none';
+    toast.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.style.backgroundColor = isError ? '#ef4444' : '#22c55e';
+  toast.style.color = isError ? '#fff' : '#052e12';
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(8px)';
+  }, 2200);
+}
 
-      if (mapEditModeActive) {
-        btn.classList.add('bg-amber-500', 'text-black');
-        label.textContent = 'Bearbeitung beenden';
-        hint.classList.remove('hidden');
-        select.classList.remove('hidden');
-        if (parkMapInstance) parkMapInstance.getContainer().style.cursor = 'crosshair';
-        // Dropdown JETZT aktiv (neu) befüllen, statt nur auf den letzten
-        // loadMapLiveData()-Aufruf zu vertrauen - falls der Fetch beim
-        // Kartenladen fehlgeschlagen ist oder noch nicht fertig war, bekommt
-        // der Nutzer hier eine zweite Chance, ohne den Tab neu öffnen zu müssen.
-        populateMapEditDropdown();
-      } else {
-        btn.classList.remove('bg-amber-500', 'text-black');
-        label.textContent = 'Positionen bearbeiten';
-        hint.classList.add('hidden');
-        select.classList.add('hidden');
-        mapEditSelectedRide = null;
-        if (parkMapInstance) parkMapInstance.getContainer().style.cursor = '';
-      }
-    }
+     // ---------- Bearbeitungsmodus: Positionen per Klick setzen ----------
+  function toggleMapEditMode() {
+  mapEditModeActive = !mapEditModeActive;
+  const btn = document.getElementById('mapEditModeBtn');
+  const label = document.getElementById('mapEditModeLabel');
+  const hint = document.getElementById('mapEditHint');
+  const select = document.getElementById('mapEditRideSelect');
+
+  if (mapEditModeActive) {
+    btn.classList.add('bg-amber-500', 'text-black');
+    label.textContent = 'Bearbeitung beenden';
+    hint.classList.remove('hidden');
+    select.classList.remove('hidden');
+    if (parkMapInstance) parkMapInstance.getContainer().style.cursor = 'crosshair';
+    populateMapEditDropdown();
+    showMapToast('Wähle unten eine Attraktion, dann tippe auf die Karte', false);
+  } else {
+    btn.classList.remove('bg-amber-500', 'text-black');
+    label.textContent = 'Positionen bearbeiten';
+    hint.classList.add('hidden');
+    select.classList.add('hidden');
+    mapEditSelectedRide = null;
+    if (parkMapInstance) parkMapInstance.getContainer().style.cursor = '';
+  }
+}
 
 function populateMapEditDropdown() {
   const dropdown = document.getElementById('mapEditRideDropdown');
@@ -5056,26 +5099,79 @@ function populateMapEditDropdown() {
       mapEditSelectedRide = dropdown.value || null;
     }
 
-    async function saveRideCoordinate(rideName, lat, lng) {
-      try {
-        const response = await fetch(`${SERVER_URL}/api/ride-coordinates`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parkId: PHANTASIALAND_ID, rideName, latitude: lat, longitude: lng })
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+ async function saveRideCoordinate(rideName, lat, lng) {
+  // Sofortiges visuelles Feedback: Klick-Ripple an der Stelle, wo getippt wurde,
+  // damit der Nutzer sieht, dass der Klick überhaupt registriert wurde -
+  // unabhängig davon, ob der Server-Request klappt.
+  showMapToast(`Speichere Position für "${rideName}"...`, false);
 
-        rideCoordinatesCache[rideName] = { latitude: lat, longitude: lng };
-        await loadMapLiveData(); // Marker/Heatmap/Dropdown neu aufbauen
-        // Ausgewählte Attraktion im Dropdown beibehalten, damit man direkt
-        // weitermachen oder die Position nochmal korrigieren kann
-        const dropdown = document.getElementById('mapEditRideDropdown');
-        if (dropdown) dropdown.value = rideName;
-      } catch (err) {
-        console.error('Fehler beim Speichern der Koordinate:', err);
-        alert('Position konnte nicht gespeichert werden. Bitte erneut versuchen.');
-      }
+  try {
+    const response = await fetch(`${SERVER_URL}/api/ride-coordinates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parkId: PHANTASIALAND_ID, rideName, latitude: lat, longitude: lng })
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    // Serverantwort ist nicht zwingend nötig, um die Karte zu aktualisieren -
+    // wir kennen lat/lng bereits selbst. OPTIMISTISCHES UPDATE: sofort lokal
+    // in rideCoordinatesCache UND mapLiveRidesData eintragen/aktualisieren,
+    // damit der Marker augenblicklich erscheint, statt auf einen kompletten
+    // Server-Roundtrip (der bei Turso-Replikationslag verzögert sein kann)
+    // zu warten.
+    rideCoordinatesCache[rideName] = { latitude: lat, longitude: lng };
+
+    const existingIdx = mapLiveRidesData.findIndex(r => r.name === rideName);
+    if (existingIdx !== -1) {
+      mapLiveRidesData[existingIdx] = {
+        ...mapLiveRidesData[existingIdx],
+        latitude: lat,
+        longitude: lng
+      };
+    } else {
+      // Attraktion war bisher noch nie in mapLiveRidesData (keine Koordinate
+      // vorhanden) - versuchen, die aktuelle Live-Wartezeit aus den globalen
+      // Ride-Daten des Live-Tabs zu übernehmen, damit der Marker sofort eine
+      // sinnvolle Farbe hat statt grau/unbekannt.
+      const liveMatch = globalRidesData.find(r => r.name === rideName);
+      mapLiveRidesData.push({
+        name: rideName,
+        latitude: lat,
+        longitude: lng,
+        isOpen: liveMatch ? liveMatch.isOpen : false,
+        waitTime: liveMatch ? liveMatch.waitTime : null,
+        hasLiveData: !!liveMatch
+      });
     }
+
+    // Sofort neu zeichnen - das ist der entscheidende Schritt, der bisher fehlte
+    renderMapMarkersLayer();
+    renderMapHeatmapLayer();
+
+    document.getElementById('mapNoCoordsHint').classList.add('hidden');
+
+    showMapToast(`✓ "${rideName}" positioniert`, false);
+
+    // Dropdown-Häkchen aktualisieren, ausgewählte Attraktion beibehalten
+    const dropdown = document.getElementById('mapEditRideDropdown');
+    if (dropdown) {
+      populateMapEditDropdown();
+      setTimeout(() => { dropdown.value = rideName; mapEditSelectedRide = rideName; }, 0);
+    }
+
+    // Im Hintergrund trotzdem einmal die echten Serverdaten nachladen, um
+    // sicherzustellen, dass Server und Anzeige langfristig synchron bleiben -
+    // aber NICHT blockierend und ohne das schon sichtbare optimistische
+    // Ergebnis zu überschreiben, falls dieser Request fehlschlägt.
+    loadMapLiveData().catch(err => {
+      console.warn('Nachladen der Karten-Live-Daten nach dem Speichern fehlgeschlagen (Anzeige bleibt trotzdem korrekt):', err);
+    });
+
+  } catch (err) {
+    console.error('Fehler beim Speichern der Koordinate:', err);
+    showMapToast(`✗ Position für "${rideName}" konnte nicht gespeichert werden`, true);
+  }
+}
 
     // ---------- FERIEN-TAB: klassische Tabellen-Ansicht ----------
     // Baut eine Tabelle mit einer Zeile pro Region und einer Spalte pro Tag
