@@ -2107,87 +2107,97 @@
 
     let isFirstLiveLoad = true; // steuert, ob beim Laden zuerst der Cache gezeigt wird
 
-    async function loadPhantasialandData() {
-      const label = document.getElementById('headerRefreshLabel');
-      const dot = document.getElementById('headerLiveDot');
-      const icon = document.getElementById('refreshIcon');
+let isFirstLiveLoad = true; // steuert, ob beim Laden zuerst der Cache gezeigt wird
 
-      // Beim ALLERERSTEN Laden (App-Start) sofort mit dem letzten bekannten
-      // Stand aus dem Cache rendern, bevor der eigentliche Netzwerk-Request
-      // überhaupt zurückkommt - verhindert einen leeren/wartenden Bildschirm
-      // beim App-Start, besonders spürbar nach einem Render-Kaltstart.
-      // Bei jedem weiteren (automatischen) Refresh wird das übersprungen, da
-      // dort bereits Live-Daten sichtbar sind und ein Zwischenschritt nur
-      // unnötig flackern würde.
-      if (isFirstLiveLoad) {
-        const cachedPark = cacheGet('park-data');
-        if (cachedPark && cachedPark.data && cachedPark.data.history && cachedPark.data.history.length > 0) {
-          globalHistoryData = cachedPark.data.history;
-          const latestCached = globalHistoryData[globalHistoryData.length - 1];
-          globalRidesData = (latestCached.rides || []).map(applyOfficialHoursOverride);
-          renderUI();
-          label.textContent = 'Aktualisiere...';
-        }
-      }
+async function loadPhantasialandData() {
+  const label = document.getElementById('headerRefreshLabel');
+  const dot = document.getElementById('headerLiveDot');
+  const icon = document.getElementById('refreshIcon');
 
-      icon.classList.add('fa-spin');
-      if (!isFirstLiveLoad || globalRidesData.length === 0) label.textContent = 'Lädt...';
-      dot.classList.remove('bg-emerald-500', 'bg-red-500');
-      dot.classList.add('bg-slate-950');
-
-      try {
-        const response = await fetch(`${SERVER_URL}/api/park?park=${PHANTASIALAND_ID}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data = await response.json();
-        globalHistoryData = data.history || [];
-        cacheSet('park-data', data); // für den nächsten App-Start cachen
-
-      } catch (err) {
-        console.error("Verbindungsfehler:", err);
-        // Bei Fehler UND vorhandenen (ggf. gecachten) Daten einfach den
-        // zuletzt bekannten Stand stehen lassen, statt eine harte
-        // Fehlermeldung über funktionierende Altdaten zu legen
-        if (globalRidesData.length === 0) {
-          label.textContent = 'Fehler';
-          dot.classList.remove('bg-slate-950', 'animate-pulse');
-          dot.classList.add('bg-red-500');
-        } else {
-          label.textContent = 'Verbindung unterbrochen';
-          dot.classList.remove('bg-slate-950', 'animate-pulse');
-          dot.classList.add('bg-red-500');
-        }
-        icon.classList.remove('fa-spin');
-        isFirstLiveLoad = false;
-        return;
-      }
-
-      isFirstLiveLoad = false;
-
-      if (globalHistoryData.length === 0) {
-        label.textContent = 'Erste Messung läuft...';
-        icon.classList.remove('fa-spin');
-        return;
-      }
-
-      const latestEntry = globalHistoryData[globalHistoryData.length - 1];
-      // Vor der offiziellen Parköffnung fälschlich als "offen" gemeldete
-      // Attraktionen werden hier zentral korrigiert, damit ALLE nachgelagerten
-      // Stellen (Card-Anzeige, Auslastungsberechnung, Trend, Schwellenwerte)
-      // automatisch die korrigierte Version sehen.
-      globalRidesData = (latestEntry.rides || []).map(applyOfficialHoursOverride);
-
-      // Blinkender Punkt: grün = alles aktuell (Button zeigt "vor Xs" via
-      // startLiveTimer), so weiß der Nutzer auf einen Blick, dass die Daten leben
-      dot.classList.remove('bg-slate-950', 'bg-red-500');
-      dot.classList.add('bg-emerald-500', 'animate-pulse');
-      startLiveTimer();
-
-      checkThresholds(globalRidesData);
+  if (isFirstLiveLoad) {
+    const cachedPark = cacheGet('park-data');
+    if (cachedPark && cachedPark.data && cachedPark.data.history && cachedPark.data.history.length > 0) {
+      globalHistoryData = cachedPark.data.history;
+      const latestCached = globalHistoryData[globalHistoryData.length - 1];
+      globalRidesData = (latestCached.rides || []).map(applyOfficialHoursOverride);
       renderUI();
-
-      icon.classList.remove('fa-spin');
+      label.textContent = 'Aktualisiere...';
     }
+  }
+
+  icon.classList.add('fa-spin');
+  if (!isFirstLiveLoad || globalRidesData.length === 0) label.textContent = 'Lädt...';
+  dot.classList.remove('bg-emerald-500', 'bg-red-500');
+  dot.classList.add('bg-slate-950');
+
+  // ---- WICHTIG: nur beim ALLERERSTEN Laden (oder Tageswechsel) den vollen
+  // Tagesverlauf holen. Jeder weitere automatische Refresh nutzt den
+  // schlanken /api/park/latest-Endpoint und hängt nur den neuen Punkt an -
+  // das spart bei jedem 5-Minuten-Refresh den kompletten Tages-JOIN und die
+  // Übertragung von ggf. tausenden bereits bekannten Zeilen.
+  const needsFullHistory = isFirstLiveLoad || globalHistoryData.length === 0;
+
+  try {
+    if (needsFullHistory) {
+      const response = await fetch(`${SERVER_URL}/api/park?park=${PHANTASIALAND_ID}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      globalHistoryData = data.history || [];
+      cacheSet('park-data', data);
+    } else {
+      const response = await fetch(`${SERVER_URL}/api/park/latest?park=${PHANTASIALAND_ID}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      if (data.entry) {
+        // Neuen Punkt anhängen, aber Duplikate vermeiden (falls derselbe
+        // Zeitstempel bereits als letzter Eintrag vorliegt, z.B. bei einem
+        // manuellen Refresh kurz nach einem automatischen)
+        const lastKnown = globalHistoryData[globalHistoryData.length - 1];
+        if (!lastKnown || lastKnown.timestamp !== data.entry.timestamp) {
+          globalHistoryData.push(data.entry);
+          // Denselben Tages-Cache aktuell halten, damit ein Reload der Seite
+          // (isFirstLiveLoad wieder true) sofort den aktuellen Stand zeigt
+          cacheSet('park-data', { history: globalHistoryData });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Verbindungsfehler:", err);
+    if (globalRidesData.length === 0) {
+      label.textContent = 'Fehler';
+      dot.classList.remove('bg-slate-950', 'animate-pulse');
+      dot.classList.add('bg-red-500');
+    } else {
+      label.textContent = 'Verbindung unterbrochen';
+      dot.classList.remove('bg-slate-950', 'animate-pulse');
+      dot.classList.add('bg-red-500');
+    }
+    icon.classList.remove('fa-spin');
+    isFirstLiveLoad = false;
+    return;
+  }
+
+  isFirstLiveLoad = false;
+
+  if (globalHistoryData.length === 0) {
+    label.textContent = 'Erste Messung läuft...';
+    icon.classList.remove('fa-spin');
+    return;
+  }
+
+  const latestEntry = globalHistoryData[globalHistoryData.length - 1];
+  globalRidesData = (latestEntry.rides || []).map(applyOfficialHoursOverride);
+
+  dot.classList.remove('bg-slate-950', 'bg-red-500');
+  dot.classList.add('bg-emerald-500', 'animate-pulse');
+  startLiveTimer();
+
+  checkThresholds(globalRidesData);
+  renderUI();
+
+  icon.classList.remove('fa-spin');
+}
 
     function toggleHiddenSectionCollapse() {
       isHiddenSectionExpanded = !isHiddenSectionExpanded;
