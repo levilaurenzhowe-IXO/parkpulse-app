@@ -4992,19 +4992,26 @@ async function loadPhantasialandData() {
       }
     }
 
-    // ---------- Bearbeitungsmodus: Positionen per Klick setzen ----------
-   if (mapEditModeActive) {
-    btn.classList.add('bg-amber-500', 'text-black');
-    label.textContent = 'Bearbeitung beenden';
-    hint.classList.remove('hidden');
-    select.classList.remove('hidden');
-    if (parkMapInstance) parkMapInstance.getContainer().style.cursor = 'crosshair';
-    // Dropdown JETZT aktiv (neu) befüllen, statt nur auf den letzten
-    // loadMapLiveData()-Aufruf zu vertrauen - falls der Fetch beim
-    // Kartenladen fehlgeschlagen ist oder noch nicht fertig war, bekommt
-    // der Nutzer hier eine zweite Chance, ohne den Tab neu öffnen zu müssen.
-    populateMapEditDropdown();
-  } else {
+     // ---------- Bearbeitungsmodus: Positionen per Klick setzen ----------
+    function toggleMapEditMode() {
+      mapEditModeActive = !mapEditModeActive;
+      const btn = document.getElementById('mapEditModeBtn');
+      const label = document.getElementById('mapEditModeLabel');
+      const hint = document.getElementById('mapEditHint');
+      const select = document.getElementById('mapEditRideSelect');
+
+      if (mapEditModeActive) {
+        btn.classList.add('bg-amber-500', 'text-black');
+        label.textContent = 'Bearbeitung beenden';
+        hint.classList.remove('hidden');
+        select.classList.remove('hidden');
+        if (parkMapInstance) parkMapInstance.getContainer().style.cursor = 'crosshair';
+        // Dropdown JETZT aktiv (neu) befüllen, statt nur auf den letzten
+        // loadMapLiveData()-Aufruf zu vertrauen - falls der Fetch beim
+        // Kartenladen fehlgeschlagen ist oder noch nicht fertig war, bekommt
+        // der Nutzer hier eine zweite Chance, ohne den Tab neu öffnen zu müssen.
+        populateMapEditDropdown();
+      } else {
         btn.classList.remove('bg-amber-500', 'text-black');
         label.textContent = 'Positionen bearbeiten';
         hint.classList.add('hidden');
