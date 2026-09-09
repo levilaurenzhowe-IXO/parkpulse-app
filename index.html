@@ -4710,48 +4710,67 @@ let mapTimeSliderIsPast = false;
       return '#ef4444';
     }
 
-    function renderMapMarkersLayer() {
-      if (!parkMapInstance || !mapMarkersLayerGroup) return;
-      mapMarkersLayerGroup.clearLayers();
+function renderMapMarkersLayer() {
+  if (!parkMapInstance || !mapMarkersLayerGroup) return;
+  mapMarkersLayerGroup.clearLayers();
 
-      mapLiveRidesData.forEach(ride => {
-        const color = waitTimeToColor(ride.waitTime, ride.isOpen);
-        // Im Zeitreise-Modus (Regler nicht auf "Jetzt") wird das als
-        // Prognose gekennzeichnet, damit es nicht mit echten Live-Daten
-        // verwechselt wird - isTimeTravel wird von loadMapFlowAtTime()
-        // vorübergehend gesetzt, siehe dort.
-        const prefix = isMapTimeTravelActive ? (mapTimeSliderIsPast ? 'Ø ' : '~') : '';
-        const label = ride.isOpen ? `${prefix}${ride.waitTime} Min` : (ride.hasLiveData ? 'Geschlossen' : 'Keine Daten');
+  mapLiveRidesData.forEach(ride => {
+    const color = waitTimeToColor(ride.waitTime, ride.isOpen);
+    const prefix = isMapTimeTravelActive ? (mapTimeSliderIsPast ? 'Ø ' : '~') : '';
+    const label = ride.isOpen ? `${prefix}${ride.waitTime} Min` : (ride.hasLiveData ? 'Geschlossen' : 'Keine Daten');
 
-        const marker = L.circleMarker([ride.latitude, ride.longitude], {
-          radius: 10,
-          fillColor: color,
-          fillOpacity: 0.9,
-          color: '#050505',
-          weight: 2
-        });
+    // Text, der IM Kreis selbst erscheint: bei offenen Attraktionen die
+    // Wartezeit in Minuten (nur die Zahl, ohne "Min", damit sie klein genug
+    // bleibt), bei geschlossenen ein Schloss-Symbol statt einer Zahl.
+    const innerText = ride.isOpen
+      ? String(ride.waitTime)
+      : (ride.hasLiveData ? '🔒' : '?');
 
-        marker.bindTooltip(
-          `<b>${escapeHtml(ride.name)}</b><br>${label}${isMapTimeTravelActive ? '<br><span style="opacity:0.6;font-size:9px">' + (mapTimeSliderIsPast ? '30-Tage-Ø' : 'Prognose') + '</span>' : ''}`,
-          { direction: 'top', offset: [0, -8], className: 'map-tooltip' }
-        );
+    // divIcon statt circleMarker: reines CSS-Kreis-Div mit zentriertem Text,
+    // dieselbe Optik (Farbe, dunkler Rand) wie vorher der circleMarker, aber
+    // jetzt mit Platz für die Zahl. Größe bewusst klein gehalten (22px),
+    // damit die Karte nicht überladen wirkt - Schriftgröße passt sich an.
+    const icon = L.divIcon({
+      className: 'map-wait-marker',
+      html: `<div style="
+        width: 22px; height: 22px;
+        background-color: ${color};
+        border: 2px solid #050505;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: ${ride.isOpen ? '#050505' : '#e2e8f0'};
+        font-size: ${ride.isOpen && ride.waitTime >= 100 ? '7px' : '9px'};
+        font-weight: 800;
+        font-family: inherit;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        line-height: 1;
+      ">${innerText}</div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
+    });
 
-        // Im Bearbeitungsmodus: Klick auf einen bestehenden Marker wählt
-        // diese Attraktion direkt im Dropdown aus (statt erst manuell
-        // durchsuchen zu müssen), damit man ihre Position leicht korrigieren kann
-        marker.on('click', (e) => {
-          if (mapEditModeActive) {
-            L.DomEvent.stopPropagation(e);
-            const dropdown = document.getElementById('mapEditRideDropdown');
-            if (dropdown) { dropdown.value = ride.name; mapEditSelectedRide = ride.name; }
-          }
-        });
+    const marker = L.marker([ride.latitude, ride.longitude], { icon });
 
-        marker.addTo(mapMarkersLayerGroup);
-      });
+    marker.bindTooltip(
+      `<b>${escapeHtml(ride.name)}</b><br>${label}${isMapTimeTravelActive ? '<br><span style="opacity:0.6;font-size:9px">' + (mapTimeSliderIsPast ? '30-Tage-Ø' : 'Prognose') + '</span>' : ''}`,
+      { direction: 'top', offset: [0, -12], className: 'map-tooltip' }
+    );
 
-      applyMapLayerVisibility();
-    }
+    // Im Bearbeitungsmodus: Klick auf einen bestehenden Marker wählt
+    // diese Attraktion direkt im Dropdown aus
+    marker.on('click', (e) => {
+      if (mapEditModeActive) {
+        L.DomEvent.stopPropagation(e);
+        const dropdown = document.getElementById('mapEditRideDropdown');
+        if (dropdown) { dropdown.value = ride.name; mapEditSelectedRide = ride.name; }
+      }
+    });
+
+    marker.addTo(mapMarkersLayerGroup);
+  });
+
+  applyMapLayerVisibility();
+}
 
     function renderMapHeatmapLayer() {
       if (!parkMapInstance || typeof L.heatLayer === 'undefined') return;
