@@ -4913,7 +4913,7 @@ function renderMapMarkersLayer() {
     // Ziehens). Debounced, damit nicht bei jedem einzelnen Pixel-Schritt ein
     // Server-Request losgeht - erst 150ms nach der letzten Bewegung wird
     // tatsächlich nachgeladen, das Label aktualisiert sich aber sofort.
-    function onMapTimeSliderInput() {
+      function onMapTimeSliderInput() {
       const slider = document.getElementById('mapTimeSlider');
       mapTimeSliderCurrentIndex = parseInt(slider.value, 10);
 
@@ -4924,10 +4924,13 @@ function renderMapMarkersLayer() {
 
       updateMapTimeSliderLabel();
 
-      clearTimeout(mapTimeSliderDebounceTimer);
-      mapTimeSliderDebounceTimer = setTimeout(() => {
-        loadMapFlowAtTime(mapTimeSliderSlots[mapTimeSliderCurrentIndex]);
-      }, 150);
+      // KEIN Server-Request mehr, KEIN Debounce nötig - alle Daten sind
+      // bereits lokal im Speicher (globalHistoryData für die Vergangenheit,
+      // dayForecastCache für die Zukunft, beide werden schon für die
+      // Ride-Karten im Live-/Statistik-Tab geladen). Direkte synchrone
+      // Berechnung + sofortiges Neuzeichnen der Marker, fühlt sich dadurch
+      // instant an statt auf einen Netzwerk-Roundtrip zu warten.
+      applyMapTimeSliderLocally(targetTime);
     }
 
    function resetMapTimeSlider() {
@@ -4960,29 +4963,73 @@ function renderMapMarkersLayer() {
     // längerfristigen Korrelationsmustern basieren, nicht auf einem
     // einzelnen Zeitpunkt - nur die Marker-Farben/Heatmap-Intensität "reisen
     // durch die Zeit").
-    async function loadMapFlowAtTime(targetTime) {
+       // Berechnet die Wartezeiten für einen bestimmten Zeit-Slot AUSSCHLIESSLICH
+    // aus bereits im Speicher vorhandenen Daten - kein Server-Request:
+    // - Liegt der Zeitpunkt in der Vergangenheit (oder ist "jetzt"): exakten
+    //   bzw. nächstgelegenen Messpunkt aus globalHistoryData nehmen.
+    // - Liegt der Zeitpunkt in der Zukunft: den passenden Prognosewert aus
+    //   dayForecastCache nehmen (derselbe Cache, der auch die grüne
+    //   Prognose-Linie in den Ride-Karten füllt - wird beim Öffnen des
+    //   Live-/Statistik-Tabs für alle Attraktionen ohnehin schon geladen).
+    // Dadurch reagiert die Karte auf jede Reglerbewegung sofort, ohne auf
+    // einen Netzwerk-Roundtrip (und ggf. einen eingeschlafenen Render-
+    // Kaltstart) warten zu müssen.
+    function applyMapTimeSliderLocally(targetTime) {
       if (!targetTime) return;
-      try {
-        const response = await fetch(`${SERVER_URL}/api/map-flow-at-time?park=${PHANTASIALAND_ID}&time=${targetTime}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
 
-        // Die geladenen Prognose-/Verlaufswerte in dasselbe Format wie
-        // mapLiveRidesData bringen, damit renderMapMarkersLayer() und
-        // renderMapHeatmapLayer() unverändert weiterverwendet werden können
-        mapLiveRidesData = (data.rides || []).map(r => ({
-          name: r.name,
-          latitude: r.latitude,
-          longitude: r.longitude,
-          isOpen: r.forecastWait !== null,
-          waitTime: r.forecastWait,
-          hasLiveData: r.forecastWait !== null
-        }));
+      const targetSlot = findNearestSlotIndex(targetTime);
 
-               renderMapMarkersLayer();
-      } catch (err) {
-        console.error('Fehler beim Laden der Zeitreise-Daten:', err);
-      }
+      // Für jede Attraktion, die eine Koordinate hat, den Wert für den
+      // Ziel-Zeitpunkt bestimmen
+      const names = Object.keys(rideCoordinatesCache);
+
+      const updatedRides = names.map(name => {
+        const coord = rideCoordinatesCache[name];
+        let waitTime = null;
+        let isOpen = false;
+        let hasData = false;
+
+        if (!mapTimeSliderIsPast) {
+          // Zukunft (oder "jetzt" ohne bisherige Messung an dieser Uhrzeit):
+          // aus der Prognose lesen, falls schon geladen
+          const forecast = dayForecastCache[name];
+          const slot = forecast && forecast.slotMap ? forecast.slotMap[targetTime] : null;
+          if (slot && slot.forecast !== undefined && slot.forecast !== null) {
+            waitTime = slot.forecast;
+            isOpen = true;
+            hasData = true;
+          }
+        } else {
+          // Vergangenheit: nächstgelegenen echten Messpunkt aus dem heutigen
+          // Tagesverlauf suchen (globalHistoryData ist bereits nach Zeit
+          // sortiert, ein einfacher Scan reicht hier völlig aus)
+          for (let i = globalHistoryData.length - 1; i >= 0; i--) {
+            const entry = globalHistoryData[i];
+            if (!entry.rides) continue;
+            const slot = findNearestSlotIndex(entry.time);
+            if (slot !== targetSlot) continue;
+            const found = entry.rides.find(r => r.name === name);
+            if (found) {
+              waitTime = found.isOpen ? found.waitTime : null;
+              isOpen = found.isOpen;
+              hasData = true;
+              break;
+            }
+          }
+        }
+
+        return {
+          name,
+          latitude: coord.latitude,
+          longitude: coord.longitude,
+          isOpen,
+          waitTime,
+          hasLiveData: hasData
+        };
+      });
+
+      mapLiveRidesData = updatedRides;
+      renderMapMarkersLayer();
     }
 
     // ---------- Kleine Toast-Meldung für Kartenaktionen (Erfolg/Fehler) ----------
