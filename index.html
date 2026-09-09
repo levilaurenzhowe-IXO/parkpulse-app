@@ -4640,41 +4640,87 @@ let mapTimeSliderIsPast = false;
     // Lädt Koordinaten + aktuelle Wartezeiten kombiniert vom Server und baut
     // alle drei Ebenen neu auf. Wird beim ersten Öffnen des Tabs, nach jedem
     // Setzen einer neuen Position, und bei jedem erneuten Öffnen aufgerufen.
+      // Lädt Koordinaten + aktuelle Wartezeiten. Nutzt Stale-While-Revalidate
+    // wie an anderen Stellen der App (siehe fetchWithCache): die zuletzt
+    // bekannten Koordinaten liegen in localStorage und werden SOFORT (0ms)
+    // angezeigt, bevor überhaupt ein Server-Request läuft - das größte
+    // Zeitproblem beim ersten Öffnen des Karten-Tabs war bisher, dass man
+    // auf den (ggf. eingeschlafenen) Render-Server warten musste, bevor
+    // überhaupt ein einziger Marker sichtbar war. Sobald der Server-Request
+    // durch ist, werden die frischen Koordinaten leise übernommen und die
+    // Karte nur neu gezeichnet, falls sich tatsächlich etwas geändert hat.
     async function loadMapLiveData() {
+      // 1) Sofort aus dem lokalen Cache anzeigen, falls vorhanden
+      const cachedCoords = cacheGet('map-coordinates');
+      if (cachedCoords && cachedCoords.data && cachedCoords.data.rides && cachedCoords.data.rides.length > 0) {
+        applyMapLiveRidesData(cachedCoords.data.rides);
+      }
+
+      // 2) Parallel dazu im Hintergrund frische Daten vom Server holen
       try {
         const response = await fetch(`${SERVER_URL}/api/map-live?park=${PHANTASIALAND_ID}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        mapLiveRidesData = data.rides || [];
+        const freshRides = data.rides || [];
 
-        rideCoordinatesCache = {};
-        mapLiveRidesData.forEach(r => { rideCoordinatesCache[r.name] = { latitude: r.latitude, longitude: r.longitude }; });
+        cacheSet('map-coordinates', { rides: freshRides });
 
-        // WICHTIG: Die Karte selbst bleibt IMMER sichtbar, auch wenn noch
-        // keine einzige Attraktion eine Koordinate hat - sie wird ja gerade
-        // dafür gebraucht, die ersten Positionen per Klick zu setzen. Vorher
-        // wurde der Kartencontainer bei 0 Attraktionen komplett versteckt,
-        // was das Setzen der allerersten Position unmöglich machte (Bug).
-        // Der Hinweis "Noch keine Positionen gesetzt" erscheint jetzt nur
-        // noch als kleiner Zusatztext UNTER der weiterhin sichtbaren Karte.
-        const noCoordsHint = document.getElementById('mapNoCoordsHint');
-        if (mapLiveRidesData.length === 0) {
-          noCoordsHint.classList.remove('hidden');
-        } else {
-          noCoordsHint.classList.add('hidden');
+        // Nur dann als "abweichend" behandeln (und damit den Nutzer ggf. per
+        // Toast informieren), wenn sich Koordinaten wirklich geändert haben -
+        // ein reiner Wartezeit-Unterschied ist normal und braucht keinen
+        // Hinweis, das passiert ja ständig durch den Live-Refresh.
+        const coordsChanged = haveCoordinatesChanged(mapLiveRidesData, freshRides);
+
+        applyMapLiveRidesData(freshRides);
+
+        if (coordsChanged && cachedCoords) {
+          // Nur informieren, wenn vorher schon ein (jetzt veralteter) Cache
+          // angezeigt wurde - beim allerersten Laden ohne Cache ist das kein
+          // "Abgleich", sondern einfach das normale erste Laden.
+          console.log('Kartenpositionen wurden mit dem Server abgeglichen und aktualisiert.');
         }
-        if (parkMapInstance) setTimeout(() => parkMapInstance.invalidateSize(), 50);
-
-        renderMapMarkersLayer();
-        renderMapHeatmapLayer();
-        loadMapFlowData(); // Strömungspfeile separat, da eigener Endpoint mit Korrelationsberechnung
-
-        // Attraktionsliste für den Bearbeitungsmodus-Dropdown befüllen
-        populateMapEditDropdown();
-
       } catch (err) {
         console.error('Fehler beim Laden der Karten-Live-Daten:', err);
+        // Bei Fehler bleibt einfach der bereits angezeigte Cache-Stand
+        // stehen (falls vorhanden) - kein Absturz, keine leere Karte.
       }
+    }
+
+    // Vergleicht zwei Ride-Listen NUR auf Basis von Name+Koordinaten (nicht
+    // Wartezeit), um zu erkennen, ob sich tatsächlich eine Position geändert
+    // hat (z.B. weil sie von einem anderen Gerät zwischenzeitlich neu
+    // gesetzt wurde), statt bei jeder normalen Wartezeit-Aktualisierung
+    // fälschlich "geändert" zu melden.
+    function haveCoordinatesChanged(oldRides, newRides) {
+      if (!oldRides || oldRides.length !== newRides.length) return true;
+      const oldMap = {};
+      oldRides.forEach(r => { oldMap[r.name] = `${r.latitude},${r.longitude}`; });
+      for (const r of newRides) {
+        if (oldMap[r.name] !== `${r.latitude},${r.longitude}`) return true;
+      }
+      return false;
+    }
+
+    // Übernimmt eine Ride-Liste (aus Cache oder Server) als aktuellen
+    // Kartenstand: aktualisiert rideCoordinatesCache, mapLiveRidesData,
+    // den "keine Positionen"-Hinweis, das Dropdown und zeichnet die Marker
+    // neu. Zentrale Stelle, damit Cache-Treffer und Server-Antwort exakt
+    // denselben Ablauf durchlaufen.
+    function applyMapLiveRidesData(rides) {
+      mapLiveRidesData = rides;
+
+      rideCoordinatesCache = {};
+      mapLiveRidesData.forEach(r => { rideCoordinatesCache[r.name] = { latitude: r.latitude, longitude: r.longitude }; });
+
+      const noCoordsHint = document.getElementById('mapNoCoordsHint');
+      if (noCoordsHint) {
+        if (mapLiveRidesData.length === 0) noCoordsHint.classList.remove('hidden');
+        else noCoordsHint.classList.add('hidden');
+      }
+      if (parkMapInstance) setTimeout(() => parkMapInstance.invalidateSize(), 50);
+
+      renderMapMarkersLayer();
+      populateMapEditDropdown();
     }
 
     async function loadMapFlowData() {
@@ -5184,6 +5230,15 @@ function populateMapEditDropdown() {
       populateMapEditDropdown();
       setTimeout(() => { dropdown.value = rideName; mapEditSelectedRide = rideName; }, 0);
     }
+
+    // Im Hintergrund trotzdem einmal die echten Serverdaten nachladen, um
+    // sicherzustellen, dass Server und Anzeige langfristig synchron bleiben -
+    // aber NICHT blockierend und ohne das schon sichtbare optimistische
+    // Ergebnis zu überschreiben, falls dieser Request fehlschlägt.
+      // Lokalen Koordinaten-Cache sofort mitpflegen, damit ein Reload der
+    // Seite direkt danach schon den neuen Stand zeigt (statt kurz auf den
+    // alten Cache zurückzufallen, bis der nächste Server-Request durch ist)
+    cacheSet('map-coordinates', { rides: mapLiveRidesData });
 
     // Im Hintergrund trotzdem einmal die echten Serverdaten nachladen, um
     // sicherzustellen, dass Server und Anzeige langfristig synchron bleiben -
