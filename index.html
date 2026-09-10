@@ -2300,16 +2300,29 @@ async function loadPhantasialandData() {
     // Stunden (nicht den ganzen Tag) - genau das, was auch als grüne Linie
     // in den Mini- und Detail-Graphen erscheinen soll. Wird pro Attraktion
     // einmal geladen und gecacht (Server cacht selbst schon 15 Min).
-    async function ensureDayForecast(rideName) {
-      if (dayForecastCache[rideName]) return dayForecastCache[rideName];
+     async function ensureDayForecast(rideName) {
+      // WICHTIG: Nur ein ECHT erfolgreicher Cache-Eintrag (mit mindestens
+      // einem Zeit-Slot) zählt als "schon geladen". Ein leerer slotMap
+      // (Ergebnis eines fehlgeschlagenen Requests, siehe unten) blockiert
+      // NICHT mehr dauerhaft weitere Versuche - sonst blieb die grüne
+      // Prognose-Linie nach einem einzigen Netzwerk-Hänger für den Rest der
+      // Session leer, obwohl ein erneuter Versuch locker geklappt hätte.
+      const cached = dayForecastCache[rideName];
+      if (cached && cached.slotMap && Object.keys(cached.slotMap).length > 0) {
+        return cached;
+      }
       if (dayForecastFetchPromises[rideName]) return dayForecastFetchPromises[rideName];
 
       const promise = fetch(`${SERVER_URL}/api/smart-day-forecast?park=${PHANTASIALAND_ID}&ride=${encodeURIComponent(rideName)}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (!data || !data.slots) {
-            dayForecastCache[rideName] = { slotMap: {}, factors: null, riskWindows: [], method: null };
-            return dayForecastCache[rideName];
+            // Leeres Ergebnis NICHT dauerhaft cachen - stattdessen aus dem
+            // Cache entfernen, damit der nächste renderUI()-Durchlauf (z.B.
+            // beim nächsten 5-Minuten-Refresh) automatisch einen neuen
+            // Versuch startet, statt für immer leer zu bleiben.
+            delete dayForecastCache[rideName];
+            return { slotMap: {}, factors: null, riskWindows: [], method: null };
           }
           const slotMap = {};
           data.slots.forEach(s => { slotMap[s.time] = s; });
@@ -2324,8 +2337,10 @@ async function loadPhantasialandData() {
         })
         .catch(err => {
           console.error(`Fehler beim Laden der Tagesprognose für ${rideName}:`, err);
-          dayForecastCache[rideName] = { slotMap: {}, factors: null, riskWindows: [], method: null };
-          return dayForecastCache[rideName];
+          // Wie oben: NICHT dauerhaft im Cache belassen, damit ein späterer
+          // Versuch (nächster Refresh-Zyklus) erneut probieren kann
+          delete dayForecastCache[rideName];
+          return { slotMap: {}, factors: null, riskWindows: [], method: null };
         })
         .finally(() => { delete dayForecastFetchPromises[rideName]; });
 
@@ -3204,13 +3219,18 @@ async function loadPhantasialandData() {
           // KOMPLETT fertig (Linie + Prognose + rote Markierung zusammen),
           // statt dass die drei Infos einer Karte über verschiedene,
           // zeitlich weit auseinanderliegende Batches verteilt eintrudeln.
-          const perRideTasks = renderedItems.map(item => async () => {
-            const jobs = [];
-            if (!dayForecastCache[item.rideName]) jobs.push(ensureDayForecast(item.rideName));
-            if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
-            if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
-            if (jobs.length > 0) await Promise.all(jobs);
-          });
+    const perRideTasks = renderedItems.map(item => async () => {
+  const jobs = [];
+  // Gleiche Logik wie in ensureDayForecast: nur ein ECHTER Treffer (mit
+  // Slots) gilt als "bereits geladen" - ein leerer Cache-Eintrag (nach
+  // einem Fehlversuch) löst hier erneut einen Ladeversuch aus.
+  const cachedForecast = dayForecastCache[item.rideName];
+  const forecastNeedsRetry = !cachedForecast || !cachedForecast.slotMap || Object.keys(cachedForecast.slotMap).length === 0;
+  if (forecastNeedsRetry) jobs.push(ensureDayForecast(item.rideName));
+  if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
+  if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
+  if (jobs.length > 0) await Promise.all(jobs);
+});
 
           const rerenderCard = (item) => {
             try {
@@ -5602,6 +5622,44 @@ function populateMapEditDropdown() {
       // Scrape-Rhythmus (siehe cron.schedule('0 * * * *', ...) im Server)
       setInterval(loadOpeningHours, 60 * 60 * 1000);
     };
+
+        // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
+    // Wenn der Browser-Tab im Hintergrund war (nicht geschlossen, nur
+    // inaktiv/minimiert) und dann wieder aktiviert wird, können Chart.js-
+    // Canvases auf 0x0 Pixel "einfrieren", wenn sie während der Inaktivität
+    // initialisiert/neu gezeichnet wurden (typisches Verhalten in vielen
+    // Browsern: Layout-Berechnungen für inaktive Tabs sind unzuverlässig).
+    // Chart.js hat dann KEINEN automatischen Trigger, um sich später neu zu
+    // zeichnen, sobald wieder Platz da ist - die Mini-Grafen blieben leer,
+    // bis man die Karte manuell aufklappte (was renderDetailedChart erneut
+    // aufruft und dadurch "zufällig" half). Der Fix: bei jedem Sichtbar-
+    // werden der Seite alle aktuell existierenden Chart.js-Instanzen
+    // (Mini-Grafen UND Detail-Grafen) einmal per resize() neu vermessen.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+
+      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet
+      // hat (Canvas-Container muss seine echte Breite/Höhe schon haben)
+      setTimeout(() => {
+        Object.values(sparklineInstances).forEach(chart => {
+          try { if (chart) chart.resize(); } catch (e) { /* Chart evtl. schon zerstört, ignorieren */ }
+        });
+        Object.values(chartInstances).forEach(chart => {
+          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
+        });
+        Object.values(queueChartInstances).forEach(chart => {
+          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
+        });
+
+        // Zusätzlich einen Live-Refresh anstoßen, falls die Seite lange im
+        // Hintergrund war - stellt sicher, dass nicht nur die Grafen wieder
+        // sichtbar sind, sondern auch inhaltlich aktuell (siehe Problem mit
+        // veralteter Prognose weiter unten, Fix 2)
+        if (globalRidesData.length > 0) {
+          loadPhantasialandData();
+        }
+      }, 100);
+    });
   </script>
 </body>
 </html>
