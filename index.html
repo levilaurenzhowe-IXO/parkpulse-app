@@ -3170,7 +3170,7 @@ async function loadPhantasialandData() {
             ? Math.ceil((maxObserved * 1.1) / 10) * 10
             : CHART_WAIT_DEFAULT_MAX;
 
-          precomputed.forEach(({ item, dataObj }) => {
+                precomputed.forEach(({ item, dataObj }) => {
             // Jede Karte EINZELN absichern: schlägt das Rendern einer
             // Attraktion aus irgendeinem Grund fehl (z.B. unerwartete
             // Datenlücke), darf das NICHT die komplette forEach-Schleife
@@ -3194,6 +3194,26 @@ async function loadPhantasialandData() {
             } catch (e) {
               console.error(`Queue-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
             }
+          });
+
+          // WICHTIG: Nach einem innerHTML-Rebuild (siehe oben, mainContainer.innerHTML = htmlBuffer)
+          // sind alle Canvas-Elemente brandneu im DOM. Chart.js zeichnet sich beim allerersten
+          // new Chart(...)-Aufruf anhand der GERADE JETZT gemessenen Canvas-Größe - bei frisch
+          // eingefügten, sichtbaren Elementen kann der Browser das Layout in diesem exakten Moment
+          // aber noch nicht final fertig berechnet haben (besonders bei vielen gleichzeitig neu
+          // erstellten Canvases). Ergebnis: Chart.js "verrechnet" sich einmalig auf eine falsche
+          // (oft 0-große) Fläche und zeichnet dann dauerhaft nichts Sichtbares, OHNE sich von
+          // selbst zu korrigieren - es gibt ja kein Resize-Event, das Chart.js nachträglich
+          // triggern würde. Ein einziger .resize()-Aufruf NACHDEM der Browser das Layout in einem
+          // Folge-Frame fertiggestellt hat, behebt das zuverlässig (dasselbe Prinzip wie schon
+          // beim bestehenden visibilitychange-Handler weiter unten in dieser Datei).
+          requestAnimationFrame(() => {
+            precomputed.forEach(({ item }) => {
+              const chart = sparklineInstances[`dayGraph-${item.cardId}`];
+              if (chart) {
+                try { chart.resize(); } catch (e) { /* Chart evtl. inzwischen schon wieder zerstört, ignorieren */ }
+              }
+            });
           });
 
           // Für alle sichtbaren Attraktionen, deren Prognose noch nicht im
