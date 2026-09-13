@@ -16,6 +16,13 @@
   <meta name="format-detection" content="telephone=no">
   <title>Phantasialand Pulse</title>
 
+  <!-- Preconnect zum Backend: DNS-Lookup, TCP- und TLS-Handshake starten
+       schon während die restliche Seite noch lädt, statt erst wenn der
+       allererste fetch() zum Server tatsächlich abgeschickt wird. Spart bei
+       Erstaufrufen typischerweise 100-300ms auf der allerersten Anfrage. -->
+  <link rel="preconnect" href="https://parkpulse-server.onrender.com">
+  <link rel="dns-prefetch" href="https://parkpulse-server.onrender.com">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -2096,6 +2103,13 @@
 
   let isFirstLiveLoad = true; // steuert, ob beim Laden zuerst der Cache gezeigt wird
 
+  // Ab diesem Alter (Millisekunden) gilt ein Cache-Eintrag als "zu alt", um
+  // ihn beim allerersten Laden kommentarlos anzuzeigen - stattdessen wird
+  // ein Platzhalter mit Uhr-Symbol gezeigt, bis frische Daten da sind.
+  // Verhindert Verwirrung durch z.B. Wartezeiten von vor mehreren Stunden/
+  // Tagen, falls die Seite lange nicht geöffnet war.
+  const STALE_CACHE_MAX_AGE_MS = 20 * 60 * 1000; // 20 Minuten
+
 async function loadPhantasialandData() {
   const label = document.getElementById('headerRefreshLabel');
   const dot = document.getElementById('headerLiveDot');
@@ -2103,12 +2117,23 @@ async function loadPhantasialandData() {
 
   if (isFirstLiveLoad) {
     const cachedPark = cacheGet('park-data');
-    if (cachedPark && cachedPark.data && cachedPark.data.history && cachedPark.data.history.length > 0) {
+    const cacheIsFresh = cachedPark && (Date.now() - cachedPark.cachedAt) <= STALE_CACHE_MAX_AGE_MS;
+
+    if (cacheIsFresh && cachedPark.data && cachedPark.data.history && cachedPark.data.history.length > 0) {
       globalHistoryData = cachedPark.data.history;
       const latestCached = globalHistoryData[globalHistoryData.length - 1];
       globalRidesData = (latestCached.rides || []).map(applyOfficialHoursOverride);
       renderUI();
       label.textContent = 'Aktualisiere...';
+    } else if (cachedPark && cachedPark.data && cachedPark.data.history && cachedPark.data.history.length > 0) {
+      // Cache existiert, ist aber zu alt - NICHT anzeigen, stattdessen einen
+      // klaren Lade-Platzhalter (Uhr-Symbol pro Karte) rendern, damit der
+      // Nutzer nicht mit veralteten Wartezeiten verwechselt wird.
+      renderLoadingPlaceholders();
+      label.textContent = 'Lädt...';
+    } else {
+      // Gar kein Cache vorhanden (allererster Besuch) - ebenfalls Platzhalter
+      renderLoadingPlaceholders();
     }
   }
 
@@ -2185,6 +2210,42 @@ async function loadPhantasialandData() {
 
   icon.classList.remove('fa-spin');
 }
+
+        // Zeigt eine feste Anzahl kompakter Platzhalter-Karten mit Uhr-Symbol
+    // statt echter Wartezeiten, solange weder frische Live-Daten noch ein
+    // ausreichend aktueller Cache vorliegen. Verhindert, dass der Nutzer
+    // versehentlich veraltete Zahlen für aktuelle hält.
+    function renderLoadingPlaceholders() {
+      const mainContainer = document.getElementById('ridesContainer');
+      if (!mainContainer) return;
+      const PLACEHOLDER_COUNT = 8;
+      let html = '';
+      for (let i = 0; i < PLACEHOLDER_COUNT; i++) {
+        html += `
+          <div class="panel p-3 flex items-center gap-2.5 animate-pulse">
+            <div class="flex items-center justify-center min-w-[45px] shrink-0">
+              <i class="fa-regular fa-clock text-xl text-slate-700"></i>
+            </div>
+            <div class="min-w-0 flex-1 space-y-1.5">
+              <div class="h-3 w-2/3 bg-slate-800 rounded-full"></div>
+              <div class="h-2.5 w-1/3 bg-slate-800/70 rounded-full"></div>
+            </div>
+            <div class="w-28 sm:w-48 h-14 chart-frame shrink-0 bg-slate-900/40"></div>
+          </div>
+        `;
+      }
+      mainContainer.innerHTML = html;
+
+      // Auch die Kopfzeile (Auslastung, Besucherzahl) auf einen neutralen
+      // Warte-Zustand setzen statt sie leer/auf 0 zu lassen, was wie eine
+      // echte (aber falsche) Messung aussehen könnte.
+      const loadScoreLabel = document.getElementById('loadScoreLabel');
+      if (loadScoreLabel) loadScoreLabel.textContent = '--%';
+      const guestBadge = document.getElementById('currentGuestCountBadge');
+      if (guestBadge) guestBadge.textContent = '--';
+    }
+
+    
 
     function toggleHiddenSectionCollapse() {
       isHiddenSectionExpanded = !isHiddenSectionExpanded;
@@ -3272,9 +3333,13 @@ async function loadPhantasialandData() {
 
           if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
-          runInBatchesWithProgress(
+                  runInBatchesWithProgress(
             renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-            6,
+            12, // Batch-Größe erhöht: mit Embedded-Replica-Backend (schnellere
+                // Antwortzeiten pro Request) verträgt der Server jetzt mehr
+                // gleichzeitige Anfragen, ohne spürbar zu stocken - das
+                // beschleunigt das vollständige Laden aller Prognosen/
+                // Ausfälle/Zuverlässigkeits-Daten spürbar.
             (batchEntries) => {
               // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
               // fertig geladen wurden (nicht die ganze Liste), das hält die
