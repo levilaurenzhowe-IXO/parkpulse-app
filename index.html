@@ -226,43 +226,57 @@
        ein zusätzlicher Fallback für ältere Safari-Versionen ohne
        writing-mode-Unterstützung bei Formularelementen. */
     .map-time-slider-vertical {
-      writing-mode: vertical-lr;
-      direction: rtl;
-      -webkit-appearance: slider-vertical;
-      width: 6px;
-      background: transparent;
-      appearance: none;
-      cursor: pointer;
-    }
-    .map-time-slider-vertical::-webkit-slider-runnable-track {
-      width: 6px;
-      background: rgba(0, 0, 0, 0.4);
-      border-radius: 999px;
-    }
-    .map-time-slider-vertical::-moz-range-track {
-      width: 6px;
-      background: rgba(0, 0, 0, 0.4);
-      border-radius: 999px;
-    }
-    .map-time-slider-vertical::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 22px;
-      width: 22px;
-      border-radius: 50%;
-      background: var(--accent-cyan);
-      cursor: pointer;
-      box-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
-      margin-left: -8px;
-    }
-    .map-time-slider-vertical::-moz-range-thumb {
-      height: 22px;
-      width: 22px;
-      border-radius: 50%;
-      background: var(--accent-cyan);
-      cursor: pointer;
-      border: none;
-      box-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
-    }
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: slider-vertical;
+  /* Die tatsächliche Breite des Elements (= Touch-Trefferfläche quer zur
+     Ziehrichtung) wird deutlich größer als der sichtbar gezeichnete Track
+     gemacht - der Track selbst bleibt optisch dünn (siehe ::-webkit-slider-
+     runnable-track/::-moz-range-track unten), nur die unsichtbare Fläche
+     drumherum, auf die man tippen/klicken kann, wächst mit. Das ist der
+     Standard-Trick gegen "Regler ist zu schmal zum Treffen": der Browser
+     berechnet den Hit-Test-Bereich anhand der Element-Box, nicht anhand
+     des optisch sichtbaren Tracks.
+  */
+  width: 40px;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+  touch-action: none; /* verhindert, dass ein Tippen auf den breiteren
+                          Hit-Bereich versehentlich als Seiten-Scroll oder
+                          Pinch-Geste interpretiert wird */
+}
+.map-time-slider-vertical::-webkit-slider-runnable-track {
+  width: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 999px;
+}
+.map-time-slider-vertical::-moz-range-track {
+  width: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 999px;
+}
+.map-time-slider-vertical::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  /* Größerer Daumen (war 22px) - deutlich leichter zu greifen und zu
+     ziehen, besonders auf einem so schmalen Regler */
+  height: 32px;
+  width: 32px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+  margin-left: -13px; /* zentriert den breiteren Daumen auf dem 6px-Track */
+}
+.map-time-slider-vertical::-moz-range-thumb {
+  height: 32px;
+  width: 32px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+}
 
     /* Marker-Kreise auf der Karte: grün leuchtender Rand statt des normalen
        dunklen Rands, wenn der angezeigte Wert eine PROGNOSE ist (Zeitreise
@@ -1115,7 +1129,7 @@
   <!-- Vertikaler Zeit-Regler-Container: eigene schmale Spalte,
        oben = spätere Uhrzeit/Zukunft (Prognose), unten = frühere
        Uhrzeit/Vergangenheit (historischer Messwert). -->
-  <div id="mapTimeSliderBox" class="panel-raised flex flex-col items-center py-3 px-1.5 shrink-0" style="width: 44px; min-height: 300px;">
+<div id="mapTimeSliderBox" class="panel-raised flex flex-col items-center py-3 px-1.5 shrink-0" style="width: 56px; min-height: 300px;">
     <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono mb-1">--:--</span>
     <input type="range" id="mapTimeSlider" min="0" max="0" step="1" value="0"
       oninput="onMapTimeSliderInput()"
