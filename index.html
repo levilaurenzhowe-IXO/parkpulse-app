@@ -86,12 +86,15 @@
        Karte), nicht mehr die ganze App drumherum. Der Live-/Statistik-Tab
        setzt diese Klasse nie, dort bleibt normales Seiten-Scrollen wie
        gewohnt bestehen. */
-    body.no-page-scroll {
-      overflow: hidden;
-      height: 100vh;
-      height: 100dvh; /* dynamische Viewport-Höhe, berücksichtigt mobile
-                          Adressleisten-Ein-/Ausblendung besser als 100vh */
-    }
+  body.no-page-scroll {
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
     /* Container für einen Tab, der intern selbst scrollt statt die Seite -
        füllt die verfügbare Höhe zwischen Header und Bottom-Tab-Bar und
        scrollt NUR seinen eigenen Inhalt. */
@@ -1354,6 +1357,7 @@
     let isHiddenSectionExpanded = false;
     let currentlyExpandedCardId = null;
     let currentTab = 'live';
+    let savedScrollY = 0;
     let statsAlreadyLoaded = false;
     let holidayTableLoaded = false;
 
