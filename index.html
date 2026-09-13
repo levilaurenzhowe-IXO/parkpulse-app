@@ -98,13 +98,25 @@
     /* Container für einen Tab, der intern selbst scrollt statt die Seite -
        füllt die verfügbare Höhe zwischen Header und Bottom-Tab-Bar und
        scrollt NUR seinen eigenen Inhalt. */
-    .internal-scroll-tab {
-      height: calc(100vh - 160px);
-      height: calc(100dvh - 160px);
-      overflow-y: auto;
-      overflow-x: hidden;
-      -webkit-overflow-scrolling: touch;
-    }
+  .internal-scroll-tab {
+  /* Nutzt jetzt die volle Höhe des fixierten Viewports (siehe
+     body.no-page-scroll: position:fixed macht den Body zum echten
+     Vollbild-Container). Der Header oberhalb (Titel + Icons) nimmt seinen
+     natürlichen Platz durch das normale Flex-Layout weg, daher reicht
+     flex:1 im Eltern-Layout - aber da .max-w-4xl-Wrapper kein Flex-Container
+     ist, arbeiten wir stattdessen mit 100dvh minus einem händisch ermittelten
+     Header-Platzhalter (~64px Header + Padding), und holen uns den Rest über
+     padding-bottom zurück, das den Platz für die schwebende Bottom-Tab-Bar
+     UND die sichere Zone (Home-Indicator) reserviert, OHNE die eigentliche
+     scrollbare Höhe künstlich zu verkürzen. */
+  height: calc(100vh - 76px);
+  height: calc(100dvh - 76px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
     input, select, textarea {
       font-size: 16px !important;
     }
