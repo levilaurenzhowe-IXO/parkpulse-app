@@ -2896,11 +2896,16 @@ async function loadPhantasialandData() {
     // nicht für alle Karten gleichzeitig gebraucht werden: Ausfälle (rot),
     // Regenperioden (blau), Zuverlässigkeits-Statistik und die "bessere
     // Alternative gerade"-Empfehlung aus den Ride-Korrelationen.
-    async function loadExpandedCardExtras(cardId) {
+       async function loadExpandedCardExtras(cardId) {
       const rideName = cardIdToRideName[cardId];
       if (!rideName) return;
 
-      // 1) Ausfälle + Regen laden, dann NUR die Graphen dieser einen Karte neu zeichnen
+      // ALLE unabhängigen Zusatzdaten dieser Karte werden jetzt gemeinsam
+      // per Promise.all angestoßen (statt teilweise nacheinander), damit der
+      // Browser alle Requests gleichzeitig lostschickt und nicht auf die
+      // Antwort von Request 1 wartet, bevor Request 2 überhaupt beginnt.
+      // Jeder .then()-Block bleibt unabhängig, damit ein langsamer/
+      // fehlschlagender Request die anderen nicht blockiert.
       Promise.all([ensureOutages(rideName), ensureRainPeriods()]).then(() => {
         const dataObj = calculateSmartHistoryAndForecast(rideName);
         renderDetailedChart(`chart-${cardId}`, dataObj);
