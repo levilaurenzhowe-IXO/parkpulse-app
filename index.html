@@ -78,8 +78,9 @@
     }
     body {
       max-width: 100vw;
+      
     }
-    /* Wird per JS (siehe switchTab) auf <body> gesetzt, wenn der Karten-
+    /* Wird per JS (siehe ) auf <body> gesetzt, wenn der Karten-
        oder Ferien-Tab aktiv ist: sperrt das SEITEN-Scrollen komplett, damit
        nur noch der jeweilige Tab-Inhalt selbst scrollt (Kalenderliste bzw.
        Karte), nicht mehr die ganze App drumherum. Der Live-/Statistik-Tab
@@ -467,7 +468,7 @@
        "right" = neuer Inhalt kommt von links rein (rückwärts navigiert).
        @keyframes statt reinem transition, da Ein- und Ausblenden in einem
        Rutsch animiert werden und die Klasse nach Ablauf automatisch entfernt
-       wird (siehe switchTab). prefers-reduced-motion wird respektiert. */
+       wird (siehe ). prefers-reduced-motion wird respektiert. */
     @keyframes tabSlideInFromRight {
       from { opacity: 0; transform: translateX(16px); }
       to { opacity: 1; transform: translateX(0); }
@@ -1807,106 +1808,100 @@
     // automatische Richtungserkennung beim Tab-Wechsel per Tap.
     const TAB_ORDER = ['live', 'stats', 'holidays', 'map'];
 
-    function switchTab(tab, direction) {
-      // direction: 'left' (vorwärts, z.B. Live->Statistik) oder 'right'
-      // (rückwärts) - steuert, aus welcher Richtung der neue Tab-Inhalt
-      // sanft einschwebt. Ohne explizite Angabe (z.B. bei Klick auf die
-      // Bottom-Bar statt Swipe) wird die Richtung automatisch aus der
-      // Tab-Reihenfolge (TAB_ORDER) abgeleitet, damit auch Tap-Wechsel den
-      // gleichen "smooth" Übergang bekommen wie Swipe-Wechsel.
-      if (!direction) {
-        const fromIdx = TAB_ORDER.indexOf(currentTab);
-        const toIdx = TAB_ORDER.indexOf(tab);
-        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-          direction = toIdx > fromIdx ? 'left' : 'right';
-        }
-      }
-
-      currentTab = tab;
-      const liveContent = document.getElementById('tabContentLive');
-      const statsContent = document.getElementById('tabContentStats');
-      const holidaysContent = document.getElementById('tabContentHolidays');
-      const mapContent = document.getElementById('tabContentMap');
-      const tabBtnLive = document.getElementById('tabBtnLive');
-      const tabBtnStats = document.getElementById('tabBtnStats');
-      const tabBtnHolidays = document.getElementById('tabBtnHolidays');
-      const tabBtnMap = document.getElementById('tabBtnMap');
-
-      liveContent.classList.add('hidden');
-      statsContent.classList.add('hidden');
-      holidaysContent.classList.add('hidden');
-      mapContent.classList.add('hidden');
-      tabBtnLive.classList.remove('active');
-      tabBtnStats.classList.remove('active');
-      tabBtnHolidays.classList.remove('active');
-      tabBtnMap.classList.remove('active');
-
-      const animClass = direction === 'right' ? 'tab-content-enter-right' : 'tab-content-enter-left';
-      const applyEnterAnimation = (el) => {
-        el.classList.remove('tab-content-enter-left', 'tab-content-enter-right');
-        // Reflow erzwingen, damit die Animation bei erneutem Hinzufügen der
-        // Klasse zuverlässig neu startet (sonst würde der Browser die
-        // Klassenänderung teils ignorieren, wenn sie identisch zur vorherigen ist)
-        void el.offsetWidth;
-        el.classList.add(animClass);
-      };
-
-      if (tab === 'live') {
-        liveContent.classList.remove('hidden');
-        tabBtnLive.classList.add('active');
-        applyEnterAnimation(liveContent);
-        document.body.classList.remove('no-page-scroll'); // normales Seiten-Scrollen
-      } else if (tab === 'stats') {
-        statsContent.classList.remove('hidden');
-        tabBtnStats.classList.add('active');
-        applyEnterAnimation(statsContent);
-        document.body.classList.remove('no-page-scroll');
-
-        // Attraktionsliste und park-weite Grafen nur beim ersten Öffnen laden
-        if (!statsAlreadyLoaded) {
-          statsAlreadyLoaded = true;
-          loadStatsRideList();
-          loadWeekdayStats();
-          initCrowdStats();
-          switchStatsSubTab('park'); // initialer Zustand: Park-Übersicht aktiv
-        }
-      } else if (tab === 'holidays') {
-        holidaysContent.classList.remove('hidden');
-        tabBtnHolidays.classList.add('active');
-        applyEnterAnimation(holidaysContent);
-        // Seiten-Scroll sperren: nur noch die Kalender-Tabelle selbst
-        // scrollt (siehe .internal-scroll-tab um holidayTableWrap)
-        document.body.classList.add('no-page-scroll');
-
-        // Ferienkalender nur beim ersten Öffnen laden
-        if (!holidayTableLoaded) {
-          holidayTableLoaded = true;
-          loadHolidayTable();
-        }
-      } else if (tab === 'map') {
-        mapContent.classList.remove('hidden');
-        tabBtnMap.classList.add('active');
-        applyEnterAnimation(mapContent);
-        // Seiten-Scroll sperren: die Karte selbst bleibt normal
-        // schwenkbar/zoombar (Leaflet steuert das intern), nur die Seite
-        // drumherum darf nicht mehr mitscrollen
-        document.body.classList.add('no-page-scroll');
-
-        // Karte nur beim ersten Öffnen initialisieren (Leaflet-Karten
-        // brauchen zwingend einen sichtbaren Container beim Erstellen, daher
-        // erst hier statt schon beim Seitenladen)
-        if (!parkMapInitialized) {
-          parkMapInitialized = true;
-          initParkMap();
-        } else {
-          // Bei erneutem Öffnen: Größe neu berechnen (Leaflet "vergisst"
-          // sonst teils die korrekte Containergröße, wenn der Tab
-          // zwischenzeitlich display:none hatte) und Live-Daten auffrischen
-          setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, 50);
-          loadMapLiveData();
-        }
-      }
+   function switchTab(tab, direction) {
+  if (!direction) {
+    const fromIdx = TAB_ORDER.indexOf(currentTab);
+    const toIdx = TAB_ORDER.indexOf(tab);
+    if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+      direction = toIdx > fromIdx ? 'left' : 'right';
     }
+  }
+
+  // Body-Scroll-Lock sauber ab-/aufbauen: da .no-page-scroll jetzt
+  // position:fixed nutzt (nötig gegen iOS-Rubber-Banding), muss die
+  // Scroll-Position VOR dem Sperren gesichert und beim Entsperren wieder
+  // hergestellt werden - sonst "vergisst" die Seite beim Zurückwechseln
+  // ihre vorherige Position und springt nach ganz oben.
+  const wasLocked = document.body.classList.contains('no-page-scroll');
+  const willBeLocked = (tab === 'holidays' || tab === 'map');
+
+  if (!wasLocked && willBeLocked) {
+    savedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.style.top = `-${savedScrollY}px`;
+  } else if (wasLocked && !willBeLocked) {
+    document.body.style.top = '';
+    window.scrollTo(0, savedScrollY);
+  }
+
+  currentTab = tab;
+  const liveContent = document.getElementById('tabContentLive');
+  const statsContent = document.getElementById('tabContentStats');
+  const holidaysContent = document.getElementById('tabContentHolidays');
+  const mapContent = document.getElementById('tabContentMap');
+  const tabBtnLive = document.getElementById('tabBtnLive');
+  const tabBtnStats = document.getElementById('tabBtnStats');
+  const tabBtnHolidays = document.getElementById('tabBtnHolidays');
+  const tabBtnMap = document.getElementById('tabBtnMap');
+
+  liveContent.classList.add('hidden');
+  statsContent.classList.add('hidden');
+  holidaysContent.classList.add('hidden');
+  mapContent.classList.add('hidden');
+  tabBtnLive.classList.remove('active');
+  tabBtnStats.classList.remove('active');
+  tabBtnHolidays.classList.remove('active');
+  tabBtnMap.classList.remove('active');
+
+  const animClass = direction === 'right' ? 'tab-content-enter-right' : 'tab-content-enter-left';
+  const applyEnterAnimation = (el) => {
+    el.classList.remove('tab-content-enter-left', 'tab-content-enter-right');
+    void el.offsetWidth;
+    el.classList.add(animClass);
+  };
+
+  if (tab === 'live') {
+    liveContent.classList.remove('hidden');
+    tabBtnLive.classList.add('active');
+    applyEnterAnimation(liveContent);
+    document.body.classList.remove('no-page-scroll');
+  } else if (tab === 'stats') {
+    statsContent.classList.remove('hidden');
+    tabBtnStats.classList.add('active');
+    applyEnterAnimation(statsContent);
+    document.body.classList.remove('no-page-scroll');
+
+    if (!statsAlreadyLoaded) {
+      statsAlreadyLoaded = true;
+      loadStatsRideList();
+      loadWeekdayStats();
+      initCrowdStats();
+      switchStatsSubTab('park');
+    }
+  } else if (tab === 'holidays') {
+    holidaysContent.classList.remove('hidden');
+    tabBtnHolidays.classList.add('active');
+    applyEnterAnimation(holidaysContent);
+    document.body.classList.add('no-page-scroll');
+
+    if (!holidayTableLoaded) {
+      holidayTableLoaded = true;
+      loadHolidayTable();
+    }
+  } else if (tab === 'map') {
+    mapContent.classList.remove('hidden');
+    tabBtnMap.classList.add('active');
+    applyEnterAnimation(mapContent);
+    document.body.classList.add('no-page-scroll');
+
+    if (!parkMapInitialized) {
+      parkMapInitialized = true;
+      initParkMap();
+    } else {
+      setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, 50);
+      loadMapLiveData();
+    }
+  }
+}
 
     // ---------- STATISTIK: Sub-Tab-Navigation (Park-Übersicht vs. Attraktionen) ----------
     let currentStatsSubTab = 'park';
@@ -5795,10 +5790,16 @@ function populateMapEditDropdown() {
         if (isRefreshing) return;
         if (getScrollTop() > 0) { startY = null; return; } // nur ganz oben auslösen
 
-        // WICHTIG: Beginnt die Geste auf der Leaflet-Karte (Karten-Tab), wird
+          // WICHTIG: Beginnt die Geste auf der Leaflet-Karte (Karten-Tab), wird
         // Pull-to-Refresh komplett deaktiviert für diese Geste - dort erwartet
         // der Nutzer normales Karten-Ziehen/Schwenken (Pan), kein Seiten-Refresh.
-        startedOnMap = !!(e.target.closest && e.target.closest('.leaflet-container'));
+        // Zusätzlich: in JEDEM gesperrten Tab (Karte ODER Ferien) ist
+        // Pull-to-Refresh grundsätzlich aus - dort gibt es kein "ganz oben"
+        // im klassischen Sinn mehr (position:fixed), das Ziehen soll dort
+        // ausschließlich dem internen Scroll-Container (Kalender-Tabelle)
+        // bzw. der Karte selbst gehören.
+        const inLockedTab = document.body.classList.contains('no-page-scroll');
+        startedOnMap = inLockedTab || !!(e.target.closest && e.target.closest('.leaflet-container'));
         if (startedOnMap) { startY = null; return; }
 
         startY = e.touches[0].clientY;
