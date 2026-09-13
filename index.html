@@ -79,6 +79,28 @@
     body {
       max-width: 100vw;
     }
+    /* Wird per JS (siehe switchTab) auf <body> gesetzt, wenn der Karten-
+       oder Ferien-Tab aktiv ist: sperrt das SEITEN-Scrollen komplett, damit
+       nur noch der jeweilige Tab-Inhalt selbst scrollt (Kalenderliste bzw.
+       Karte), nicht mehr die ganze App drumherum. Der Live-/Statistik-Tab
+       setzt diese Klasse nie, dort bleibt normales Seiten-Scrollen wie
+       gewohnt bestehen. */
+    body.no-page-scroll {
+      overflow: hidden;
+      height: 100vh;
+      height: 100dvh; /* dynamische Viewport-Höhe, berücksichtigt mobile
+                          Adressleisten-Ein-/Ausblendung besser als 100vh */
+    }
+    /* Container für einen Tab, der intern selbst scrollt statt die Seite -
+       füllt die verfügbare Höhe zwischen Header und Bottom-Tab-Bar und
+       scrollt NUR seinen eigenen Inhalt. */
+    .internal-scroll-tab {
+      height: calc(100vh - 160px);
+      height: calc(100dvh - 160px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
     input, select, textarea {
       font-size: 16px !important;
     }
@@ -267,10 +289,32 @@
       background: var(--accent-amber);
       box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
     }
-    /* Einfaches Tabellen-Scroll-Design */
+     /* Einfaches Tabellen-Scroll-Design */
     .stats-table-wrap::-webkit-scrollbar { height: 6px; }
     .stats-table-wrap::-webkit-scrollbar-track { background: #000; }
     .stats-table-wrap::-webkit-scrollbar-thumb { background: var(--accent-amber); border-radius: 3px; }
+
+    /* Ferienkalender (vertikale Ansicht): Regionen-Kopfzeile hochkant
+       geschrieben, damit die kurzen Abkürzungen (DE, NL, BE, FR, LU) wenig
+       Platz brauchen, aber trotzdem gut lesbar bleiben. writing-mode dreht
+       den Text um 90°, sideways-lr sorgt dafür, dass er von unten nach oben
+       gelesen wird (nicht auf dem Kopf steht) und behält die normale
+       Buchstaben-Ausrichtung bei, statt Zeichen einzeln zu stapeln. */
+    .holiday-region-header {
+      writing-mode: sideways-lr;
+      text-orientation: mixed;
+      white-space: nowrap;
+      transform: rotate(180deg);
+    }
+    /* Fallback für Browser ohne sideways-lr-Unterstützung (z.B. ältere
+       Safari-Versionen): vertical-rl + 180°-Drehung erzielt optisch dasselbe
+       Ergebnis (Text liest sich von unten nach oben). */
+    @supports not (writing-mode: sideways-lr) {
+      .holiday-region-header {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+      }
+    }
 
     /* ============================================================
        LEAFLET-KARTE: dunkles App-Design statt Leaflets heller Standard-
@@ -939,7 +983,7 @@
          = Länder/Regionen, Spalten = Tage (Datum + Wochentag-Kürzel oben),
          Zellen einfarbig grün (Ferien) oder rot (Feiertag) - bewusst OHNE
          Detailinfos in der Zelle selbst, ganze Jahr horizontal durchscrollbar. -->
-    <div id="tabContentHolidays" class="hidden space-y-3">
+     <div id="tabContentHolidays" class="hidden space-y-3 internal-scroll-tab">
       <div class="panel p-3.5">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -956,18 +1000,23 @@
           <p class="text-xs font-bold">Lade Ferienkalender...</p>
         </div>
 
-        <div id="holidayTableWrap" class="hidden overflow-x-auto no-scrollbar">
-          <table class="border-collapse text-[10px]">
-            <thead>
-              <tr id="holidayTableDateHeaderRow"></tr>
-              <tr id="holidayTableWeekdayHeaderRow"></tr>
+            <!-- Vertikale Ansicht (mobil-optimiert): Zeilen = Tage (durch-
+             scrollbar nach unten wie eine Liste), Spalten = Regionen mit
+             kurzen, hochkant geschriebenen Kopf-Labels - nimmt dadurch
+             deutlich weniger horizontalen Platz weg als die vorherige
+             Länder-als-Zeilen-Ansicht und passt natürlicher zum
+             Scroll-Verhalten auf dem Handy (nach unten statt zur Seite). -->
+        <div id="holidayTableWrap" class="hidden overflow-y-auto overflow-x-hidden" style="max-height: 100%;">
+          <table class="border-collapse text-[10px] w-full">
+            <thead class="sticky top-0 z-10">
+              <tr id="holidayTableHeaderRow"></tr>
             </thead>
             <tbody id="holidayTableBody"></tbody>
           </table>
         </div>
 
         <p class="text-[9px] text-slate-600 mt-3 leading-relaxed">
-          "Deutschland" zeigt die Vereinigung aller 16 Bundesländer (Ferien, sobald mindestens ein Bundesland frei hat). Horizontal wischen/scrollen für das ganze Jahr.
+          "DE" zeigt die Vereinigung aller 16 Bundesländer (Ferien, sobald mindestens ein Bundesland frei hat). Nach unten scrollen für das ganze Jahr.
         </p>
       </div>
     </div>
@@ -980,7 +1029,7 @@
          aktuellen Wartezeiten) und Publikumsstrom-Pfeile (aus den
          Ride-Korrelationsdaten abgeleitet). Ein Bearbeitungsmodus erlaubt das
          Setzen/Verschieben von Attraktions-Positionen per Klick auf die Karte. -->
-    <div id="tabContentMap" class="hidden space-y-3">
+      <div id="tabContentMap" class="hidden space-y-3 internal-scroll-tab">
       <div class="panel p-3.5 space-y-3">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -1806,10 +1855,12 @@
         liveContent.classList.remove('hidden');
         tabBtnLive.classList.add('active');
         applyEnterAnimation(liveContent);
+        document.body.classList.remove('no-page-scroll'); // normales Seiten-Scrollen
       } else if (tab === 'stats') {
         statsContent.classList.remove('hidden');
         tabBtnStats.classList.add('active');
         applyEnterAnimation(statsContent);
+        document.body.classList.remove('no-page-scroll');
 
         // Attraktionsliste und park-weite Grafen nur beim ersten Öffnen laden
         if (!statsAlreadyLoaded) {
@@ -1823,6 +1874,9 @@
         holidaysContent.classList.remove('hidden');
         tabBtnHolidays.classList.add('active');
         applyEnterAnimation(holidaysContent);
+        // Seiten-Scroll sperren: nur noch die Kalender-Tabelle selbst
+        // scrollt (siehe .internal-scroll-tab um holidayTableWrap)
+        document.body.classList.add('no-page-scroll');
 
         // Ferienkalender nur beim ersten Öffnen laden
         if (!holidayTableLoaded) {
@@ -1833,6 +1887,10 @@
         mapContent.classList.remove('hidden');
         tabBtnMap.classList.add('active');
         applyEnterAnimation(mapContent);
+        // Seiten-Scroll sperren: die Karte selbst bleibt normal
+        // schwenkbar/zoombar (Leaflet steuert das intern), nur die Seite
+        // drumherum darf nicht mehr mitscrollen
+        document.body.classList.add('no-page-scroll');
 
         // Karte nur beim ersten Öffnen initialisieren (Leaflet-Karten
         // brauchen zwingend einen sichtbaren Container beim Erstellen, daher
@@ -5485,12 +5543,14 @@ function populateMapEditDropdown() {
       const loadingEl = document.getElementById('holidayTableLoading');
       const wrapEl = document.getElementById('holidayTableWrap');
 
-      function scrollToToday() {
+         function scrollToToday() {
         requestAnimationFrame(() => {
           const wrap = document.getElementById('holidayTableWrap');
           const todayCell = wrap.querySelector('[data-today-marker="1"]');
           if (todayCell && wrap) {
-            wrap.scrollLeft = Math.max(0, todayCell.offsetLeft - 40);
+            // Jetzt vertikal scrollen statt horizontal, da die Tage nun
+            // zeilenweise nach unten laufen statt spaltenweise zur Seite
+            wrap.scrollTop = Math.max(0, todayCell.offsetTop - 60);
           }
         });
       }
@@ -5523,11 +5583,22 @@ function populateMapEditDropdown() {
       );
     }
 
+      // Kurze Abkürzungen für die Regionen-Spaltenköpfe (hochkant geschrieben,
+    // siehe .holiday-region-header) - deutlich platzsparender als die vollen
+    // Ländernamen, die in der vorherigen horizontalen Ansicht als Zeilen-
+    // Label standen.
+    const HOLIDAY_REGION_ABBR = {
+      'Deutschland': 'DE',
+      'Niederlande': 'NL',
+      'Belgien': 'BE',
+      'Frankreich': 'FR',
+      'Luxemburg': 'LU'
+    };
+
     function renderHolidayTable() {
       if (!holidayTableData) return;
 
-      const dateHeaderRow = document.getElementById('holidayTableDateHeaderRow');
-      const weekdayHeaderRow = document.getElementById('holidayTableWeekdayHeaderRow');
+      const headerRow = document.getElementById('holidayTableHeaderRow');
       const body = document.getElementById('holidayTableBody');
 
       // Feste Liste aller Tage von heute bis +365 Tage bauen
@@ -5541,12 +5612,30 @@ function populateMapEditDropdown() {
       }
       const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 
-      // ---------- Kopfzeilen: Datum (nur bei Monatswechsel/1. des Monats
-      // größer beschriftet) + Wochentags-Kürzel je Tag, analog zum
-      // Referenzdesign (Tag oben, Wochentag darunter, kompakt) ----------
-      let dateHeaderHtml = `<th class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1 text-left text-[9px] text-slate-500 font-bold min-w-[110px]"></th>`;
-      let weekdayHeaderHtml = `<th class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1"></th>`;
+      // ---------- Kopfzeile: EINE Zeile mit der Datums-Spalte links + einer
+      // Spalte pro Region, hochkant beschriftet mit der Kurz-Abkürzung.
+      // Bleibt beim Scrollen (sticky top-0) sichtbar, damit man beim
+      // Durchscrollen der Tage immer weiß, welche Spalte welche Region ist. ----------
+      let headerHtml = `<th class="sticky left-0 z-20 bg-[var(--bg-panel)] px-2 py-1.5 text-left text-[9px] text-slate-500 font-bold" style="min-width:64px;">Tag</th>`;
+      (holidayTableData.rows || []).forEach(row => {
+        const abbr = HOLIDAY_REGION_ABBR[row.country] || row.country.slice(0, 2).toUpperCase();
+        headerHtml += `
+          <th class="bg-[var(--bg-panel)] px-1 py-1.5 text-center" style="min-width:28px; height: 44px;">
+            <span class="holiday-region-header text-[9px] font-bold text-slate-300">${escapeHtml(abbr)}</span>
+          </th>
+        `;
+      });
+      headerRow.innerHTML = headerHtml;
 
+      // ---------- Körper: eine Zeile PRO TAG (durchscrollbar nach unten),
+      // eine Zelle pro Region - genau umgekehrt zur vorherigen Ausrichtung. ----------
+      const publicHolidaysByDate = {};
+      (holidayTableData.publicHolidays || []).forEach(h => {
+        if (!publicHolidaysByDate[h.startDate]) publicHolidaysByDate[h.startDate] = [];
+        publicHolidaysByDate[h.startDate].push(h);
+      });
+
+      let bodyHtml = '';
       let lastMonth = null;
       days.forEach(d => {
         const dateStr = d.toLocaleDateString('sv-SE');
@@ -5558,47 +5647,24 @@ function populateMapEditDropdown() {
 
         const dayNum = String(d.getDate()).padStart(2, '0');
         const monthLabel = showMonthLabel ? MONTH_NAMES_DE[month].slice(0, 3) : '';
+        const weekdayShort = WEEKDAY_SHORT_2LETTER_DE[d.getDay()];
 
-        dateHeaderHtml += `
-          <th class="px-1 py-1 text-center font-mono font-bold ${isToday ? 'text-amber-400' : isWeekend ? 'text-slate-500' : 'text-slate-300'} ${isToday ? 'bg-amber-500/10' : ''}" style="min-width:26px;">
-            ${showMonthLabel ? `<div class="text-[8px] text-cyan-400 uppercase mb-0.5">${monthLabel}</div>` : ''}
-            ${dayNum}
-          </th>
+        let rowHtml = `
+          <td class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1 text-[10px] whitespace-nowrap ${isToday ? 'text-amber-400 font-bold' : isWeekend ? 'text-slate-500' : 'text-slate-300'}" ${isToday ? 'data-today-marker="1"' : ''}>
+            ${showMonthLabel ? `<span class="text-cyan-400 uppercase text-[8px] mr-1">${monthLabel}</span>` : ''}
+            ${dayNum}. <span class="text-slate-600">${weekdayShort}</span>
+          </td>
         `;
-        weekdayHeaderHtml += `
-          <th class="px-1 pb-1.5 text-center text-[8px] font-medium ${isToday ? 'text-amber-400 bg-amber-500/10' : isWeekend ? 'text-slate-600' : 'text-slate-600'}" ${isToday ? 'data-today-marker="1"' : ''}>
-            ${WEEKDAY_SHORT_2LETTER_DE[d.getDay()]}
-          </th>
-        `;
-      });
-      dateHeaderRow.innerHTML = dateHeaderHtml;
-      weekdayHeaderRow.innerHTML = weekdayHeaderHtml;
 
-      // ---------- Körper: eine Zeile pro Region, eine Zelle pro Tag ----------
-      const publicHolidaysByDate = {};
-      (holidayTableData.publicHolidays || []).forEach(h => {
-        if (!publicHolidaysByDate[h.startDate]) publicHolidaysByDate[h.startDate] = [];
-        publicHolidaysByDate[h.startDate].push(h);
-      });
-
-      let bodyHtml = '';
-      (holidayTableData.rows || []).forEach(row => {
-        let rowHtml = `<td class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1.5 text-[10px] font-bold text-slate-200 whitespace-nowrap">${escapeHtml(row.country)}</td>`;
-
-        days.forEach(d => {
-          const dateStr = d.toLocaleDateString('sv-SE');
+        (holidayTableData.rows || []).forEach(row => {
           const isSchoolHoliday = (row.schoolHolidays || []).some(h => dateStr >= h.startDate && dateStr <= h.endDate);
-          // Feiertage gelten für ALLE Zeilen gleich (bundesweit bzw. landesweit),
-          // aber nur die, die zu genau dieser Region gehören
           const isPublicHoliday = (publicHolidaysByDate[dateStr] || []).some(h => h.country === row.country);
 
           let cellColor = 'bg-transparent';
           if (isPublicHoliday) cellColor = 'bg-red-500';
           else if (isSchoolHoliday) cellColor = 'bg-green-500';
 
-          const isToday = dateStr === todayStr;
-
-          rowHtml += `<td class="p-0" style="min-width:26px; height:22px;"><div class="w-full h-full ${cellColor} ${isToday ? 'ring-1 ring-inset ring-amber-400' : ''}"></div></td>`;
+          rowHtml += `<td class="p-0" style="height:22px;"><div class="w-full h-full ${cellColor} ${isToday ? 'ring-1 ring-inset ring-amber-400' : ''}"></div></td>`;
         });
 
         bodyHtml += `<tr>${rowHtml}</tr>`;
