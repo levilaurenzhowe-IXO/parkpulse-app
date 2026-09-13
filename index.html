@@ -332,6 +332,23 @@
       }
     }
 
+
+    /* Wie .internal-scroll-tab, aber OHNE jegliches Scrollen - für den
+   Karten-Tab, wo der komplette Inhalt (Überschrift, Bearbeiten-Button,
+   Zeitregler, Karte, Hinweistext) exakt in die verfügbare Höhe passen soll,
+   ohne dass sich davon irgendetwas vertikal verschieben lässt. Nur die
+   Leaflet-Karte selbst bleibt interaktiv (Pan/Zoom laufen intern in ihrem
+   eigenen Canvas, unabhängig vom Overflow dieses Containers). */
+.map-fixed-tab {
+  height: calc(100vh - 76px);
+  height: calc(100dvh - 76px);
+  overflow: hidden;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
     /* ============================================================
        LEAFLET-KARTE: dunkles App-Design statt Leaflets heller Standard-
        Optik übernehmen (Tooltips, Zoom-Buttons, Attribution-Leiste, Popups).
@@ -1045,7 +1062,7 @@
          aktuellen Wartezeiten) und Publikumsstrom-Pfeile (aus den
          Ride-Korrelationsdaten abgeleitet). Ein Bearbeitungsmodus erlaubt das
          Setzen/Verschieben von Attraktions-Positionen per Klick auf die Karte. -->
-      <div id="tabContentMap" class="hidden space-y-3 internal-scroll-tab">
+    <div id="tabContentMap" class="hidden space-y-3 map-fixed-tab">
       <div class="panel p-3.5 space-y-3">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -1090,28 +1107,22 @@
           </div>
         </div>
 
-        <!-- Karte + vertikaler Zeit-Regler NEBENEINANDER: die Karte nimmt
-             den verfügbaren Platz, der Regler sitzt als schmale Spalte
-             rechts daneben, über die volle Höhe der Karte - so lässt er sich
-             bequem mit dem Daumen von oben (spätere Uhrzeit/Zukunft) nach
-             unten (frühere Uhrzeit/Vergangenheit) bedienen, ohne die Hand
-             über die Karte bewegen zu müssen. -->
-        <div class="flex items-stretch gap-2">
-          <!-- Kartencontainer: IMMER sichtbar, auch ohne gesetzte Positionen,
-               da sie ja gerade zum Setzen der ersten Position gebraucht wird -->
-          <div id="parkMapContainer" class="chart-frame overflow-hidden flex-1 min-w-0" style="height: 60vh; min-height: 400px;"></div>
+       <div class="flex items-stretch gap-2 flex-1 min-h-0">
+  <!-- Kartencontainer: IMMER sichtbar, auch ohne gesetzte Positionen,
+       da sie ja gerade zum Setzen der ersten Position gebraucht wird -->
+  <div id="parkMapContainer" class="chart-frame overflow-hidden flex-1 min-w-0" style="min-height: 300px;"></div>
 
-          <!-- Vertikaler Zeit-Regler-Container: eigene schmale Spalte,
-               oben = spätere Uhrzeit/Zukunft (Prognose), unten = frühere
-               Uhrzeit/Vergangenheit (historischer Messwert). -->
-          <div id="mapTimeSliderBox" class="panel-raised flex flex-col items-center py-3 px-1.5 shrink-0" style="width: 44px; height: 60vh; min-height: 400px;">
-            <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono mb-1">--:--</span>
-            <input type="range" id="mapTimeSlider" min="0" max="0" step="1" value="0"
-              oninput="onMapTimeSliderInput()"
-              class="map-time-slider-vertical flex-1 cursor-pointer">
-            <span id="mapTimeSliderStart" class="text-[8px] text-slate-500 font-mono mt-1">--:--</span>
-          </div>
-        </div>
+  <!-- Vertikaler Zeit-Regler-Container: eigene schmale Spalte,
+       oben = spätere Uhrzeit/Zukunft (Prognose), unten = frühere
+       Uhrzeit/Vergangenheit (historischer Messwert). -->
+  <div id="mapTimeSliderBox" class="panel-raised flex flex-col items-center py-3 px-1.5 shrink-0" style="width: 44px; min-height: 300px;">
+    <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono mb-1">--:--</span>
+    <input type="range" id="mapTimeSlider" min="0" max="0" step="1" value="0"
+      oninput="onMapTimeSliderInput()"
+      class="map-time-slider-vertical flex-1 cursor-pointer">
+    <span id="mapTimeSliderStart" class="text-[8px] text-slate-500 font-mono mt-1">--:--</span>
+  </div>
+</div>
         
         <div id="mapNoCoordsHint" class="hidden bg-cyan-500/10 border border-cyan-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
           <i class="fa-solid fa-circle-info text-cyan-400 text-xs mt-0.5 shrink-0"></i>
