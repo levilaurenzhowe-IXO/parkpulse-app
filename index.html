@@ -3369,90 +3369,48 @@ function renderLoadingPlaceholders() {
      // Rechnet mindestens 5 Min Puffer auf den Höchstwert und rundet auf den nächsten vollen 10er-Schritt auf
 CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
 
-      precomputed.forEach(({ item, dataObj }) => {
-            // Jede Karte EINZELN absichern: schlägt das Rendern einer
-            // Attraktion aus irgendeinem Grund fehl (z.B. unerwartete
-            // Datenlücke), darf das NICHT die komplette forEach-Schleife
-            // abbrechen - das war der Bug, durch den die Mini-Graphen leer
-            // blieben, bis man die Karte einmal aufklappte (dort läuft das
-            // Rendern über einen separaten, isolierten Aufruf in
-            // loadExpandedCardExtras, der von einem Fehler weiter oben in
-            // dieser Schleife nicht betroffen war).
-            try {
-              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-            } catch (e) {
-              console.error(`Mini-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
-            }
-            try {
-              renderDetailedChart(`chart-${item.cardId}`, dataObj);
-            } catch (e) {
-              console.error(`Detail-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
-            }
-            try {
-              renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-            } catch (e) {
-              console.error(`Queue-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
-            }
-          });
+    precomputed.forEach(({ item, dataObj }) => {
+      try {
+        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+      } catch (e) {
+        console.error(`Mini-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
+      }
+      try {
+        renderDetailedChart(`chart-${item.cardId}`, dataObj);
+      } catch (e) {
+        console.error(`Detail-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
+      }
+      try {
+        renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+      } catch (e) {
+        console.error(`Queue-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
+      }
+    });
 
-          // WICHTIG: Nach einem innerHTML-Rebuild (siehe oben, mainContainer.innerHTML = htmlBuffer)
-          // sind alle Canvas-Elemente brandneu im DOM. Chart.js zeichnet sich beim allerersten
-          // new Chart(...)-Aufruf anhand der GERADE JETZT gemessenen Canvas-Größe - bei frisch
-          // eingefügten, sichtbaren Elementen kann der Browser das Layout in diesem exakten Moment
-          // aber noch nicht final fertig berechnet haben (besonders bei vielen gleichzeitig neu
-          // erstellten Canvases). Ergebnis: Chart.js "verrechnet" sich einmalig auf eine falsche
-          // (oft 0-große) Fläche und zeichnet dann dauerhaft nichts Sichtbares, OHNE sich von
-          // selbst zu korrigieren - es gibt ja kein Resize-Event, das Chart.js nachträglich
-          // triggern würde. Ein einziger .resize()-Aufruf NACHDEM der Browser das Layout in einem
-          // Folge-Frame fertiggestellt hat, behebt das zuverlässig (dasselbe Prinzip wie schon
-          // beim bestehenden visibilitychange-Handler weiter unten in dieser Datei).
-          requestAnimationFrame(() => {
-            precomputed.forEach(({ item }) => {
-              const chart = sparklineInstances[`dayGraph-${item.cardId}`];
-              if (chart) {
-                try { chart.resize(); } catch (e) { /* Chart evtl. inzwischen schon wieder zerstört, ignorieren */ }
-              }
-            });
-          });
+    requestAnimationFrame(() => {
+      precomputed.forEach(({ item }) => {
+        const chart = sparklineInstances[`dayGraph-${item.cardId}`];
+        if (chart) {
+          try { chart.resize(); } catch (e) {}
+        }
+      });
+    });
 
-          // Für alle sichtbaren Attraktionen, deren Prognose noch nicht im
-          // Cache liegt, jetzt im Hintergrund GESTAFFELT (in kleinen Batches,
-          // nicht alle auf einmal) nachladen. WICHTIG: Anders als vorher wird
-          // jetzt NACH JEDEM EINZELNEN BATCH neu gezeichnet, nicht erst ganz
-          // am Ende - bei ~35 Attraktionen und 3 Datenquellen pro Attraktion
-          // ergaben sich vorher gut 100 Tasks in Batches von 6, was heißt:
-          // ~17 Batches mussten komplett durchlaufen sein, bevor überhaupt
-          // EINE Karte ihre grüne Prognose oder rote Ausfall-Markierung zeigte
-          // - das war der Grund, warum praktisch nur die zufällig schon
-          // gecachten Karten sofort vollständig aussahen. Jetzt aktualisiert
-          // sich jede Karte, sobald IHRE Daten fertig geladen sind, nicht
-          // erst wenn ALLE Attraktionen durch sind.
-          const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
-          const missingOutages = renderedItems.filter(item => !outageCache[`${item.rideName}|today`]);
-          const missingReliability = renderedItems.filter(item => !reliabilityCache[item.rideName]);
-          const needsRainLoad = !rainPeriodsCache['today'];
+    const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
+    const missingOutages = renderedItems.filter(item => !outageCache[`${item.rideName}|today`]);
+    const missingReliability = renderedItems.filter(item => !reliabilityCache[item.rideName]);
+    const needsRainLoad = !rainPeriodsCache['today'];
 
-          // Tasks so gruppieren, dass PRO ATTRAKTION alle drei Datenquellen
-          // (Prognose, Ausfälle, Zuverlässigkeit) gemeinsam in einem Batch
-          // landen - dadurch ist eine Karte nach ihrem eigenen Batch bereits
-          // KOMPLETT fertig (Linie + Prognose + rote Markierung zusammen),
-          // statt dass die drei Infos einer Karte über verschiedene,
-          // zeitlich weit auseinanderliegende Batches verteilt eintrudeln.
     const perRideTasks = renderedItems.map(item => async () => {
-  const jobs = [];
-  // Gleiche Logik wie in ensureDayForecast: nur ein ECHTER Treffer (mit
-  // Slots) gilt als "bereits geladen" - ein leerer Cache-Eintrag (nach
-  // einem Fehlversuch) löst hier erneut einen Ladeversuch aus.
-  const cachedForecast = dayForecastCache[item.rideName];
-  const forecastNeedsRetry = !cachedForecast || !cachedForecast.slotMap || Object.keys(cachedForecast.slotMap).length === 0;
-  if (forecastNeedsRetry) jobs.push(ensureDayForecast(item.rideName));
-  if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
-  if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
-  if (jobs.length > 0) await Promise.all(jobs);
-});
+      const jobs = [];
+      const cachedForecast = dayForecastCache[item.rideName];
+      const forecastNeedsRetry = !cachedForecast || !cachedForecast.slotMap || Object.keys(cachedForecast.slotMap).length === 0;
+      if (forecastNeedsRetry) jobs.push(ensureDayForecast(item.rideName));
+      if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
+      if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
+      if (jobs.length > 0) await Promise.all(jobs);
+    });
 
-       const rerenderCard = (item) => {
-    try {
     const rerenderCard = (item) => {
       try {
         const dataObj = calculateSmartHistoryAndForecast(item.rideName);
@@ -3466,6 +3424,21 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
       }
     };
 
+    if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+
+    runInBatchesWithProgress(
+      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+      3,
+      (batchEntries) => {
+        batchEntries.forEach(({ item }) => rerenderCard(item));
+      }
+    );
+
+  } // Schließt das ursprüngliche "if (typeof Chart !== 'undefined')"
+
+} catch (e) {
+  console.error("Chart Rendering Fehler:", e);
+}
 if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
     runInBatchesWithProgress(
