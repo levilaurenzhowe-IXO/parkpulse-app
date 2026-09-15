@@ -5879,75 +5879,47 @@ function populateMapEditDropdown() {
     })();
 
 window.onload = async function() {
-  // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
-  // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
-  document.body.classList.remove('no-page-scroll');
-  document.body.style.top = '';
-  window.scrollTo(0, 0);
+      // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
+      // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
+      document.body.classList.remove('no-page-scroll');
+      document.body.style.top = '';
+      window.scrollTo(0, 0);
 
-  updateNotifyIcon();
-  // ... Rest unverändert
+      updateNotifyIcon();
 
-      // Öffnungszeiten SYNCHRON aus dem Cache vorladen (0ms, kein await
-      // nötig), damit applyOfficialHoursOverride() und die Zeitachsen-
-      // Berechnung schon beim allerersten Render eine sinnvolle Grundlage
-      // haben, OHNE dass dafür erst ein Netzwerk-Request abgewartet werden
-      // muss. Das war vorher der größte Bremsfaktor beim App-Start: ein
-      // "await loadOpeningHours()" hat den kompletten ersten Render
-      // blockiert, bis dieser eine Request durch war.
+      // Öffnungszeiten SYNCHRON aus dem Cache vorladen
       const cachedHours = cacheGet('opening-hours');
       if (cachedHours && cachedHours.data) {
         globalOpeningHours = cachedHours.data;
         refreshTimeAxisFromOpeningHours();
       }
 
-      // Alle drei Haupt-Requests jetzt PARALLEL starten statt sequenziell
-      // hintereinander - loadPhantasialandData() zeigt dank fetchWithCache/
-      // dem obigen Öffnungszeiten-Vorladen sofort sinnvolle Daten, während
-      // loadOpeningHours() und loadContextData() im Hintergrund die
-      // wirklich aktuellen Werte nachladen und bei Bedarf neu rendern.
+      // Alle drei Haupt-Requests jetzt PARALLEL starten
       loadContextData();
       loadOpeningHours();
       loadPhantasialandData();
       startAutoRefresh();
 
-      // Öffnungszeiten stündlich neu abrufen, synchron zum serverseitigen
-      // Scrape-Rhythmus (siehe cron.schedule('0 * * * *', ...) im Server)
+      // Öffnungszeiten stündlich neu abrufen
       setInterval(loadOpeningHours, 60 * 60 * 1000);
     };
 
-        // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
-    // Wenn der Browser-Tab im Hintergrund war (nicht geschlossen, nur
-    // inaktiv/minimiert) und dann wieder aktiviert wird, können Chart.js-
-    // Canvases auf 0x0 Pixel "einfrieren", wenn sie während der Inaktivität
-    // initialisiert/neu gezeichnet wurden (typisches Verhalten in vielen
-    // Browsern: Layout-Berechnungen für inaktive Tabs sind unzuverlässig).
-    // Chart.js hat dann KEINEN automatischen Trigger, um sich später neu zu
-    // zeichnen, sobald wieder Platz da ist - die Mini-Grafen blieben leer,
-    // bis man die Karte manuell aufklappte (was renderDetailedChart erneut
-    // aufruft und dadurch "zufällig" half). Der Fix: bei jedem Sichtbar-
-    // werden der Seite alle aktuell existierenden Chart.js-Instanzen
-    // (Mini-Grafen UND Detail-Grafen) einmal per resize() neu vermessen.
+    // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
 
-      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet
-      // hat (Canvas-Container muss seine echte Breite/Höhe schon haben)
+      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet hat
       setTimeout(() => {
         Object.values(sparklineInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) { /* Chart evtl. schon zerstört, ignorieren */ }
+          try { if (chart) chart.resize(); } catch (e) {}
         });
         Object.values(chartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
+          try { if (chart) chart.resize(); } catch (e) {}
         });
         Object.values(queueChartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
+          try { if (chart) chart.resize(); } catch (e) {}
         });
 
-        // Zusätzlich einen Live-Refresh anstoßen, falls die Seite lange im
-        // Hintergrund war - stellt sicher, dass nicht nur die Grafen wieder
-        // sichtbar sind, sondern auch inhaltlich aktuell (siehe Problem mit
-        // veralteter Prognose weiter unten, Fix 2)
         if (globalRidesData.length > 0) {
           loadPhantasialandData();
         }
