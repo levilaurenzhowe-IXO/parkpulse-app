@@ -1357,7 +1357,7 @@ body.no-page-scroll {
     // der Server hat selbst schon einen 09:00-19:00 Notfall-Fallback).
     let CHART_TIME_START_HOUR = 9;
     let CHART_TIME_END_HOUR = 20;
-    const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
+    const CHART_WAIT_DEFAULT_MAX = 30; // Standard-Y-Skala 0-80 Min...
     let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
     
     let globalRidesData = [];
@@ -3354,28 +3354,27 @@ function renderLoadingPlaceholders() {
       cardIdToRideName = {};
       renderedItems.forEach(item => { cardIdToRideName[item.cardId] = item.rideName; });
 
-      try {
-        if (typeof Chart !== 'undefined') {
-          // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
-          // Y-Achsen-Obergrenze zu bestimmen: Standard 80 Min, aber wenn eine
-          // sichtbare Attraktion mehr hat, wird die Skala für ALLE Mini-Grafen
-          // gemeinsam erhöht (nicht individuell), damit sie vergleichbar bleiben.
-          const precomputed = renderedItems.map(item => ({
-            item,
-            dataObj: calculateSmartHistoryAndForecast(item.rideName)
-          }));
+    try {
+    if (typeof Chart !== 'undefined') {
+      // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
+      // Y-Achsen-Obergrenze zu bestimmen
+      const precomputed = renderedItems.map(item => ({
+        item,
+        dataObj: calculateSmartHistoryAndForecast(item.rideName)
+      }));
 
-          let maxObserved = 0;
-          precomputed.forEach(({ dataObj }) => {
-            dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
-            dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
-          });
-          // Skala mit etwas Puffer nach oben (10%), aber nie unter dem Standard
-          CHART_WAIT_DYNAMIC_MAX = maxObserved > CHART_WAIT_DEFAULT_MAX
-            ? Math.ceil((maxObserved * 1.1) / 10) * 10
-            : CHART_WAIT_DEFAULT_MAX;
+      // Höchsten gemessenen oder prognostizierten Wert ermitteln
+      let maxObserved = 0;
+      precomputed.forEach(({ dataObj }) => {
+        dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+        dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+      });
 
-                precomputed.forEach(({ item, dataObj }) => {
+      // Standardmäßig 30 Min. Geht ein Wert darüber (oder auf 26+ Min),
+      // bleiben immer exakt 5 Min Puffer über der Spitze.
+      CHART_WAIT_DYNAMIC_MAX = Math.max(30, maxObserved + 5);
+
+      precomputed.forEach(({ item, dataObj }) => {
             // Jede Karte EINZELN absichern: schlägt das Rendern einer
             // Attraktion aus irgendeinem Grund fehl (z.B. unerwartete
             // Datenlücke), darf das NICHT die komplette forEach-Schleife
