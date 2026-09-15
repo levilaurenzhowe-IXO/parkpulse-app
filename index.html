@@ -765,21 +765,7 @@ body.no-page-scroll {
 <!-- ================= STATISTIK-TAB ================= -->
 <div id="tabContentStats" class="hidden space-y-3">
 
-  <!-- 🚀 TOP KPI DASHBOARD: Auf einen Blick alles Wichtige -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-    <div class="panel-raised p-3 text-center">
-      <span class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Ø Besucher (30 Tage)</span>
-      <span id="kpiAvgCrowd" class="text-xs sm:text-sm font-black text-amber-400 font-mono">Wird berechnet...</span>
-    </div>
-    <div class="panel-raised p-3 text-center">
-      <span class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Bester Wochentag</span>
-      <span id="kpiBestDay" class="text-xs sm:text-sm font-black text-emerald-400">Lade Daten...</span>
-    </div>
-    <div class="panel-raised p-3 text-center col-span-2 sm:col-span-1">
-      <span class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Günstigste Uhrzeit</span>
-      <span id="kpiBestTime" class="text-xs sm:text-sm font-black text-cyan-400 font-mono">11:30 & 16:30 Uhr</span>
-    </div>
-  </div>
+
 
   <!-- Sub-Navigation -->
   <div class="flex items-center gap-1 panel p-1">
@@ -807,64 +793,24 @@ body.no-page-scroll {
       </div>
     </div>
 
-    <!-- Park-Auslastung im Verlauf -->
+    <!-- Park-Auslastung im Verlauf: jetzt fest auf den 30-Tage-Durchschnitt
+         beschränkt - kein Tag/Ø-Umschalter, kein Kalender, kein Zeitraum-
+         Dropdown mehr. Zeigt immer die typische Auslastungskurve über den
+         Tag, gemittelt über die letzten 30 Tage. -->
     <div class="panel p-3.5 shadow-lg shadow-amber-500/5 space-y-3">
-      <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-        <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
-      </h2>
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
+        </h2>
+        <span class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5">Ø letzte 30 Tage</span>
+      </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 items-start">
-        
-        <!-- Steuerung links -->
-        <div class="panel-raised p-3 space-y-3">
-          <div class="flex items-center gap-1 bg-black/40 rounded-full p-1">
-            <button onclick="setCrowdStatsMode('day')" id="crowdStatsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-              <i class="fa-solid fa-calendar-day mr-1"></i> Tag
-            </button>
-            <button onclick="setCrowdStatsMode('average')" id="crowdStatsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-              <i class="fa-solid fa-chart-line mr-1"></i> Ø
-            </button>
-          </div>
-
-          <div id="crowdStatsDayModeContent" class="hidden space-y-2">
-            <div class="flex items-center justify-between">
-              <button onclick="shiftCrowdCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-300 transition">
-                <i class="fa-solid fa-chevron-left text-[9px]"></i>
-              </button>
-              <span id="crowdCalendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
-              <button onclick="shiftCrowdCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-300 transition">
-                <i class="fa-solid fa-chevron-right text-[9px]"></i>
-              </button>
-            </div>
-            <div id="crowdCalendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
-          </div>
-
-          <div id="crowdStatsAverageModeContent" class="hidden">
-            <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
-            <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-              <option value="7">Letzte 7 Tage</option>
-              <option value="14">Letzte 14 Tage</option>
-              <option value="30" selected>Letzte 30 Tage</option>
-              <option value="90">Letzte 90 Tage</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Graph rechts -->
-        <div class="min-w-0">
-          <div class="flex items-center justify-between mb-1">
-            <h3 id="crowdChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
-            <span id="crowdChartBadge" class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5"></span>
-          </div>
-          <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
-            <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
-            <p class="text-xs font-bold">Keine Daten vorhanden</p>
-          </div>
-          <div id="crowdChartWrap" class="h-52 w-full chart-frame p-2">
-            <canvas id="crowdStatsChart"></canvas>
-          </div>
-        </div>
-
+      <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
+        <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
+        <p class="text-xs font-bold">Keine Daten vorhanden</p>
+      </div>
+      <div id="crowdChartWrap" class="h-52 w-full chart-frame p-2">
+        <canvas id="crowdStatsChart"></canvas>
       </div>
     </div>
 
@@ -896,18 +842,26 @@ body.no-page-scroll {
 
       <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-3 items-start">
 
-        <!-- Steuerung links -->
-        <div class="panel p-3 space-y-3">
-          <div class="flex items-center gap-1 panel-raised p-1">
-            <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-              <i class="fa-solid fa-calendar-day mr-1"></i> Tag
-            </button>
-            <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-              <i class="fa-solid fa-chart-line mr-1"></i> Ø
-            </button>
+              <!-- Steuerung links: klar in 3 Sektionen gegliedert (Modus / Zeitraum /
+             Kalender), statt vorher alles ohne Beschriftung übereinander -->
+        <div class="panel p-3 space-y-4">
+
+          <!-- SEKTION: Modus -->
+          <div class="space-y-1.5">
+            <span class="text-[9px] text-slate-500 uppercase font-bold tracking-wider px-0.5">Ansicht</span>
+            <div class="flex items-center gap-1 panel-raised p-1">
+              <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
+                <i class="fa-solid fa-calendar-day mr-1"></i> Tag
+              </button>
+              <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
+                <i class="fa-solid fa-chart-line mr-1"></i> Ø
+              </button>
+            </div>
           </div>
 
-          <div id="statsDayModeContent" class="hidden space-y-2">
+          <!-- SEKTION: Tag-Modus (Datum + optionaler Kalender) -->
+          <div id="statsDayModeContent" class="hidden space-y-1.5 pt-3 border-t border-white/5">
+            <span class="text-[9px] text-slate-500 uppercase font-bold tracking-wider px-0.5">Datum</span>
             <div id="statsDaySwipeArea" class="panel-raised px-2 py-2 flex items-center justify-between select-none">
               <button onclick="shiftSelectedStatsDay(-1)" class="w-7 h-7 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
                 <i class="fa-solid fa-chevron-left text-[11px]"></i>
@@ -920,13 +874,13 @@ body.no-page-scroll {
               </button>
             </div>
 
-            <button onclick="toggleRideCalendarCollapse()" id="statsCalendarToggleBtn" class="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition py-1">
+            <button onclick="toggleRideCalendarCollapse()" id="statsCalendarToggleBtn" class="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition py-1.5">
               <i class="fa-solid fa-calendar-days"></i>
               <span id="statsCalendarToggleLabel">Kalender anzeigen</span>
               <i id="statsCalendarToggleChevron" class="fa-solid fa-chevron-down text-[8px] transition-transform duration-200"></i>
             </button>
 
-            <div id="statsCalendarCollapsible" class="hidden space-y-2">
+            <div id="statsCalendarCollapsible" class="hidden space-y-2 pt-1">
               <div class="flex items-center justify-between">
                 <button onclick="shiftCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
                   <i class="fa-solid fa-chevron-left text-[9px]"></i>
@@ -940,8 +894,9 @@ body.no-page-scroll {
             </div>
           </div>
 
-          <div id="statsAverageModeContent" class="hidden">
-            <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
+          <!-- SEKTION: Durchschnitts-Modus (Zeitraum) -->
+          <div id="statsAverageModeContent" class="hidden space-y-1.5 pt-3 border-t border-white/5">
+            <span class="text-[9px] text-slate-500 uppercase font-bold tracking-wider px-0.5">Zeitraum</span>
             <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
               <option value="7">Letzte 7 Tage</option>
               <option value="14">Letzte 14 Tage</option>
@@ -982,8 +937,10 @@ body.no-page-scroll {
             </div>
           </div>
 
-          <!-- Häufigste Ausfälle -->
-          <div id="outageHoursBox" class="hidden panel p-3.5">
+                 <!-- Häufigste Ausfälle: dezent rot umrandet statt neutralem Panel,
+               damit die Box sich klarer als eigener Themenblock (Ausfälle)
+               von Graph und Empfehlung darüber abhebt -->
+          <div id="outageHoursBox" class="hidden panel border-red-500/20 p-3.5">
             <h3 class="text-[11px] font-black text-red-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
               <i class="fa-solid fa-chart-simple"></i> Häufigste Ausfallzeiten
             </h3>
@@ -3922,34 +3879,14 @@ function hideAllExternalTooltips() {
     let crowdStatsChartInstance = null;
     let crowdStatsAlreadyLoaded = false;
 
+    // Park-Auslastung lädt jetzt IMMER direkt den 30-Tage-Durchschnitt -
+    // der Tag/Ø-Umschalter und Kalender wurden entfernt (siehe HTML), daher
+    // ruft diese Funktion nicht mehr setCrowdStatsMode() auf, sondern lädt
+    // den Durchschnittsverlauf direkt.
     async function initCrowdStats() {
       if (crowdStatsAlreadyLoaded) return;
       crowdStatsAlreadyLoaded = true;
-
-      try {
-        const response = await fetch(`${SERVER_URL}/api/crowd-days?park=${PHANTASIALAND_ID}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        crowdAvailableDays = data.days || [];
-      } catch (err) {
-        console.error('Fehler beim Laden der Auslastungs-Tage:', err);
-        crowdAvailableDays = [];
-      }
-
-      if (crowdAvailableDays.length > 0) {
-        const latest = crowdAvailableDays[crowdAvailableDays.length - 1];
-        const [y, m] = latest.split('-').map(Number);
-        crowdCalendarViewYear = y;
-        crowdCalendarViewMonth = m - 1;
-        crowdSelectedDate = latest;
-      } else {
-        const now = new Date();
-        crowdCalendarViewYear = now.getFullYear();
-        crowdCalendarViewMonth = now.getMonth();
-        crowdSelectedDate = null;
-      }
-
-      setCrowdStatsMode(crowdStatsMode);
+      loadCrowdHistoryAverage(30);
     }
 
     function setCrowdStatsMode(mode) {
@@ -4071,11 +4008,9 @@ function hideAllExternalTooltips() {
       }
     }
 
-    async function loadCrowdHistoryAverage() {
-      const days = document.getElementById('crowdStatsAverageDaysSelect').value;
-      document.getElementById('crowdChartTitle').textContent = `Durchschnittliche Auslastung`;
-      document.getElementById('crowdChartBadge').textContent = `Letzte ${days} Tage`;
-
+      // Fester 30-Tage-Durchschnitt (kein Dropdown mehr, siehe HTML) - der
+    // Parameter bleibt optional für Kompatibilität, defaultet aber auf 30.
+    async function loadCrowdHistoryAverage(days = 30) {
       try {
         const url = `${SERVER_URL}/api/crowd-history?park=${PHANTASIALAND_ID}&days=${days}`;
         const response = await fetch(url);
