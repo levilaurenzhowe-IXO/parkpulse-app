@@ -86,14 +86,8 @@
        Karte), nicht mehr die ganze App drumherum. Der Live-/Statistik-Tab
        setzt diese Klasse nie, dort bleibt normales Seiten-Scrollen wie
        gewohnt bestehen. */
-  body.no-page-scroll {
+body.no-page-scroll {
   overflow: hidden;
-  height: 100vh;
-  height: 100dvh;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
 }
     /* Container für einen Tab, der intern selbst scrollt statt die Seite -
        füllt die verfügbare Höhe zwischen Header und Bottom-Tab-Bar und
@@ -1846,7 +1840,7 @@
     // von renderHolidaySummary() befüllt.
 
 
-   // ---------- TAB-NAVIGATION ----------
+// ---------- TAB-NAVIGATION ----------
 const TAB_ORDER = ['live', 'stats', 'holidays', 'map'];
 
 function switchTab(tab, direction) {
@@ -1862,17 +1856,16 @@ function switchTab(tab, direction) {
   const willBeLocked = (tab === 'holidays' || tab === 'map');
 
   if (!wasLocked && willBeLocked) {
-    // ungesperrt -> gesperrt: aktuelle Scroll-Position sichern
+    // Ungesperrt -> Gesperrt: Scroll-Position der Live/Stats-Seite merken & nach oben springen
     savedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    document.body.style.top = `-${savedScrollY}px`;
+    window.scrollTo(0, 0);
     document.body.classList.add('no-page-scroll');
   } else if (wasLocked && !willBeLocked) {
-    // gesperrt -> ungesperrt: Position wiederherstellen
+    // Gesperrt -> Ungesperrt: Sperre aufheben & alte Scroll-Position wiederherstellen
     document.body.classList.remove('no-page-scroll');
-    document.body.style.top = '';
     window.scrollTo(0, savedScrollY);
   } else if (wasLocked && willBeLocked) {
-    // gesperrt -> gesperrt
+    // Gesperrt -> Gesperrt (z. B. von Karte direkt zu Ferien)
     const holidaysWrap = document.getElementById('holidayTableWrap');
     if (holidaysWrap) holidaysWrap.scrollTop = 0;
   }
@@ -1937,8 +1930,6 @@ function switchTab(tab, direction) {
     if (tabBtnMap) tabBtnMap.classList.add('active');
     applyEnterAnimation(mapContent);
 
-    // Timeout (100ms) wartet ab, bis die Einblend-Animation gestartet ist
-    // und der Container messbare Dimensionen (Höhe/Breite) hat
     setTimeout(() => {
       if (!parkMapInitialized) {
         parkMapInitialized = true;
