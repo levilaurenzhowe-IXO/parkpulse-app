@@ -3452,6 +3452,8 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
 });
 
        const rerenderCard = (item) => {
+    try {
+    const rerenderCard = (item) => {
       try {
         const dataObj = calculateSmartHistoryAndForecast(item.rideName);
         renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
@@ -3472,13 +3474,11 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
       (batchEntries) => {
         batchEntries.forEach(({ item }) => rerenderCard(item));
       }
-    ); // Hier war der Aufruf unvollständig!
-
+    );
   } catch (e) {
     console.error("Chart Rendering Fehler:", e);
   }
 } // Schließt die umfassende Funktion
-
 // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
 function getOrCreateTooltipEl(chartElementId) {
   const id = `tooltip-${chartElementId}`;
