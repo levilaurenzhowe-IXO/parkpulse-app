@@ -3470,19 +3470,20 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
             }
           };
 
-          if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+        if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
-       runInBatchesWithProgress(
-  renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-  3,
-  (batchEntries) => {
-    batchEntries.forEach(({ item }) => rerenderCard(item));
-  }
-);
-      } catch (e) {
-        console.error("Chart Rendering Fehler:", e);
-      }
-    }
+          runInBatchesWithProgress(
+            renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+            3,
+            (batchEntries) => {
+              batchEntries.forEach(({ item }) => rerenderCard(item));
+            }
+          );
+        // Hier stand eine geschweifte Klammer zu viel!
+        } catch (e) {
+          console.error("Chart Rendering Fehler:", e);
+        }
+      } // Schließt die umfassende Funktion
 
     // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
     // Chart.js' eingebautes Tooltip folgt standardmäßig direkt dem Cursor und
