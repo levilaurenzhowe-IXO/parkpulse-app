@@ -1846,13 +1846,10 @@
     // von renderHolidaySummary() befüllt.
 
 
-    // ---------- TAB-NAVIGATION ----------
-    // Feste Reihenfolge der Haupt-Tabs, genutzt für Swipe-Navigation
-    // (welcher Tab kommt bei "nach links wischen" als nächstes) UND für die
-    // automatische Richtungserkennung beim Tab-Wechsel per Tap.
-    const TAB_ORDER = ['live', 'stats', 'holidays', 'map'];
+   // ---------- TAB-NAVIGATION ----------
+const TAB_ORDER = ['live', 'stats', 'holidays', 'map'];
 
- function switchTab(tab, direction) {
+function switchTab(tab, direction) {
   if (!direction) {
     const fromIdx = TAB_ORDER.indexOf(currentTab);
     const toIdx = TAB_ORDER.indexOf(tab);
@@ -1868,103 +1865,93 @@
     // ungesperrt -> gesperrt: aktuelle Scroll-Position sichern
     savedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
     document.body.style.top = `-${savedScrollY}px`;
+    document.body.classList.add('no-page-scroll');
   } else if (wasLocked && !willBeLocked) {
     // gesperrt -> ungesperrt: Position wiederherstellen
+    document.body.classList.remove('no-page-scroll');
     document.body.style.top = '';
     window.scrollTo(0, savedScrollY);
   } else if (wasLocked && willBeLocked) {
-    // NEU: gesperrt -> gesperrt (z.B. Karte -> Ferien direkt).
-    // top bleibt korrekt bei -savedScrollY stehen, das ist schon richtig -
-    // hier muss NICHTS zusätzlich passieren, außer sicherzustellen, dass
-    // kein Rest-Scroll im NEUEN Tab-Container von einem vorherigen Zustand
-    // übrig ist (z.B. Ferienkalender-Tabelle war mittig gescrollt).
+    // gesperrt -> gesperrt
     const holidaysWrap = document.getElementById('holidayTableWrap');
     if (holidaysWrap) holidaysWrap.scrollTop = 0;
   }
 
   currentTab = tab;
-  // ... Rest unverändert
+
   const liveContent = document.getElementById('tabContentLive');
   const statsContent = document.getElementById('tabContentStats');
   const holidaysContent = document.getElementById('tabContentHolidays');
   const mapContent = document.getElementById('tabContentMap');
+
   const tabBtnLive = document.getElementById('tabBtnLive');
   const tabBtnStats = document.getElementById('tabBtnStats');
   const tabBtnHolidays = document.getElementById('tabBtnHolidays');
   const tabBtnMap = document.getElementById('tabBtnMap');
 
-  liveContent.classList.add('hidden');
-  statsContent.classList.add('hidden');
-  holidaysContent.classList.add('hidden');
-  mapContent.classList.add('hidden');
-  tabBtnLive.classList.remove('active');
-  tabBtnStats.classList.remove('active');
-  tabBtnHolidays.classList.remove('active');
-  tabBtnMap.classList.remove('active');
+  if (liveContent) liveContent.classList.add('hidden');
+  if (statsContent) statsContent.classList.add('hidden');
+  if (holidaysContent) holidaysContent.classList.add('hidden');
+  if (mapContent) mapContent.classList.add('hidden');
+
+  if (tabBtnLive) tabBtnLive.classList.remove('active');
+  if (tabBtnStats) tabBtnStats.classList.remove('active');
+  if (tabBtnHolidays) tabBtnHolidays.classList.remove('active');
+  if (tabBtnMap) tabBtnMap.classList.remove('active');
 
   const animClass = direction === 'right' ? 'tab-content-enter-right' : 'tab-content-enter-left';
   const applyEnterAnimation = (el) => {
+    if (!el) return;
     el.classList.remove('tab-content-enter-left', 'tab-content-enter-right');
     void el.offsetWidth;
     el.classList.add(animClass);
   };
 
   if (tab === 'live') {
-    liveContent.classList.remove('hidden');
-    tabBtnLive.classList.add('active');
+    if (liveContent) liveContent.classList.remove('hidden');
+    if (tabBtnLive) tabBtnLive.classList.add('active');
     applyEnterAnimation(liveContent);
-    document.body.classList.remove('no-page-scroll');
   } else if (tab === 'stats') {
-    statsContent.classList.remove('hidden');
-    tabBtnStats.classList.add('active');
+    if (statsContent) statsContent.classList.remove('hidden');
+    if (tabBtnStats) tabBtnStats.classList.add('active');
     applyEnterAnimation(statsContent);
-    document.body.classList.remove('no-page-scroll');
 
     if (!statsAlreadyLoaded) {
       statsAlreadyLoaded = true;
-      loadStatsRideList();
-      loadWeekdayStats();
-      initCrowdStats();
-      switchStatsSubTab('park');
+      if (typeof loadStatsRideList === 'function') loadStatsRideList();
+      if (typeof loadWeekdayStats === 'function') loadWeekdayStats();
+      if (typeof initCrowdStats === 'function') initCrowdStats();
+      if (typeof switchStatsSubTab === 'function') switchStatsSubTab('park');
     }
   } else if (tab === 'holidays') {
-    holidaysContent.classList.remove('hidden');
-    tabBtnHolidays.classList.add('active');
+    if (holidaysContent) holidaysContent.classList.remove('hidden');
+    if (tabBtnHolidays) tabBtnHolidays.classList.add('active');
     applyEnterAnimation(holidaysContent);
-    document.body.classList.add('no-page-scroll');
 
     if (!holidayTableLoaded) {
       holidayTableLoaded = true;
-      loadHolidayTable();
+      if (typeof loadHolidayTable === 'function') loadHolidayTable();
     }
-} else if (tab === 'map') {
-    mapContent.classList.remove('hidden');
-    tabBtnMap.classList.add('active');
+  } else if (tab === 'map') {
+    if (mapContent) mapContent.classList.remove('hidden');
+    if (tabBtnMap) tabBtnMap.classList.add('active');
     applyEnterAnimation(mapContent);
-    document.body.classList.add('no-page-scroll');
 
-    if (!parkMapInitialized) {
-      parkMapInitialized = true;
-      // WICHTIG: Leaflet braucht ein bereits fertig layoutetes, sichtbares
-      // Element. Direkt nach classList.remove('hidden') hat der Browser das
-      // Layout oft noch nicht neu berechnet (Container wäre noch 0x0) -
-      // Leaflet "verrechnet" sich dann einmalig und bleibt dauerhaft leer/
-      // schwarz, ohne sich von selbst zu korrigieren. Ein doppelter
-      // requestAnimationFrame garantiert, dass mindestens ein Layout-Zyklus
-      // durchgelaufen ist, bevor L.map() die Containergröße misst.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          initParkMap();
-        });
-      });
-    } else {
-      setTimeout(() => {
-        if (parkMapInstance) parkMapInstance.invalidateSize();
-      }, 50);
-      loadMapLiveData();
-    }
+    // Timeout (100ms) wartet ab, bis die Einblend-Animation gestartet ist
+    // und der Container messbare Dimensionen (Höhe/Breite) hat
+    setTimeout(() => {
+      if (!parkMapInitialized) {
+        parkMapInitialized = true;
+        if (typeof initParkMap === 'function') initParkMap();
+      } else {
+        if (typeof parkMapInstance !== 'undefined' && parkMapInstance) {
+          parkMapInstance.invalidateSize();
+        }
+        if (typeof loadMapLiveData === 'function') loadMapLiveData();
+      }
+    }, 100);
+  }
 }
- }
 
 
     // ---------- STATISTIK: Sub-Tab-Navigation (Park-Übersicht vs. Attraktionen) ----------
