@@ -773,253 +773,244 @@ body.no-page-scroll {
     </div>
     <!-- ================= ENDE LIVE-TAB ================= -->
 
-    <!-- ================= STATISTIK-TAB ================= -->
-    <div id="tabContentStats" class="hidden space-y-3">
+<!-- ================= STATISTIK-TAB ================= -->
+<div id="tabContentStats" class="hidden space-y-3">
 
-      <!-- Sub-Navigation: trennt "Park-Übersicht" (Wochentag + Auslastung)
-           von "Attraktionen" (Suche + Detail-Prognosen), damit nicht alles
-           auf einer langen, unübersichtlichen Seite gestapelt ist. -->
-      <div class="flex items-center gap-1 panel p-1">
-        <button onclick="switchStatsSubTab('park')" id="statsSubTabBtnPark" class="flex-1 py-2.5 rounded-full text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5">
-          <i class="fa-solid fa-chart-simple"></i> Park-Übersicht
-        </button>
-        <button onclick="switchStatsSubTab('rides')" id="statsSubTabBtnRides" class="flex-1 py-2.5 rounded-full text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5">
-          <i class="fa-solid fa-dragon"></i> Attraktionen
-        </button>
-      </div>
-
-      <!-- ========== SUB-TAB: PARK-ÜBERSICHT ========== -->
-      <div id="statsSubTabPark" class="space-y-3">
-
-        <!-- Smarter Zusatz-Graf: Wochentags-Vergleich -->
-        <div class="panel p-3.5 shadow-lg shadow-amber-500/5">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-calendar-week"></i> Bester Wochentag zum Besuchen
-            </h2>
-          </div>
-          <p id="weekdayBestBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
-          <div class="h-44 w-full chart-frame p-2">
-            <canvas id="weekdayChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Park-Auslastung: zweispaltiges Layout wie bei den Attraktionen -
-             Steuerung links, Graph rechts, gleichzeitig sichtbar ohne Scrollen -->
-        <div class="panel p-3.5 shadow-lg shadow-amber-500/5">
-          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-            <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
-          </h2>
-
-          <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 items-start">
-
-            <!-- LINKE SPALTE: Modus + Kalender/Zeitraum -->
-            <div class="panel-raised p-3 space-y-3">
-              <div class="flex items-center gap-1 bg-black/40 rounded-full p-1">
-                <button onclick="setCrowdStatsMode('day')" id="crowdStatsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-                  <i class="fa-solid fa-calendar-day mr-1"></i> Tag
-                </button>
-                <button onclick="setCrowdStatsMode('average')" id="crowdStatsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-                  <i class="fa-solid fa-chart-line mr-1"></i> Ø
-                </button>
-              </div>
-
-              <div id="crowdStatsDayModeContent" class="hidden space-y-2">
-                <div class="flex items-center justify-between">
-                  <button onclick="shiftCrowdCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-300 transition">
-                    <i class="fa-solid fa-chevron-left text-[9px]"></i>
-                  </button>
-                  <span id="crowdCalendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
-                  <button onclick="shiftCrowdCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-300 transition">
-                    <i class="fa-solid fa-chevron-right text-[9px]"></i>
-                  </button>
-                </div>
-                <div id="crowdCalendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
-                <p class="text-[9px] text-slate-600 text-center leading-relaxed">Markierte Tage haben Daten.</p>
-              </div>
-
-              <div id="crowdStatsAverageModeContent" class="hidden">
-                <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
-                <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-                  <option value="7">Letzte 7 Tage</option>
-                  <option value="14">Letzte 14 Tage</option>
-                  <option value="30" selected>Letzte 30 Tage</option>
-                  <option value="90">Letzte 90 Tage</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- RECHTE SPALTE: Graph -->
-            <div class="min-w-0">
-              <div class="flex items-center justify-between mb-1">
-                <h3 id="crowdChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
-                <span id="crowdChartBadge" class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5"></span>
-              </div>
-              <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
-                <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
-                <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
-              </div>
-              <div id="crowdChartWrap" class="h-56 w-full chart-frame p-2">
-                <canvas id="crowdStatsChart"></canvas>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-      <!-- ========== ENDE SUB-TAB: PARK-ÜBERSICHT ========== -->
-
-      <!-- ========== SUB-TAB: ATTRAKTIONEN ========== -->
-      <div id="statsSubTabRides" class="hidden space-y-3">
-
-        <!-- Attraktions-Auswahl -->
-        <div class="panel p-3">
-          <div class="relative w-full">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-            <input type="text" id="statsRideSearch" oninput="renderStatsRideList()" placeholder="Attraktion auswählen..."
-              class="w-full pill pl-9 pr-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
-          </div>
-          <div id="statsRideList" class="mt-2 max-h-40 overflow-y-auto space-y-1"></div>
-        </div>
-
-        <!-- Nichts ausgewählt -->
-        <div id="statsNoRideSelected" class="py-10 text-center text-slate-500 panel">
-          <i class="fa-solid fa-hand-pointer text-2xl text-amber-400 mb-2"></i>
-          <p class="text-xs font-bold">Wähle oben eine Attraktion aus</p>
-          <p class="text-[11px] text-slate-600 mt-1">Um Verlaufsdaten und Prognosen zu sehen.</p>
-        </div>
-
-        <!-- Statistik-Inhalt für ausgewählte Attraktion -->
-        <div id="statsRideDetail" class="hidden space-y-3">
-
-          <h2 id="statsSelectedRideName" class="text-sm font-black text-amber-400 px-1"></h2>
-
-          <!-- Zweispaltiges Layout ab "lg": links Steuerung (Modus-Umschalter
-               + Kalender/Zeitraum), rechts der Verlaufs-Graph - beides
-               gleichzeitig sichtbar, OHNE dass man zwischen Kalender und
-               Graph hoch-/runterscrollen muss. Auf schmalen Screens (Mobile)
-               stapelt es sich automatisch untereinander. -->
-          <div class="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3 items-start">
-
-            <!-- LINKE SPALTE: Modus + Kalender/Zeitraum -->
-            <div class="panel p-3.5 space-y-3">
-              <div class="flex items-center gap-1 panel-raised p-1">
-                <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-                  <i class="fa-solid fa-calendar-day mr-1"></i> Tag
-                </button>
-                <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
-                  <i class="fa-solid fa-chart-line mr-1"></i> Ø
-                </button>
-              </div>
-
-              <!-- Einzeltag-Auswahl: kompakte Datums-Zeile mit Vor/Zurück-
-                   Pfeilen UND Swipe-Unterstützung (über das Datum selbst nach
-                   links/rechts wischen wechselt den Tag) - der volle Kalender
-                   darunter lässt sich einklappen, um Platz zu sparen, sobald
-                   man weiß wonach man sucht bzw. nur schnell durchblättern will. -->
-              <div id="statsDayModeContent" class="hidden space-y-2">
-                <div id="statsDaySwipeArea" class="panel-raised px-2 py-2.5 flex items-center justify-between select-none cursor-default">
-                  <button onclick="shiftSelectedStatsDay(-1)" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
-                    <i class="fa-solid fa-chevron-left text-[11px]"></i>
-                  </button>
-                  <div class="text-center min-w-0 px-1">
-                    <p id="statsSelectedDayLabel" class="text-[12px] font-bold text-slate-100 truncate">–</p>
-                    <p class="text-[8px] text-slate-500 uppercase tracking-wider">Wischen zum Wechseln</p>
-                  </div>
-                  <button onclick="shiftSelectedStatsDay(1)" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
-                    <i class="fa-solid fa-chevron-right text-[11px]"></i>
-                  </button>
-                </div>
-
-                <button onclick="toggleRideCalendarCollapse()" id="statsCalendarToggleBtn" class="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition py-1">
-                  <i class="fa-solid fa-calendar-days"></i>
-                  <span id="statsCalendarToggleLabel">Kalender anzeigen</span>
-                  <i id="statsCalendarToggleChevron" class="fa-solid fa-chevron-down text-[8px] transition-transform duration-200"></i>
-                </button>
-
-                <div id="statsCalendarCollapsible" class="hidden space-y-2">
-                  <div class="flex items-center justify-between">
-                    <button onclick="shiftCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
-                      <i class="fa-solid fa-chevron-left text-[9px]"></i>
-                    </button>
-                    <span id="calendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
-                    <button onclick="shiftCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
-                      <i class="fa-solid fa-chevron-right text-[9px]"></i>
-                    </button>
-                  </div>
-                  <div id="calendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
-                  <p class="text-[9px] text-slate-600 text-center leading-relaxed">Markierte Tage haben Daten.</p>
-                </div>
-              </div>
-
-              <div id="statsAverageModeContent" class="hidden">
-                <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
-                <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
-                  <option value="7">Letzte 7 Tage</option>
-                  <option value="14">Letzte 14 Tage</option>
-                  <option value="30" selected>Letzte 30 Tage</option>
-                  <option value="90">Letzte 90 Tage</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- RECHTE SPALTE: Verlaufs-Graph + darunter Empfehlung/Ausfallzeiten -->
-            <div class="space-y-3 min-w-0">
-              <div class="panel p-3.5">
-                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
-                  <h3 id="statsChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
-                  <span id="statsChartBadge" class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5"></span>
-                </div>
-                <div id="statsChartOverlayLegend" class="hidden flex items-center gap-3 mb-1.5 text-[9px] text-slate-400">
-                  <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
-                  <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-blue-400"></span> Regen</span>
-                </div>
-                <div id="statsChartEmpty" class="hidden py-10 text-center text-slate-500">
-                  <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
-                  <p class="text-xs font-bold">Keine Daten für diese Auswahl</p>
-                </div>
-                <div id="statsChartWrap" class="h-56 w-full chart-frame p-2">
-                  <canvas id="statsRideChart"></canvas>
-                </div>
-              </div>
-
-              <!-- Empfehlung: bleibt immer sichtbar wenn vorhanden, da kurz & prägnant -->
-              <div id="statsRecommendationBox" class="hidden bg-gradient-to-r from-amber-500/15 to-transparent border border-amber-500/30 rounded-2xl p-3.5 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-lightbulb text-amber-400"></i>
-                </div>
-                <div class="min-w-0">
-                  <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Beste Uhrzeit</p>
-                  <p id="statsRecommendationText" class="text-xs font-bold text-slate-100"></p>
-                </div>
-              </div>
-
-              <!-- Häufigste Ausfallzeiten: EIN kompaktes Balkendiagramm statt des
-                   früheren separaten "Prognosen & Risikozeiten"-Tabs (der war
-                   verwirrend, da er wie eine Tagesprognose aussah, aber
-                   eigentlich nur historische Ausfallhäufigkeiten zeigte). Die
-                   eigentliche zeitliche Vorhersage steckt jetzt direkt in der
-                   grünen Prognose-Linie im Verlaufs-Graphen oben. -->
-              <div id="outageHoursBox" class="hidden panel p-3.5">
-                <h3 class="text-[11px] font-black text-red-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <i class="fa-solid fa-chart-simple"></i> Häufigste Ausfallzeiten
-                </h3>
-                <div class="h-32 w-full chart-frame p-1.5">
-                  <canvas id="outageHoursChart"></canvas>
-                </div>
-                <p id="outageHoursNote" class="text-[9px] text-slate-600 mt-2"></p>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-      <!-- ========== ENDE SUB-TAB: ATTRAKTIONEN ========== -->
-
+  <!-- 🚀 TOP KPI DASHBOARD: Auf einen Blick alles Wichtige -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <div class="panel-raised p-3 text-center">
+      <span class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Ø Besucher (30 Tage)</span>
+      <span id="kpiAvgCrowd" class="text-xs sm:text-sm font-black text-amber-400 font-mono">Wird berechnet...</span>
     </div>
-    <!-- ================= ENDE STATISTIK-TAB ================= -->
+    <div class="panel-raised p-3 text-center">
+      <span class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Bester Wochentag</span>
+      <span id="kpiBestDay" class="text-xs sm:text-sm font-black text-emerald-400">Lade Daten...</span>
+    </div>
+    <div class="panel-raised p-3 text-center col-span-2 sm:col-span-1">
+      <span class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Günstigste Uhrzeit</span>
+      <span id="kpiBestTime" class="text-xs sm:text-sm font-black text-cyan-400 font-mono">11:30 & 16:30 Uhr</span>
+    </div>
+  </div>
+
+  <!-- Sub-Navigation -->
+  <div class="flex items-center gap-1 panel p-1">
+    <button onclick="switchStatsSubTab('park')" id="statsSubTabBtnPark" class="flex-1 py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5">
+      <i class="fa-solid fa-chart-simple"></i> Park-Übersicht
+    </button>
+    <button onclick="switchStatsSubTab('rides')" id="statsSubTabBtnRides" class="flex-1 py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5">
+      <i class="fa-solid fa-dragon"></i> Attraktionen
+    </button>
+  </div>
+
+  <!-- ========== SUB-TAB 1: PARK-ÜBERSICHT ========== -->
+  <div id="statsSubTabPark" class="space-y-3">
+
+    <!-- Bester Wochentag -->
+    <div class="panel p-3.5 shadow-lg shadow-amber-500/5">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-calendar-week"></i> Bester Wochentag zum Besuchen
+        </h2>
+      </div>
+      <p id="weekdayBestBadge" class="text-[10px] text-slate-500 mb-2">Lade Daten...</p>
+      <div class="h-40 w-full chart-frame p-2">
+        <canvas id="weekdayChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Park-Auslastung im Verlauf -->
+    <div class="panel p-3.5 shadow-lg shadow-amber-500/5 space-y-3">
+      <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+        <i class="fa-solid fa-users text-amber-400"></i> Park-Auslastung im Verlauf
+      </h2>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 items-start">
+        
+        <!-- Steuerung links -->
+        <div class="panel-raised p-3 space-y-3">
+          <div class="flex items-center gap-1 bg-black/40 rounded-full p-1">
+            <button onclick="setCrowdStatsMode('day')" id="crowdStatsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
+              <i class="fa-solid fa-calendar-day mr-1"></i> Tag
+            </button>
+            <button onclick="setCrowdStatsMode('average')" id="crowdStatsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
+              <i class="fa-solid fa-chart-line mr-1"></i> Ø
+            </button>
+          </div>
+
+          <div id="crowdStatsDayModeContent" class="hidden space-y-2">
+            <div class="flex items-center justify-between">
+              <button onclick="shiftCrowdCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-300 transition">
+                <i class="fa-solid fa-chevron-left text-[9px]"></i>
+              </button>
+              <span id="crowdCalendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
+              <button onclick="shiftCrowdCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-300 transition">
+                <i class="fa-solid fa-chevron-right text-[9px]"></i>
+              </button>
+            </div>
+            <div id="crowdCalendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
+          </div>
+
+          <div id="crowdStatsAverageModeContent" class="hidden">
+            <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
+            <select id="crowdStatsAverageDaysSelect" onchange="loadCrowdHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+              <option value="7">Letzte 7 Tage</option>
+              <option value="14">Letzte 14 Tage</option>
+              <option value="30" selected>Letzte 30 Tage</option>
+              <option value="90">Letzte 90 Tage</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Graph rechts -->
+        <div class="min-w-0">
+          <div class="flex items-center justify-between mb-1">
+            <h3 id="crowdChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
+            <span id="crowdChartBadge" class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5"></span>
+          </div>
+          <div id="crowdChartEmpty" class="hidden py-10 text-center text-slate-500">
+            <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
+            <p class="text-xs font-bold">Keine Daten vorhanden</p>
+          </div>
+          <div id="crowdChartWrap" class="h-52 w-full chart-frame p-2">
+            <canvas id="crowdStatsChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ========== SUB-TAB 2: ATTRAKTIONEN ========== -->
+  <div id="statsSubTabRides" class="hidden space-y-3">
+
+    <!-- Suche -->
+    <div class="panel p-3">
+      <div class="relative w-full">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+        <input type="text" id="statsRideSearch" oninput="renderStatsRideList()" placeholder="Attraktion auswählen..."
+          class="w-full pill pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition">
+      </div>
+      <div id="statsRideList" class="mt-2 max-h-36 overflow-y-auto space-y-1"></div>
+    </div>
+
+    <!-- Platzhalter wenn nichts gewählt -->
+    <div id="statsNoRideSelected" class="py-10 text-center text-slate-500 panel">
+      <i class="fa-solid fa-hand-pointer text-2xl text-amber-400 mb-2"></i>
+      <p class="text-xs font-bold">Wähle oben eine Attraktion aus</p>
+      <p class="text-[11px] text-slate-600 mt-1">Um Verlaufsdaten und Ausfallzeiten zu analysieren.</p>
+    </div>
+
+    <!-- Details zur gewählten Attraktion -->
+    <div id="statsRideDetail" class="hidden space-y-3">
+      <h2 id="statsSelectedRideName" class="text-sm font-black text-amber-400 px-1"></h2>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-3 items-start">
+
+        <!-- Steuerung links -->
+        <div class="panel p-3 space-y-3">
+          <div class="flex items-center gap-1 panel-raised p-1">
+            <button onclick="setStatsMode('day')" id="statsModeBtnDay" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
+              <i class="fa-solid fa-calendar-day mr-1"></i> Tag
+            </button>
+            <button onclick="setStatsMode('average')" id="statsModeBtnAverage" class="flex-1 py-1.5 rounded-full text-[11px] font-bold transition">
+              <i class="fa-solid fa-chart-line mr-1"></i> Ø
+            </button>
+          </div>
+
+          <div id="statsDayModeContent" class="hidden space-y-2">
+            <div id="statsDaySwipeArea" class="panel-raised px-2 py-2 flex items-center justify-between select-none">
+              <button onclick="shiftSelectedStatsDay(-1)" class="w-7 h-7 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
+                <i class="fa-solid fa-chevron-left text-[11px]"></i>
+              </button>
+              <div class="text-center min-w-0 px-1">
+                <p id="statsSelectedDayLabel" class="text-[11px] font-bold text-slate-100 truncate">–</p>
+              </div>
+              <button onclick="shiftSelectedStatsDay(1)" class="w-7 h-7 flex items-center justify-center rounded-full text-slate-300 transition active:bg-white/10 shrink-0">
+                <i class="fa-solid fa-chevron-right text-[11px]"></i>
+              </button>
+            </div>
+
+            <button onclick="toggleRideCalendarCollapse()" id="statsCalendarToggleBtn" class="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition py-1">
+              <i class="fa-solid fa-calendar-days"></i>
+              <span id="statsCalendarToggleLabel">Kalender anzeigen</span>
+              <i id="statsCalendarToggleChevron" class="fa-solid fa-chevron-down text-[8px] transition-transform duration-200"></i>
+            </button>
+
+            <div id="statsCalendarCollapsible" class="hidden space-y-2">
+              <div class="flex items-center justify-between">
+                <button onclick="shiftCalendarMonth(-1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
+                  <i class="fa-solid fa-chevron-left text-[9px]"></i>
+                </button>
+                <span id="calendarMonthLabel" class="text-[11px] font-bold text-slate-200"></span>
+                <button onclick="shiftCalendarMonth(1)" class="w-6 h-6 flex items-center justify-center rounded-full panel-raised text-slate-300 transition">
+                  <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                </button>
+              </div>
+              <div id="calendarGrid" class="grid grid-cols-7 gap-0.5 text-center"></div>
+            </div>
+          </div>
+
+          <div id="statsAverageModeContent" class="hidden">
+            <span class="text-[10px] font-bold text-slate-400 block mb-1.5">Zeitraum</span>
+            <select id="statsAverageDaysSelect" onchange="loadRideHistoryAverage()" class="w-full pill text-slate-100 text-sm px-3 py-2 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
+              <option value="7">Letzte 7 Tage</option>
+              <option value="14">Letzte 14 Tage</option>
+              <option value="30" selected>Letzte 30 Tage</option>
+              <option value="90">Letzte 90 Tage</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Graph & Empfehlung rechts -->
+        <div class="space-y-3 min-w-0">
+          <div class="panel p-3.5">
+            <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+              <h3 id="statsChartTitle" class="text-[11px] font-black text-amber-400 uppercase tracking-wider">Verlauf</h3>
+              <span id="statsChartBadge" class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5"></span>
+            </div>
+            <div id="statsChartOverlayLegend" class="hidden flex items-center gap-3 mb-1.5 text-[9px] text-slate-400">
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-blue-400"></span> Regen</span>
+            </div>
+            <div id="statsChartEmpty" class="hidden py-10 text-center text-slate-500">
+              <i class="fa-solid fa-inbox text-2xl text-slate-700 mb-2"></i>
+              <p class="text-xs font-bold">Keine Daten vorhanden</p>
+            </div>
+            <div id="statsChartWrap" class="h-52 w-full chart-frame p-2">
+              <canvas id="statsRideChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Beste Zeit Box -->
+          <div id="statsRecommendationBox" class="hidden bg-gradient-to-r from-amber-500/15 to-transparent border border-amber-500/30 rounded-2xl p-3 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+              <i class="fa-solid fa-lightbulb text-amber-400 text-xs"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Empfehlung</p>
+              <p id="statsRecommendationText" class="text-xs font-bold text-slate-100"></p>
+            </div>
+          </div>
+
+          <!-- Häufigste Ausfälle -->
+          <div id="outageHoursBox" class="hidden panel p-3.5">
+            <h3 class="text-[11px] font-black text-red-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+              <i class="fa-solid fa-chart-simple"></i> Häufigste Ausfallzeiten
+            </h3>
+            <div class="h-28 w-full chart-frame p-1.5">
+              <canvas id="outageHoursChart"></canvas>
+            </div>
+            <p id="outageHoursNote" class="text-[9px] text-slate-600 mt-2"></p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+<!-- ================= ENDE STATISTIK-TAB ================= -->
 
     <!-- ================= FERIEN-TAB ================= -->
     <!-- Einfache, klassische Tabellen-Ansicht wie bei schulferien.org: Zeilen
@@ -4154,73 +4145,83 @@ async function loadPhantasialandData() {
       document.getElementById('crowdChartEmpty').classList.remove('hidden');
     }
 
-    function renderCrowdStatsChart(values) {
-      document.getElementById('crowdChartWrap').classList.remove('hidden');
-      document.getElementById('crowdChartEmpty').classList.add('hidden');
+function renderCrowdStatsChart(values) {
+  document.getElementById('crowdChartWrap').classList.remove('hidden');
+  document.getElementById('crowdChartEmpty').classList.add('hidden');
 
-      const ctx = document.getElementById('crowdStatsChart');
-      if (!ctx) return;
-      if (crowdStatsChartInstance) crowdStatsChartInstance.destroy();
+  const ctx = document.getElementById('crowdStatsChart');
+  if (!ctx) return;
+  if (crowdStatsChartInstance) crowdStatsChartInstance.destroy();
 
-      crowdStatsChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: FIXED_TIME_LABELS,
-          datasets: [{
-            label: 'Geschätzte Gäste',
-            data: values,
-            borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245, 158, 11, 0.15)',
-            borderWidth: 2.5,
-            fill: true,
-            tension: 0,
-            pointRadius: 0,
-            pointHoverRadius: 5,
-            spanGaps: true
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: buildExternalTooltipConfig('crowdStatsChart', (dp) => {
-              return `~${Math.round(dp.raw).toLocaleString('de-DE')} Gäste`;
-            })
-          },
-          scales: {
-            x: {
-              min: 0,
-              max: FIXED_TIME_LABELS.length - 1,
-              grid: { display: false },
-              ticks: {
-                color: '#64748b',
-                font: { size: 9 },
-                autoSkip: false,
-                maxRotation: 0,
-                callback: function(value, index) {
-                  const label = FIXED_TIME_LABELS[index];
-                  if (!label) return '';
-                  const [h, m] = label.split(':');
-                  const hourNum = parseInt(h, 10);
-                  if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
-                    return `${h}:00`;
-                  }
-                  return '';
-                }
+  // 🚀 HIER NEU: Befüllt die KPI-Karte für die Ø-Besucherzahl
+  const kpiAvgCrowdEl = document.getElementById('kpiAvgCrowd');
+  if (kpiAvgCrowdEl && values && values.length > 0) {
+    const validValues = values.filter(v => v !== null && v > 0);
+    if (validValues.length > 0) {
+      const avg = Math.round(validValues.reduce((a, b) => a + b, 0) / validValues.length);
+      kpiAvgCrowdEl.textContent = `~${avg.toLocaleString('de-DE')} Pers.`;
+    }
+  }
+
+  crowdStatsChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: FIXED_TIME_LABELS,
+      datasets: [{
+        label: 'Geschätzte Gäste',
+        data: values,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        spanGaps: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: buildExternalTooltipConfig('crowdStatsChart', (dp) => {
+          return `~${Math.round(dp.raw).toLocaleString('de-DE')} Gäste`;
+        })
+      },
+      scales: {
+        x: {
+          min: 0,
+          max: FIXED_TIME_LABELS.length - 1,
+          grid: { display: false },
+          ticks: {
+            color: '#64748b',
+            font: { size: 9 },
+            autoSkip: false,
+            maxRotation: 0,
+            callback: function(value, index) {
+              const label = FIXED_TIME_LABELS[index];
+              if (!label) return '';
+              const [h, m] = label.split(':');
+              const hourNum = parseInt(h, 10);
+              if (m === '00' && (hourNum - CHART_TIME_START_HOUR) % 3 === 0) {
+                return `${h}:00`;
               }
-            },
-            y: {
-              beginAtZero: true,
-              max: MAX_PARK_CAPACITY,
-              grid: { color: '#1e293b' },
-              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 5000 }
+              return '';
             }
           }
+        },
+        y: {
+          beginAtZero: true,
+          max: MAX_PARK_CAPACITY,
+          grid: { color: '#1e293b' },
+          ticks: { color: '#64748b', font: { size: 9 }, stepSize: 5000 }
         }
-      });
+      }
     }
+  });
+}
 
     async function loadWeekdayStats() {
       await fetchWithCache(
@@ -4232,80 +4233,85 @@ async function loadPhantasialandData() {
       );
     }
 
-    function renderWeekdayChart(weekdayStats) {
-      const ctx = document.getElementById('weekdayChart');
-      if (!ctx) return;
-      if (weekdayChartInstance) weekdayChartInstance.destroy();
+function renderWeekdayChart(weekdayStats) {
+  const ctx = document.getElementById('weekdayChart');
+  if (!ctx) return;
+  if (weekdayChartInstance) weekdayChartInstance.destroy();
 
-      if (weekdayStats.length === 0) {
-        document.getElementById('weekdayBestBadge').textContent = 'Noch keine Daten vorhanden - braucht mehrere Wochen Sammelzeit.';
-        return;
-      }
+  if (weekdayStats.length === 0) {
+    document.getElementById('weekdayBestBadge').textContent = 'Noch keine Daten vorhanden - braucht mehere Wochen Sammelzeit.';
+    return;
+  }
 
-      // Reihenfolge Montag-Sonntag statt der SQL-Standardreihenfolge (0=So)
-      const orderedWeekdays = [1, 2, 3, 4, 5, 6, 0];
-      const dataMap = {};
-      weekdayStats.forEach(row => { dataMap[row.weekday] = row; });
+  // Reihenfolge Montag-Sonntag statt der SQL-Standardreihenfolge (0=So)
+  const orderedWeekdays = [1, 2, 3, 4, 5, 6, 0];
+  const dataMap = {};
+  weekdayStats.forEach(row => { dataMap[row.weekday] = row; });
 
-      const labels = orderedWeekdays.map(w => WEEKDAY_SHORT_DE[w]);
-      const values = orderedWeekdays.map(w => {
-        const row = dataMap[w];
-        return row && row.avg_wait !== null ? Math.round(row.avg_wait * 10) / 10 : null;
-      });
+  const labels = orderedWeekdays.map(w => WEEKDAY_SHORT_DE[w]);
+  const values = orderedWeekdays.map(w => {
+    const row = dataMap[w];
+    return row && row.avg_wait !== null ? Math.round(row.avg_wait * 10) / 10 : null;
+  });
 
-      // Besten (niedrigsten) und schlechtesten Wochentag finden
-      let bestDay = null, worstDay = null;
-      orderedWeekdays.forEach(w => {
-        const row = dataMap[w];
-        if (!row || row.avg_wait === null || row.days_counted < 2) return; // min. 2 Datenpunkte für Aussagekraft
-        if (!bestDay || row.avg_wait < bestDay.avgWait) bestDay = { weekday: w, avgWait: row.avg_wait };
-        if (!worstDay || row.avg_wait > worstDay.avgWait) worstDay = { weekday: w, avgWait: row.avg_wait };
-      });
+  // Besten (niedrigsten) und schlechtesten Wochentag finden
+  let bestDay = null, worstDay = null;
+  orderedWeekdays.forEach(w => {
+    const row = dataMap[w];
+    if (!row || row.avg_wait === null || row.days_counted < 2) return; // min. 2 Datenpunkte für Aussagekraft
+    if (!bestDay || row.avg_wait < bestDay.avgWait) bestDay = { weekday: w, avgWait: row.avg_wait };
+    if (!worstDay || row.avg_wait > worstDay.avgWait) worstDay = { weekday: w, avgWait: row.avg_wait };
+  });
 
-      if (bestDay) {
-        document.getElementById('weekdayBestBadge').innerHTML =
-          `Am entspanntesten meist <b class="text-emerald-400">${WEEKDAY_NAMES_DE[bestDay.weekday]}</b> (Ø ${Math.round(bestDay.avgWait)} Min)` +
-          (worstDay ? ` · Am vollsten meist <b class="text-red-400">${WEEKDAY_NAMES_DE[worstDay.weekday]}</b> (Ø ${Math.round(worstDay.avgWait)} Min)` : '');
-      } else {
-        document.getElementById('weekdayBestBadge').textContent = 'Noch nicht genug Daten für eine verlässliche Aussage.';
-      }
+  if (bestDay) {
+    document.getElementById('weekdayBestBadge').innerHTML =
+      `Am entspanntesten meist <b class="text-emerald-400">${WEEKDAY_NAMES_DE[bestDay.weekday]}</b> (Ø ${Math.round(bestDay.avgWait)} Min)` +
+      (worstDay ? ` · Am vollsten meist <b class="text-red-400">${WEEKDAY_NAMES_DE[worstDay.weekday]}</b> (Ø ${Math.round(worstDay.avgWait)} Min)` : '');
 
-      const colors = orderedWeekdays.map(w => {
-        if (bestDay && w === bestDay.weekday) return 'rgba(16, 185, 129, 0.7)';
-        if (worstDay && w === worstDay.weekday) return 'rgba(239, 68, 68, 0.7)';
-        return 'rgba(245, 158, 11, 0.5)';
-      });
-
-      weekdayChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Ø Wartezeit',
-            data: values,
-            backgroundColor: colors,
-            borderColor: '#f59e0b',
-            borderWidth: 1,
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: buildExternalTooltipConfig('weekdayChart', (dp) => {
-              return dp.raw !== null ? `Ø ${dp.raw} Min Wartezeit` : 'Keine Daten';
-            })
-          },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10, weight: 'bold' } } },
-            y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
-          }
-        }
-      });
+    // 🚀 HIER NEU: Befüllt die KPI-Karte oben für den besten Wochentag
+    const kpiBestDayEl = document.getElementById('kpiBestDay');
+    if (kpiBestDayEl) {
+      kpiBestDayEl.textContent = `${WEEKDAY_NAMES_DE[bestDay.weekday]} (Ø ${Math.round(bestDay.avgWait)}m)`;
     }
+  } else {
+    document.getElementById('weekdayBestBadge').textContent = 'Noch nicht genug Daten für eine verlässliche Aussage.';
+  }
 
+  const colors = orderedWeekdays.map(w => {
+    if (bestDay && w === bestDay.weekday) return 'rgba(16, 185, 129, 0.7)';
+    if (worstDay && w === worstDay.weekday) return 'rgba(239, 68, 68, 0.7)';
+    return 'rgba(245, 158, 11, 0.5)';
+  });
+
+  weekdayChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Ø Wartezeit',
+        data: values,
+        backgroundColor: colors,
+        borderColor: '#f59e0b',
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: buildExternalTooltipConfig('weekdayChart', (dp) => {
+          return dp.raw !== null ? `Ø ${dp.raw} Min Wartezeit` : 'Keine Daten';
+        })
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10, weight: 'bold' } } },
+        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
+      }
+    }
+  });
+}
     // ---------- Attraktionsliste ----------
     let statsAllRideNames = []; // vom Server geladene Liste aller bekannten Attraktionsnamen
 
