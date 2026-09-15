@@ -3451,60 +3451,50 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
   if (jobs.length > 0) await Promise.all(jobs);
 });
 
-          const rerenderCard = (item) => {
-            try {
-              const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-              if (item.cardId === currentlyExpandedCardId) {
-                renderDetailedChart(`chart-${item.cardId}`, dataObj);
-                renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-              }
-            } catch (e) {
-              console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
-            }
-          };
-
-        if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
-
-          runInBatchesWithProgress(
-            renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-            3,
-            (batchEntries) => {
-              batchEntries.forEach(({ item }) => rerenderCard(item));
-            }
-          );
-        // Hier stand eine geschweifte Klammer zu viel!
-        } catch (e) {
-          console.error("Chart Rendering Fehler:", e);
+       const rerenderCard = (item) => {
+      try {
+        const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+        if (item.cardId === currentlyExpandedCardId) {
+          renderDetailedChart(`chart-${item.cardId}`, dataObj);
+          renderQueueChart(`queueChart-${item.cardId}`, dataObj);
         }
-      } // Schließt die umfassende Funktion
-
-    // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
-    // Chart.js' eingebautes Tooltip folgt standardmäßig direkt dem Cursor und
-    // wird von Finger/Maus verdeckt. Dieser externe Handler positioniert eine
-    // eigene DOM-Box oberhalb des Cursors (mit Rand-Clamping, damit sie nicht
-    // aus dem Chart-Container herausragt).
-    function getOrCreateTooltipEl(chartElementId) {
-      const id = `tooltip-${chartElementId}`;
-      let el = document.getElementById(id);
-      if (!el) {
-        el = document.createElement('div');
-        el.id = id;
-        el.className = 'chartjs-external-tooltip';
-        el.style.opacity = 0;
-        document.body.appendChild(el);
+      } catch (e) {
+        console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
       }
-      return el;
-    }
+    };
 
-    // ---------- Sticky-Tooltip-Fix für Touch-Geräte ----------
-    // Chart.js löst bei touchend/touchcancel KEIN automatisches "Tooltip
-    // verstecken" aus (das ist Standardverhalten der Library) - dadurch
-    // blieben die externen Tooltip-Boxen auf dem Handy sichtbar und
-    // verdeckten die Sicht, bis man woanders hin tippte. Dieser globale
-    // Listener versteckt ALLE aktuell sichtbaren externen Tooltip-Elemente,
-    // sobald der Finger den Bildschirm verlässt.
-    function hideAllExternalTooltips() {
+    if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+
+    runInBatchesWithProgress(
+      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+      3,
+      (batchEntries) => {
+        batchEntries.forEach(({ item }) => rerenderCard(item));
+      }
+    ); // Hier war der Aufruf unvollständig!
+
+  } catch (e) {
+    console.error("Chart Rendering Fehler:", e);
+  }
+} // Schließt die umfassende Funktion
+
+// ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
+function getOrCreateTooltipEl(chartElementId) {
+  const id = `tooltip-${chartElementId}`;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = id;
+    el.className = 'chartjs-external-tooltip';
+    el.style.opacity = 0;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function hideAllExternalTooltips() {
+  // ...
       document.querySelectorAll('.chartjs-external-tooltip').forEach(el => {
         el.style.opacity = 0;
       });
