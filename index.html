@@ -3450,37 +3450,37 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
   if (jobs.length > 0) await Promise.all(jobs);
 });
 
-       const rerenderCard = (item) => {
-    try {
     const rerenderCard = (item) => {
-      try {
-        const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-        if (item.cardId === currentlyExpandedCardId) {
-          renderDetailedChart(`chart-${item.cardId}`, dataObj);
-          renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-        }
-      } catch (e) {
-        console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
-      }
-    };
+  try {
+    const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+    renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+    if (item.cardId === currentlyExpandedCardId) {
+      renderDetailedChart(`chart-${item.cardId}`, dataObj);
+      renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+    }
+  } catch (e) {
+    console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
+  }
+};
 
 if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
-    runInBatchesWithProgress(
-      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-      3,
-      (batchEntries) => {
-        batchEntries.forEach(({ item }) => rerenderCard(item));
-      }
-    );
+runInBatchesWithProgress(
+  renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+  3,
+  (batchEntries) => {
+    batchEntries.forEach(({ item }) => rerenderCard(item));
+  }
+);
 
-    } // <-- DIESE KLAMMER FEHLTE! Sie schließt "if (typeof Chart !== 'undefined')"
+    } // schließt "if (typeof Chart !== 'undefined')"
 
   } catch (e) {
     console.error("Chart Rendering Fehler:", e);
   }
-} // Schließt die Funktion renderUI()
+} // schließt renderUI()
+
+
 // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
 function getOrCreateTooltipEl(chartElementId) {
   const id = `tooltip-${chartElementId}`;
