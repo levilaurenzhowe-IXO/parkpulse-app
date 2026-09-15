@@ -2926,7 +2926,7 @@ function renderLoadingPlaceholders() {
   const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
 
   return `
-   <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} py-1 px-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
+    <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} py-0.5 px-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
       <div class="flex items-stretch justify-between gap-2.5">
         
         <!-- 1. GANZ LINKS: GROSSE ZAHL -->
@@ -2938,19 +2938,16 @@ function renderLoadingPlaceholders() {
           }
         </div>
 
-        <!-- 2. MITTE-LINKS: NAME + SCHLANGENINFO -->
-        <div class="min-w-0 flex-1 pl-0.5">
-          <div class="flex items-center gap-1.5 truncate">
-            <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
-            <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
-          </div>
-          
+            <!-- 2. MITTE-LINKS: NAME + SCHLANGENINFO (jetzt in EINER Zeile statt
+             übereinander - spart vertikalen Platz und hält den Namen bei
+             geschlossenen Attraktionen automatisch mittig in der Karte) -->
+        <div class="min-w-0 flex-1 pl-0.5 flex items-center gap-1.5 overflow-hidden">
+          <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
+          <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug shrink-0">${escapeHtml(ride.name)}</h3>
           ${isOpen ? `
-            <div class="mt-0.5">
-              <span class="pill inline-flex text-[9px] font-mono text-cyan-400 px-2 py-0.2 font-semibold">
-                ~${queueMetrics.meters}m · ~${queueMetrics.people}P
-              </span>
-            </div>
+            <span class="pill inline-flex text-[9px] font-mono text-cyan-400 px-2 py-0.2 font-semibold shrink-0">
+              ~${queueMetrics.meters}m · ~${queueMetrics.people}P
+            </span>
           ` : ''}
         </div>
 
