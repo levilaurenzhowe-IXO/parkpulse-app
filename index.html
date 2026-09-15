@@ -2366,35 +2366,33 @@ async function loadPhantasialandData() {
     // statt echter Wartezeiten, solange weder frische Live-Daten noch ein
     // ausreichend aktueller Cache vorliegen. Verhindert, dass der Nutzer
     // versehentlich veraltete Zahlen für aktuelle hält.
-    function renderLoadingPlaceholders() {
-      const mainContainer = document.getElementById('ridesContainer');
-      if (!mainContainer) return;
-      const PLACEHOLDER_COUNT = 8;
-      let html = '';
-      for (let i = 0; i < PLACEHOLDER_COUNT; i++) {
-        html += `
-          <div class="panel p-3 flex items-center gap-2.5 animate-pulse">
-            <div class="flex items-center justify-center min-w-[45px] shrink-0">
-              <i class="fa-regular fa-clock text-xl text-slate-700"></i>
-            </div>
-            <div class="min-w-0 flex-1 space-y-1.5">
-              <div class="h-3 w-2/3 bg-slate-800 rounded-full"></div>
-              <div class="h-2.5 w-1/3 bg-slate-800/70 rounded-full"></div>
-            </div>
-            <div class="w-28 sm:w-48 h-14 chart-frame shrink-0 bg-slate-900/40"></div>
-          </div>
-        `;
-      }
-      mainContainer.innerHTML = html;
+function renderLoadingPlaceholders() {
+  const mainContainer = document.getElementById('ridesContainer');
+  if (!mainContainer) return;
+  const PLACEHOLDER_COUNT = 8;
+  let html = '';
+  for (let i = 0; i < PLACEHOLDER_COUNT; i++) {
+    html += `
+      <div class="panel py-1.5 px-3 flex items-center gap-2.5 animate-pulse">
+        <div class="flex items-center justify-center min-w-[45px] shrink-0">
+          <i class="fa-regular fa-clock text-lg text-slate-700"></i>
+        </div>
+        <div class="min-w-0 flex-1 space-y-1">
+          <div class="h-3 w-2/3 bg-slate-800 rounded-full"></div>
+          <div class="h-2 w-1/3 bg-slate-800/70 rounded-full"></div>
+        </div>
+        <div class="w-24 sm:w-44 h-9 chart-frame shrink-0 bg-slate-900/40 my-0.5"></div>
+      </div>
+    `;
+  }
+  mainContainer.innerHTML = html;
 
-      // Auch die Kopfzeile (Auslastung, Besucherzahl) auf einen neutralen
-      // Warte-Zustand setzen statt sie leer/auf 0 zu lassen, was wie eine
-      // echte (aber falsche) Messung aussehen könnte.
-      const loadScoreLabel = document.getElementById('loadScoreLabel');
-      if (loadScoreLabel) loadScoreLabel.textContent = '--%';
-      const guestBadge = document.getElementById('currentGuestCountBadge');
-      if (guestBadge) guestBadge.textContent = '--';
-    }
+  // Auch die Kopfzeile (Auslastung, Besucherzahl) auf einen neutralen Warte-Zustand setzen
+  const loadScoreLabel = document.getElementById('loadScoreLabel');
+  if (loadScoreLabel) loadScoreLabel.textContent = '--%';
+  const guestBadge = document.getElementById('currentGuestCountBadge');
+  if (guestBadge) guestBadge.textContent = '--';
+}
 
     
 
@@ -2919,171 +2917,162 @@ async function loadPhantasialandData() {
       };
     }
 
-    function createRideCardHtml(ride, cardId, isHiddenInSection = false) {
-      const favorites = getFavorites();
-      const thresholds = getThresholds();
-      const isOpen = ride.isOpen;
-      const wait = ride.waitTime;
-      const isFav = favorites.includes(ride.name);
-      const hasThresh = thresholds[ride.name] !== undefined;
-      const threshVal = thresholds[ride.name];
-      const meta = getRideMeta(ride.name);
-      const rideKey = escapeHtml(ride.name).replace(/'/g, "\\'");
-      const trend = getWaitTrend(ride.name, wait, isOpen);
-      const colorClass = getWaitColorClass(wait, isOpen);
+  function createRideCardHtml(ride, cardId, isHiddenInSection = false) {
+  const favorites = getFavorites();
+  const thresholds = getThresholds();
+  const isOpen = ride.isOpen;
+  const wait = ride.waitTime;
+  const isFav = favorites.includes(ride.name);
+  const hasThresh = thresholds[ride.name] !== undefined;
+  const threshVal = thresholds[ride.name];
+  const meta = getRideMeta(ride.name);
+  const rideKey = escapeHtml(ride.name).replace(/'/g, "\\'");
+  const trend = getWaitTrend(ride.name, wait, isOpen);
+  const colorClass = getWaitColorClass(wait, isOpen);
 
-      const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
+  const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
 
-      return `
-        <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} p-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
-          
-          <div class="flex items-center justify-between gap-2.5">
-            
-            <!-- 1. GANZ LINKS: GROSSE ZAHL (oder Schloss-Symbol bei geschlossen) -->
-            <div class="flex items-center gap-1 font-mono min-w-[45px] justify-center shrink-0">
-              ${isOpen
-                ? `<span class="text-2xl sm:text-3xl ${colorClass}">${wait}</span>
-                   <i class="fa-solid ${trend.icon} ${trend.color} text-[10px] self-start mt-0.5"></i>`
-                : `<i class="fa-solid fa-lock text-xl sm:text-2xl text-slate-600" title="Geschlossen"></i>`
-              }
-            </div>
-
-            <!-- 2. MITTE-LINKS: NAME + SCHLANGENINFO (Themenbereich bleibt nur
-                 intern für Gruppierung/Suche erhalten, wird hier nicht mehr angezeigt) -->
-            <div class="min-w-0 flex-1 pl-0.5">
-              <div class="flex items-center gap-1.5 truncate">
-                <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
-                <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
-              </div>
-              
-              ${isOpen ? `
-                <div class="mt-1">
-                  <span class="pill inline-flex text-[9px] font-mono text-cyan-400 px-2 py-0.5 font-semibold">
-                    ~${queueMetrics.meters}m · ~${queueMetrics.people}P
-                  </span>
-                </div>
-              ` : ''}
-            </div>
-
-            <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (SOWOHL AUF DESKTOP ALS AUCH MOBILE) -->
-            <div class="w-28 sm:w-48 h-14 chart-frame overflow-hidden shrink-0">
-              <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
-            </div>
-
-            <!-- 4. GANZ RECHTS: BUTTONS (Desktop: immer da, Mobile: nur wenn ausgeklappt via CSS) -->
-            <div class="hidden sm:flex items-center gap-1 pl-1.5 shrink-0" onclick="event.stopPropagation()">
-              <button onclick="toggleFavorite('${rideKey}')" class="w-8 h-8 flex items-center justify-center rounded-full ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'} transition" title="Favorit">
-                <i class="fa-solid fa-star text-[11px]"></i>
-              </button>
-
-              <button onclick="openThresholdModal('${rideKey}')" class="relative w-8 h-8 flex items-center justify-center rounded-full ${hasThresh ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'} transition" title="Alarm einstellen">
-                <i class="fa-solid fa-bell text-[11px]"></i>
-                ${hasThresh ? `<span class="absolute -top-1 -right-1 bg-amber-400 text-black text-[8px] font-black px-1 rounded-full">${threshVal}</span>` : ''}
-              </button>
-
-              <button onclick="toggleHideRide('${rideKey}')" class="w-8 h-8 flex items-center justify-center rounded-full ${isHiddenInSection ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'} transition" title="${isHiddenInSection ? 'Wieder einblenden' : 'Ausblenden'}">
-                <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[11px]"></i>
-              </button>
-            </div>
-
-          </div>
-
-          <!-- AUSKLAPPBEREICH: neu strukturiert nach dem Prinzip "so schmal
-               und kompakt wie möglich" - alle Infos als schmale Pillen-Zeilen
-               statt großer Kästen, damit der Fokus auf den Graphen bleibt. -->
-          <div id="chartContainer-${cardId}" class="accordion-body space-y-3 cursor-default" onclick="event.stopPropagation()">
-            <div class="mt-3.5 pt-3.5 border-t border-white/5 space-y-3">
-            
-            <!-- BUTTONS AUF MOBILE ANZEIGEN WENN AUSGEKLAPPT -->
-            <div class="flex sm:hidden items-center justify-end gap-2 pb-2">
-              <span class="text-[10px] text-slate-500 font-semibold mr-auto">Aktionen:</span>
-              <button onclick="toggleFavorite('${rideKey}')" class="pill px-3 py-1.5 flex items-center gap-1.5 text-xs ${isFav ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-slate-400'}">
-                <i class="fa-solid fa-star text-[10px]"></i> Favorit
-              </button>
-              <button onclick="openThresholdModal('${rideKey}')" class="pill px-3 py-1.5 flex items-center gap-1.5 text-xs ${hasThresh ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-slate-400'}">
-                <i class="fa-solid fa-bell text-[10px]"></i> Alarm
-              </button>
-              <button onclick="toggleHideRide('${rideKey}')" class="pill px-3 py-1.5 flex items-center gap-1.5 text-xs text-slate-400">
-                <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[10px]"></i> ${isHiddenInSection ? 'Zeigen' : 'Ausblenden'}
-              </button>
-            </div>
-
-            <!-- Beste-Zeit-Empfehlung: prominent oben, sofort sichtbar,
-                 basiert auf dem echten Minimum der Durchschnittskurve
-                 (nicht auf einer separat berechneten, oft abweichenden Zahl) -->
-            <div id="bestTimeBox-${cardId}" class="hidden bg-gradient-to-r from-amber-500/15 to-transparent border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-center gap-3">
-              <div class="w-9 h-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                <i class="fa-solid fa-lightbulb text-amber-400 text-sm"></i>
-              </div>
-              <div class="min-w-0">
-                <p class="text-[9px] text-amber-300/80 font-bold uppercase tracking-wider">Beste Uhrzeit</p>
-                <p id="bestTimeBoxText-${cardId}" class="text-[12px] font-bold text-slate-100"></p>
-              </div>
-            </div>
-
-            <!-- Kurzinfo zur Attraktion: eine schmale Pillen-Zeile statt
-                 eines großen Grid-Kastens, horizontal scrollbar falls nötig -->
-            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-              <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-amber-400 font-bold">${meta.capacity} P/h</span>
-              <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-cyan-400 font-bold">${meta.duration}</span>
-              <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-300 font-bold">${meta.speed}</span>
-              <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-300 font-bold">Seit ${meta.opened}</span>
-              <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-400">${meta.type}</span>
-            </div>
-            <p class="text-slate-400 text-[11px] leading-relaxed px-0.5">${meta.desc}</p>
-
-            <!-- Zuverlässigkeit: ebenfalls eine schmale Pillen-Zeile statt
-                 eines eigenen großen Kastens -->
-            <div id="reliabilityBox-${cardId}" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-              <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-500">Zuverlässigkeit wird geladen...</span>
-            </div>
-
-            <!-- Bessere Alternative gerade jetzt (Korrelationen), wird per JS nachgeladen -->
-            <div id="alternativeBox-${cardId}" class="hidden bg-cyan-500/5 border border-cyan-500/25 rounded-2xl px-3.5 py-2.5">
-              <p class="text-[9px] text-cyan-400 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
-                <i class="fa-solid fa-shuffle"></i> Ausweich-Tipp
-              </p>
-              <p id="alternativeBoxText-${cardId}" class="text-[11px] text-slate-300"></p>
-            </div>
-
-            <!-- DIE 2 GRAPHEN UNTEREINANDER -->
-            <div class="space-y-3">
-              <!-- Graph 1: Wartezeit + intelligente Prognose (nächste Stunden) -->
-              <div>
-                <div class="flex justify-between items-center mb-1.5">
-                  <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2 flex-wrap">
-                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Ist</span>
-                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Prognose</span>
-                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
-                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-blue-400"></span> Regen</span>
-                  </p>
-                </div>
-                <div class="h-28 w-full chart-frame p-1.5">
-                  <canvas id="chart-${cardId}"></canvas>
-                </div>
-              </div>
-
-              <!-- Graph 2: Menschen in der Schlange im Tagesverlauf -->
-              <div>
-                <div class="flex justify-between items-center mb-1.5">
-                  <p class="text-[9px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <i class="fa-solid fa-users text-cyan-400"></i> Menschen in der Schlange
-                  </p>
-                </div>
-                <div class="h-24 w-full chart-frame p-1.5">
-                  <canvas id="queueChart-${cardId}"></canvas>
-                </div>
-              </div>
-            </div>
-
-          </div>
-          </div>
-
-
+  return `
+    <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} py-1.5 px-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
+      
+      <div class="flex items-center justify-between gap-2.5">
+        
+        <!-- 1. GANZ LINKS: GROSSE ZAHL -->
+        <div class="flex items-center gap-1 font-mono min-w-[45px] justify-center shrink-0">
+          ${isOpen
+            ? `<span class="text-2xl sm:text-3xl ${colorClass}">${wait}</span>
+               <i class="fa-solid ${trend.icon} ${trend.color} text-[10px] self-start mt-0.5"></i>`
+            : `<i class="fa-solid fa-lock text-xl sm:text-2xl text-slate-600" title="Geschlossen"></i>`
+          }
         </div>
-      `;
-    }
 
+        <!-- 2. MITTE-LINKS: NAME + SCHLANGENINFO -->
+        <div class="min-w-0 flex-1 pl-0.5">
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-red-500'}" title="${isOpen ? 'Geöffnet' : 'Geschlossen'}"></span>
+            <h3 class="font-black text-xs sm:text-sm text-slate-100 truncate leading-snug">${escapeHtml(ride.name)}</h3>
+          </div>
+          
+          ${isOpen ? `
+            <div class="mt-0.5">
+              <span class="pill inline-flex text-[9px] font-mono text-cyan-400 px-2 py-0.2 font-semibold">
+                ~${queueMetrics.meters}m · ~${queueMetrics.people}P
+              </span>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (Flacher: h-9 statt h-14) -->
+        <div class="w-24 sm:w-44 h-9 chart-frame overflow-hidden shrink-0 my-0.5">
+          <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
+        </div>
+
+        <!-- 4. GANZ RECHTS: BUTTONS (Desktop) -->
+        <div class="hidden sm:flex items-center gap-1 pl-1.5 shrink-0" onclick="event.stopPropagation()">
+          <button onclick="toggleFavorite('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-full ${isFav ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'} transition" title="Favorit">
+            <i class="fa-solid fa-star text-[11px]"></i>
+          </button>
+
+          <button onclick="openThresholdModal('${rideKey}')" class="relative w-7 h-7 flex items-center justify-center rounded-full ${hasThresh ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'} transition" title="Alarm einstellen">
+            <i class="fa-solid fa-bell text-[11px]"></i>
+            ${hasThresh ? `<span class="absolute -top-1 -right-1 bg-amber-400 text-black text-[8px] font-black px-1 rounded-full">${threshVal}</span>` : ''}
+          </button>
+
+          <button onclick="toggleHideRide('${rideKey}')" class="w-7 h-7 flex items-center justify-center rounded-full ${isHiddenInSection ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'} transition" title="${isHiddenInSection ? 'Wieder einblenden' : 'Ausblenden'}">
+            <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[11px]"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- AUSKLAPPBEREICH -->
+      <div id="chartContainer-${cardId}" class="accordion-body space-y-3 cursor-default" onclick="event.stopPropagation()">
+        <div class="mt-2.5 pt-2.5 border-t border-white/5 space-y-3">
+        
+        <!-- BUTTONS AUF MOBILE ANZEIGEN WENN AUSGEKLAPPT -->
+        <div class="flex sm:hidden items-center justify-end gap-2 pb-2">
+          <span class="text-[10px] text-slate-500 font-semibold mr-auto">Aktionen:</span>
+          <button onclick="toggleFavorite('${rideKey}')" class="pill px-3 py-1.5 flex items-center gap-1.5 text-xs ${isFav ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-slate-400'}">
+            <i class="fa-solid fa-star text-[10px]"></i> Favorit
+          </button>
+          <button onclick="openThresholdModal('${rideKey}')" class="pill px-3 py-1.5 flex items-center gap-1.5 text-xs ${hasThresh ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-slate-400'}">
+            <i class="fa-solid fa-bell text-[10px]"></i> Alarm
+          </button>
+          <button onclick="toggleHideRide('${rideKey}')" class="pill px-3 py-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+            <i class="fa-solid ${isHiddenInSection ? 'fa-eye' : 'fa-eye-slash'} text-[10px]"></i> ${isHiddenInSection ? 'Zeigen' : 'Ausblenden'}
+          </button>
+        </div>
+
+        <!-- Beste-Zeit-Empfehlung -->
+        <div id="bestTimeBox-${cardId}" class="hidden bg-gradient-to-r from-amber-500/15 to-transparent border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-lightbulb text-amber-400 text-sm"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[9px] text-amber-300/80 font-bold uppercase tracking-wider">Beste Uhrzeit</p>
+            <p id="bestTimeBoxText-${cardId}" class="text-[12px] font-bold text-slate-100"></p>
+          </div>
+        </div>
+
+        <!-- Kurzinfo zur Attraktion -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+          <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-amber-400 font-bold">${meta.capacity} P/h</span>
+          <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-cyan-400 font-bold">${meta.duration}</span>
+          <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-300 font-bold">${meta.speed}</span>
+          <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-300 font-bold">Seit ${meta.opened}</span>
+          <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-400">${meta.type}</span>
+        </div>
+        <p class="text-slate-400 text-[11px] leading-relaxed px-0.5">${meta.desc}</p>
+
+        <!-- Zuverlässigkeit -->
+        <div id="reliabilityBox-${cardId}" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+          <span class="pill shrink-0 px-2.5 py-1.5 text-[10px] font-mono text-slate-500">Zuverlässigkeit wird geladen...</span>
+        </div>
+
+        <!-- Bessere Alternative gerade jetzt -->
+        <div id="alternativeBox-${cardId}" class="hidden bg-cyan-500/5 border border-cyan-500/25 rounded-2xl px-3.5 py-2.5">
+          <p class="text-[9px] text-cyan-400 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-shuffle"></i> Ausweich-Tipp
+          </p>
+          <p id="alternativeBoxText-${cardId}" class="text-[11px] text-slate-300"></p>
+        </div>
+
+        <!-- DIE 2 GRAPHEN UNTEREINANDER -->
+        <div class="space-y-3">
+          <!-- Graph 1: Wartezeit + Prognose -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Ist</span>
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Prognose</span>
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-red-500"></span> Ausfall</span>
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-sm bg-blue-400"></span> Regen</span>
+              </p>
+            </div>
+            <div class="h-28 w-full chart-frame p-1.5">
+              <canvas id="chart-${cardId}"></canvas>
+            </div>
+          </div>
+
+          <!-- Graph 2: Menschen in der Schlange -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <p class="text-[9px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-users text-cyan-400"></i> Menschen in der Schlange
+              </p>
+            </div>
+            <div class="h-24 w-full chart-frame p-1.5">
+              <canvas id="queueChart-${cardId}"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      </div>
+
+    </div>
+  `;
+}
     function toggleAccordion(cardId) {
       if (currentlyExpandedCardId && currentlyExpandedCardId !== cardId) {
         const prevContainer = document.getElementById(`chartContainer-${currentlyExpandedCardId}`);
