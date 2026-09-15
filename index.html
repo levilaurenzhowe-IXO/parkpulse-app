@@ -219,27 +219,16 @@ body.no-page-scroll {
        klassischen vertikalen Fader. -webkit-appearance:slider-vertical ist
        ein zusätzlicher Fallback für ältere Safari-Versionen ohne
        writing-mode-Unterstützung bei Formularelementen. */
-    .map-time-slider-vertical {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  -webkit-appearance: slider-vertical;
-  /* Die tatsächliche Breite des Elements (= Touch-Trefferfläche quer zur
-     Ziehrichtung) wird deutlich größer als der sichtbar gezeichnete Track
-     gemacht - der Track selbst bleibt optisch dünn (siehe ::-webkit-slider-
-     runnable-track/::-moz-range-track unten), nur die unsichtbare Fläche
-     drumherum, auf die man tippen/klicken kann, wächst mit. Das ist der
-     Standard-Trick gegen "Regler ist zu schmal zum Treffen": der Browser
-     berechnet den Hit-Test-Bereich anhand der Element-Box, nicht anhand
-     des optisch sichtbaren Tracks.
-  */
-  width: 40px;
-  background: transparent;
-  appearance: none;
-  cursor: pointer;
-  touch-action: none; /* verhindert, dass ein Tippen auf den breiteren
-                          Hit-Bereich versehentlich als Seiten-Scroll oder
-                          Pinch-Geste interpretiert wird */
-}
+.map-time-slider-vertical {
+      writing-mode: vertical-lr;
+      direction: rtl;
+      /* Entferne: -webkit-appearance: slider-vertical; */
+      width: 40px;
+      background: transparent;
+      appearance: none;
+      cursor: pointer;
+      touch-action: none;
+    }
 .map-time-slider-vertical::-webkit-slider-runnable-track {
   width: 6px;
   background: rgba(0, 0, 0, 0.4);
@@ -1357,7 +1346,7 @@ body.no-page-scroll {
     // der Server hat selbst schon einen 09:00-19:00 Notfall-Fallback).
     let CHART_TIME_START_HOUR = 9;
     let CHART_TIME_END_HOUR = 20;
-    const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
+    const CHART_WAIT_DEFAULT_MAX = 30; // Standard-Y-Skala 0-80 Min...
     let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
     
     let globalRidesData = [];
@@ -1785,7 +1774,7 @@ body.no-page-scroll {
       document.getElementById('weatherPrecipText').textContent = `${weather.precipitation ?? 0} mm`;
     }
 
-    function renderHolidaySummary(data) {
+ function renderHolidaySummary(data) {
       const today = data.today;
       const statusEl = document.getElementById('holidayStatusText');
       const detailBox = document.getElementById('holidayDetailBox');
@@ -1811,17 +1800,22 @@ body.no-page-scroll {
       }
       if (today.isSchoolHoliday) {
         detailHtml += `
-          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 text-[10px]">
-            <span class="text-amber-400 font-bold"><i class="fa-solid fa-school mr-1"></i>Schulferien heute in:</span>
-            <span class="text-slate-300">${today.schoolHolidayCountries.join(', ')}</span>
+          <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-[10px]">
+            <span class="text-green-400 font-bold"><i class="fa-solid fa-graduation-cap mr-1"></i>Ferien heute:</span>
+            <span class="text-slate-300">Schulferien in ${today.schoolHolidayCountries.join(', ')}</span>
           </div>
         `;
       }
+      
       if (!today.isPublicHoliday && !today.isSchoolHoliday) {
-        detailHtml = `<p class="text-[10px] text-slate-500 text-center py-1">Heute keine Ferien oder Feiertage in den erfassten Regionen.</p>`;
+        detailHtml = `
+          <div class="bg-white/5 border border-white/10 rounded-lg p-2 text-[10px] text-slate-400">
+            Keine aktiven Ferien oder Feiertage.
+          </div>
+        `;
       }
 
-      detailBox.innerHTML = detailHtml;
+      if (detailBox) detailBox.innerHTML = detailHtml;
     }
 
     // Der Live-Tab-Ferienkalender wurde entfernt (lebt jetzt ausschließlich
@@ -3354,28 +3348,28 @@ function renderLoadingPlaceholders() {
       cardIdToRideName = {};
       renderedItems.forEach(item => { cardIdToRideName[item.cardId] = item.rideName; });
 
-      try {
-        if (typeof Chart !== 'undefined') {
-          // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
-          // Y-Achsen-Obergrenze zu bestimmen: Standard 80 Min, aber wenn eine
-          // sichtbare Attraktion mehr hat, wird die Skala für ALLE Mini-Grafen
-          // gemeinsam erhöht (nicht individuell), damit sie vergleichbar bleiben.
-          const precomputed = renderedItems.map(item => ({
-            item,
-            dataObj: calculateSmartHistoryAndForecast(item.rideName)
-          }));
+    try {
+    if (typeof Chart !== 'undefined') {
+      // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
+      // Y-Achsen-Obergrenze zu bestimmen
+      const precomputed = renderedItems.map(item => ({
+        item,
+        dataObj: calculateSmartHistoryAndForecast(item.rideName)
+      }));
 
-          let maxObserved = 0;
-          precomputed.forEach(({ dataObj }) => {
-            dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
-            dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
-          });
-          // Skala mit etwas Puffer nach oben (10%), aber nie unter dem Standard
-          CHART_WAIT_DYNAMIC_MAX = maxObserved > CHART_WAIT_DEFAULT_MAX
-            ? Math.ceil((maxObserved * 1.1) / 10) * 10
-            : CHART_WAIT_DEFAULT_MAX;
+      // Höchsten gemessenen oder prognostizierten Wert ermitteln
+      let maxObserved = 0;
+      precomputed.forEach(({ dataObj }) => {
+        dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+        dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+      });
 
-                precomputed.forEach(({ item, dataObj }) => {
+      // Standardmäßig 30 Min. Geht ein Wert darüber (oder auf 26+ Min),
+      // bleiben immer exakt 5 Min Puffer über der Spitze.
+     // Rechnet mindestens 5 Min Puffer auf den Höchstwert und rundet auf den nächsten vollen 10er-Schritt auf
+CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
+
+      precomputed.forEach(({ item, dataObj }) => {
             // Jede Karte EINZELN absichern: schlägt das Rendern einer
             // Attraktion aus irgendeinem Grund fehl (z.B. unerwartete
             // Datenlücke), darf das NICHT die komplette forEach-Schleife
@@ -3457,68 +3451,53 @@ function renderLoadingPlaceholders() {
   if (jobs.length > 0) await Promise.all(jobs);
 });
 
-          const rerenderCard = (item) => {
-            try {
-              const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-              if (item.cardId === currentlyExpandedCardId) {
-                renderDetailedChart(`chart-${item.cardId}`, dataObj);
-                renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-              }
-            } catch (e) {
-              console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
-            }
-          };
-
-          if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
-
-                  runInBatchesWithProgress(
-            renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-            12, // Batch-Größe erhöht: mit Embedded-Replica-Backend (schnellere
-                // Antwortzeiten pro Request) verträgt der Server jetzt mehr
-                // gleichzeitige Anfragen, ohne spürbar zu stocken - das
-                // beschleunigt das vollständige Laden aller Prognosen/
-                // Ausfälle/Zuverlässigkeits-Daten spürbar.
-            (batchEntries) => {
-              // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
-              // fertig geladen wurden (nicht die ganze Liste), das hält die
-              // Reaktionsfähigkeit hoch und vermeidet unnötige Re-Renders
-              // bereits fertiger Karten
-              batchEntries.forEach(({ item }) => rerenderCard(item));
-            }
-          );
+       const rerenderCard = (item) => {
+    try {
+    const rerenderCard = (item) => {
+      try {
+        const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+        if (item.cardId === currentlyExpandedCardId) {
+          renderDetailedChart(`chart-${item.cardId}`, dataObj);
+          renderQueueChart(`queueChart-${item.cardId}`, dataObj);
         }
       } catch (e) {
-        console.error("Chart Rendering Fehler:", e);
+        console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
       }
-    }
+    };
 
-    // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
-    // Chart.js' eingebautes Tooltip folgt standardmäßig direkt dem Cursor und
-    // wird von Finger/Maus verdeckt. Dieser externe Handler positioniert eine
-    // eigene DOM-Box oberhalb des Cursors (mit Rand-Clamping, damit sie nicht
-    // aus dem Chart-Container herausragt).
-    function getOrCreateTooltipEl(chartElementId) {
-      const id = `tooltip-${chartElementId}`;
-      let el = document.getElementById(id);
-      if (!el) {
-        el = document.createElement('div');
-        el.id = id;
-        el.className = 'chartjs-external-tooltip';
-        el.style.opacity = 0;
-        document.body.appendChild(el);
+if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+
+    runInBatchesWithProgress(
+      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+      3,
+      (batchEntries) => {
+        batchEntries.forEach(({ item }) => rerenderCard(item));
       }
-      return el;
-    }
+    );
 
-    // ---------- Sticky-Tooltip-Fix für Touch-Geräte ----------
-    // Chart.js löst bei touchend/touchcancel KEIN automatisches "Tooltip
-    // verstecken" aus (das ist Standardverhalten der Library) - dadurch
-    // blieben die externen Tooltip-Boxen auf dem Handy sichtbar und
-    // verdeckten die Sicht, bis man woanders hin tippte. Dieser globale
-    // Listener versteckt ALLE aktuell sichtbaren externen Tooltip-Elemente,
-    // sobald der Finger den Bildschirm verlässt.
-    function hideAllExternalTooltips() {
+    } // <-- DIESE KLAMMER FEHLTE! Sie schließt "if (typeof Chart !== 'undefined')"
+
+  } catch (e) {
+    console.error("Chart Rendering Fehler:", e);
+  }
+} // Schließt die Funktion renderUI()
+// ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
+function getOrCreateTooltipEl(chartElementId) {
+  const id = `tooltip-${chartElementId}`;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = id;
+    el.className = 'chartjs-external-tooltip';
+    el.style.opacity = 0;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function hideAllExternalTooltips() {
+  // ...
       document.querySelectorAll('.chartjs-external-tooltip').forEach(el => {
         el.style.opacity = 0;
       });
@@ -3824,12 +3803,12 @@ function renderLoadingPlaceholders() {
                 }
               }
             },
-            y: { 
-              min: 0,
-              max: CHART_WAIT_DYNAMIC_MAX,
-              grid: { color: '#1e293b' }, 
-              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 } 
-            }
+       y: { 
+  min: 0,
+  max: CHART_WAIT_DYNAMIC_MAX,
+  grid: { color: '#1e293b' }, 
+  ticks: { color: '#64748b', font: { size: 9 }, stepSize: 10 } 
+}
           }
         }
       });
@@ -5900,75 +5879,47 @@ function populateMapEditDropdown() {
     })();
 
 window.onload = async function() {
-  // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
-  // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
-  document.body.classList.remove('no-page-scroll');
-  document.body.style.top = '';
-  window.scrollTo(0, 0);
+      // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
+      // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
+      document.body.classList.remove('no-page-scroll');
+      document.body.style.top = '';
+      window.scrollTo(0, 0);
 
-  updateNotifyIcon();
-  // ... Rest unverändert
+      updateNotifyIcon();
 
-      // Öffnungszeiten SYNCHRON aus dem Cache vorladen (0ms, kein await
-      // nötig), damit applyOfficialHoursOverride() und die Zeitachsen-
-      // Berechnung schon beim allerersten Render eine sinnvolle Grundlage
-      // haben, OHNE dass dafür erst ein Netzwerk-Request abgewartet werden
-      // muss. Das war vorher der größte Bremsfaktor beim App-Start: ein
-      // "await loadOpeningHours()" hat den kompletten ersten Render
-      // blockiert, bis dieser eine Request durch war.
+      // Öffnungszeiten SYNCHRON aus dem Cache vorladen
       const cachedHours = cacheGet('opening-hours');
       if (cachedHours && cachedHours.data) {
         globalOpeningHours = cachedHours.data;
         refreshTimeAxisFromOpeningHours();
       }
 
-      // Alle drei Haupt-Requests jetzt PARALLEL starten statt sequenziell
-      // hintereinander - loadPhantasialandData() zeigt dank fetchWithCache/
-      // dem obigen Öffnungszeiten-Vorladen sofort sinnvolle Daten, während
-      // loadOpeningHours() und loadContextData() im Hintergrund die
-      // wirklich aktuellen Werte nachladen und bei Bedarf neu rendern.
+      // Alle drei Haupt-Requests jetzt PARALLEL starten
       loadContextData();
       loadOpeningHours();
       loadPhantasialandData();
       startAutoRefresh();
 
-      // Öffnungszeiten stündlich neu abrufen, synchron zum serverseitigen
-      // Scrape-Rhythmus (siehe cron.schedule('0 * * * *', ...) im Server)
+      // Öffnungszeiten stündlich neu abrufen
       setInterval(loadOpeningHours, 60 * 60 * 1000);
     };
 
-        // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
-    // Wenn der Browser-Tab im Hintergrund war (nicht geschlossen, nur
-    // inaktiv/minimiert) und dann wieder aktiviert wird, können Chart.js-
-    // Canvases auf 0x0 Pixel "einfrieren", wenn sie während der Inaktivität
-    // initialisiert/neu gezeichnet wurden (typisches Verhalten in vielen
-    // Browsern: Layout-Berechnungen für inaktive Tabs sind unzuverlässig).
-    // Chart.js hat dann KEINEN automatischen Trigger, um sich später neu zu
-    // zeichnen, sobald wieder Platz da ist - die Mini-Grafen blieben leer,
-    // bis man die Karte manuell aufklappte (was renderDetailedChart erneut
-    // aufruft und dadurch "zufällig" half). Der Fix: bei jedem Sichtbar-
-    // werden der Seite alle aktuell existierenden Chart.js-Instanzen
-    // (Mini-Grafen UND Detail-Grafen) einmal per resize() neu vermessen.
+    // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
 
-      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet
-      // hat (Canvas-Container muss seine echte Breite/Höhe schon haben)
+      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet hat
       setTimeout(() => {
         Object.values(sparklineInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) { /* Chart evtl. schon zerstört, ignorieren */ }
+          try { if (chart) chart.resize(); } catch (e) {}
         });
         Object.values(chartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
+          try { if (chart) chart.resize(); } catch (e) {}
         });
         Object.values(queueChartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
+          try { if (chart) chart.resize(); } catch (e) {}
         });
 
-        // Zusätzlich einen Live-Refresh anstoßen, falls die Seite lange im
-        // Hintergrund war - stellt sicher, dass nicht nur die Grafen wieder
-        // sichtbar sind, sondern auch inhaltlich aktuell (siehe Problem mit
-        // veralteter Prognose weiter unten, Fix 2)
         if (globalRidesData.length > 0) {
           loadPhantasialandData();
         }
