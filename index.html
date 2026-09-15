@@ -3451,53 +3451,60 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
   if (jobs.length > 0) await Promise.all(jobs);
 });
 
-       const rerenderCard = (item) => {
-    try {
-    const rerenderCard = (item) => {
-      try {
-        const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-        if (item.cardId === currentlyExpandedCardId) {
-          renderDetailedChart(`chart-${item.cardId}`, dataObj);
-          renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+          const rerenderCard = (item) => {
+            try {
+              const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+              if (item.cardId === currentlyExpandedCardId) {
+                renderDetailedChart(`chart-${item.cardId}`, dataObj);
+                renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+              }
+            } catch (e) {
+              console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
+            }
+          };
+
+        if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+
+          runInBatchesWithProgress(
+            renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+            3,
+            (batchEntries) => {
+              batchEntries.forEach(({ item }) => rerenderCard(item));
+            }
+          );
+        // Hier stand eine geschweifte Klammer zu viel!
+        } catch (e) {
+          console.error("Chart Rendering Fehler:", e);
         }
-      } catch (e) {
-        console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
+      } // Schließt die umfassende Funktion
+
+    // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
+    // Chart.js' eingebautes Tooltip folgt standardmäßig direkt dem Cursor und
+    // wird von Finger/Maus verdeckt. Dieser externe Handler positioniert eine
+    // eigene DOM-Box oberhalb des Cursors (mit Rand-Clamping, damit sie nicht
+    // aus dem Chart-Container herausragt).
+    function getOrCreateTooltipEl(chartElementId) {
+      const id = `tooltip-${chartElementId}`;
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        el.className = 'chartjs-external-tooltip';
+        el.style.opacity = 0;
+        document.body.appendChild(el);
       }
-    };
+      return el;
+    }
 
-if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
-
-    runInBatchesWithProgress(
-      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-      3,
-      (batchEntries) => {
-        batchEntries.forEach(({ item }) => rerenderCard(item));
-      }
-    );
-
-    } // <-- DIESE KLAMMER FEHLTE! Sie schließt "if (typeof Chart !== 'undefined')"
-
-  } catch (e) {
-    console.error("Chart Rendering Fehler:", e);
-  }
-} // Schließt die Funktion renderUI()
-// ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
-function getOrCreateTooltipEl(chartElementId) {
-  const id = `tooltip-${chartElementId}`;
-  let el = document.getElementById(id);
-  if (!el) {
-    el = document.createElement('div');
-    el.id = id;
-    el.className = 'chartjs-external-tooltip';
-    el.style.opacity = 0;
-    document.body.appendChild(el);
-  }
-  return el;
-}
-
-function hideAllExternalTooltips() {
-  // ...
+    // ---------- Sticky-Tooltip-Fix für Touch-Geräte ----------
+    // Chart.js löst bei touchend/touchcancel KEIN automatisches "Tooltip
+    // verstecken" aus (das ist Standardverhalten der Library) - dadurch
+    // blieben die externen Tooltip-Boxen auf dem Handy sichtbar und
+    // verdeckten die Sicht, bis man woanders hin tippte. Dieser globale
+    // Listener versteckt ALLE aktuell sichtbaren externen Tooltip-Elemente,
+    // sobald der Finger den Bildschirm verlässt.
+    function hideAllExternalTooltips() {
       document.querySelectorAll('.chartjs-external-tooltip').forEach(el => {
         el.style.opacity = 0;
       });
@@ -5879,47 +5886,75 @@ function populateMapEditDropdown() {
     })();
 
 window.onload = async function() {
-      // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
-      // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
-      document.body.classList.remove('no-page-scroll');
-      document.body.style.top = '';
-      window.scrollTo(0, 0);
+  // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
+  // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
+  document.body.classList.remove('no-page-scroll');
+  document.body.style.top = '';
+  window.scrollTo(0, 0);
 
-      updateNotifyIcon();
+  updateNotifyIcon();
+  // ... Rest unverändert
 
-      // Öffnungszeiten SYNCHRON aus dem Cache vorladen
+      // Öffnungszeiten SYNCHRON aus dem Cache vorladen (0ms, kein await
+      // nötig), damit applyOfficialHoursOverride() und die Zeitachsen-
+      // Berechnung schon beim allerersten Render eine sinnvolle Grundlage
+      // haben, OHNE dass dafür erst ein Netzwerk-Request abgewartet werden
+      // muss. Das war vorher der größte Bremsfaktor beim App-Start: ein
+      // "await loadOpeningHours()" hat den kompletten ersten Render
+      // blockiert, bis dieser eine Request durch war.
       const cachedHours = cacheGet('opening-hours');
       if (cachedHours && cachedHours.data) {
         globalOpeningHours = cachedHours.data;
         refreshTimeAxisFromOpeningHours();
       }
 
-      // Alle drei Haupt-Requests jetzt PARALLEL starten
+      // Alle drei Haupt-Requests jetzt PARALLEL starten statt sequenziell
+      // hintereinander - loadPhantasialandData() zeigt dank fetchWithCache/
+      // dem obigen Öffnungszeiten-Vorladen sofort sinnvolle Daten, während
+      // loadOpeningHours() und loadContextData() im Hintergrund die
+      // wirklich aktuellen Werte nachladen und bei Bedarf neu rendern.
       loadContextData();
       loadOpeningHours();
       loadPhantasialandData();
       startAutoRefresh();
 
-      // Öffnungszeiten stündlich neu abrufen
+      // Öffnungszeiten stündlich neu abrufen, synchron zum serverseitigen
+      // Scrape-Rhythmus (siehe cron.schedule('0 * * * *', ...) im Server)
       setInterval(loadOpeningHours, 60 * 60 * 1000);
     };
 
-    // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
+        // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
+    // Wenn der Browser-Tab im Hintergrund war (nicht geschlossen, nur
+    // inaktiv/minimiert) und dann wieder aktiviert wird, können Chart.js-
+    // Canvases auf 0x0 Pixel "einfrieren", wenn sie während der Inaktivität
+    // initialisiert/neu gezeichnet wurden (typisches Verhalten in vielen
+    // Browsern: Layout-Berechnungen für inaktive Tabs sind unzuverlässig).
+    // Chart.js hat dann KEINEN automatischen Trigger, um sich später neu zu
+    // zeichnen, sobald wieder Platz da ist - die Mini-Grafen blieben leer,
+    // bis man die Karte manuell aufklappte (was renderDetailedChart erneut
+    // aufruft und dadurch "zufällig" half). Der Fix: bei jedem Sichtbar-
+    // werden der Seite alle aktuell existierenden Chart.js-Instanzen
+    // (Mini-Grafen UND Detail-Grafen) einmal per resize() neu vermessen.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
 
-      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet hat
+      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet
+      // hat (Canvas-Container muss seine echte Breite/Höhe schon haben)
       setTimeout(() => {
         Object.values(sparklineInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) {}
+          try { if (chart) chart.resize(); } catch (e) { /* Chart evtl. schon zerstört, ignorieren */ }
         });
         Object.values(chartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) {}
+          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
         });
         Object.values(queueChartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) {}
+          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
         });
 
+        // Zusätzlich einen Live-Refresh anstoßen, falls die Seite lange im
+        // Hintergrund war - stellt sicher, dass nicht nur die Grafen wieder
+        // sichtbar sind, sondern auch inhaltlich aktuell (siehe Problem mit
+        // veralteter Prognose weiter unten, Fix 2)
         if (globalRidesData.length > 0) {
           loadPhantasialandData();
         }
