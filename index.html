@@ -3472,19 +3472,13 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
 
           if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
-          runInBatchesWithProgress(
-    renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-    3, // Auf 3 verringert: Verhindert Server-Überlastung durch zu viele simultane Prognose-Berechnungen
-    (batchEntries) => {
-      // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
-      // fertig geladen wurden (nicht die ganze Liste), das hält die
-      // Reaktionsfähigkeit hoch und vermeidet unnötioge Re-Renders
-      // bereits fertiger Karten
-      batchEntries.forEach(({ item }) => rerenderCard(item));
-    }
-)
-          );
-        }
+       runInBatchesWithProgress(
+  renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+  3,
+  (batchEntries) => {
+    batchEntries.forEach(({ item }) => rerenderCard(item));
+  }
+);
       } catch (e) {
         console.error("Chart Rendering Fehler:", e);
       }
