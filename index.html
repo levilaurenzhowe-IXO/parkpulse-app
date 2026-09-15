@@ -1937,7 +1937,7 @@
       holidayTableLoaded = true;
       loadHolidayTable();
     }
-  } else if (tab === 'map') {
+} else if (tab === 'map') {
     mapContent.classList.remove('hidden');
     tabBtnMap.classList.add('active');
     applyEnterAnimation(mapContent);
@@ -1945,13 +1945,26 @@
 
     if (!parkMapInitialized) {
       parkMapInitialized = true;
-      initParkMap();
+      // WICHTIG: Leaflet braucht ein bereits fertig layoutetes, sichtbares
+      // Element. Direkt nach classList.remove('hidden') hat der Browser das
+      // Layout oft noch nicht neu berechnet (Container wäre noch 0x0) -
+      // Leaflet "verrechnet" sich dann einmalig und bleibt dauerhaft leer/
+      // schwarz, ohne sich von selbst zu korrigieren. Ein doppelter
+      // requestAnimationFrame garantiert, dass mindestens ein Layout-Zyklus
+      // durchgelaufen ist, bevor L.map() die Containergröße misst.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          initParkMap();
+        });
+      });
     } else {
-      setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, 50);
+      setTimeout(() => {
+        if (parkMapInstance) parkMapInstance.invalidateSize();
+      }, 50);
       loadMapLiveData();
     }
-  }
 }
+
 
     // ---------- STATISTIK: Sub-Tab-Navigation (Park-Übersicht vs. Attraktionen) ----------
     let currentStatsSubTab = 'park';
@@ -4885,22 +4898,28 @@ let mapTimeSliderIsPast = false;
     const PARK_CENTER_LAT = 50.7989;
     const PARK_CENTER_LNG = 6.8783;
 
-    function initParkMap() {
-      const container = document.getElementById('parkMapContainer');
-      if (!container || typeof L === 'undefined') return;
+  function initParkMap() {
+  const container = document.getElementById('parkMapContainer');
+  if (!container || typeof L === 'undefined') return;
 
-      parkMapInstance = L.map(container, {
-        zoomControl: true,
-        attributionControl: true
-      }).setView([PARK_CENTER_LAT, PARK_CENTER_LNG], 17);
+  parkMapInstance = L.map(container, {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([PARK_CENTER_LAT, PARK_CENTER_LNG], 17);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 20,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'
-      }).addTo(parkMapInstance);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'
+  }).addTo(parkMapInstance);
 
-           mapMarkersLayerGroup = L.layerGroup();
-      mapMarkersLayerGroup.addTo(parkMapInstance); // immer sichtbar, kein Umschalter mehr nötig
+  // NEU: nach der Erstellung Größe erzwingen, für den Fall dass der Container
+  // beim allerersten Messen doch noch nicht die finale Größe hatte
+  setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, 100);
+
+  mapMarkersLayerGroup = L.layerGroup();
+  mapMarkersLayerGroup.addTo(parkMapInstance);
+
+  // ... Rest unverändert
 
       parkMapInstance.on('click', (e) => {
         if (!mapEditModeActive) return;
