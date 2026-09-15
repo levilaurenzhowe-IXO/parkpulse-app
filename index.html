@@ -2381,13 +2381,12 @@ function renderLoadingPlaceholders() {
           <div class="h-3 w-2/3 bg-slate-800 rounded-full"></div>
           <div class="h-2 w-1/3 bg-slate-800/70 rounded-full"></div>
         </div>
-        <div class="w-24 sm:w-44 h-9 chart-frame shrink-0 bg-slate-900/40 my-0.5"></div>
+        <div class="w-24 sm:w-44 h-11 -my-1.5 chart-frame shrink-0 bg-slate-900/40"></div>
       </div>
     `;
   }
   mainContainer.innerHTML = html;
 
-  // Auch die Kopfzeile (Auslastung, Besucherzahl) auf einen neutralen Warte-Zustand setzen
   const loadScoreLabel = document.getElementById('loadScoreLabel');
   if (loadScoreLabel) loadScoreLabel.textContent = '--%';
   const guestBadge = document.getElementById('currentGuestCountBadge');
@@ -2962,10 +2961,10 @@ function renderLoadingPlaceholders() {
           ` : ''}
         </div>
 
-        <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (Flacher: h-9 statt h-14) -->
-        <div class="w-24 sm:w-44 h-9 chart-frame overflow-hidden shrink-0 my-0.5">
-          <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
-        </div>
+    <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (Höher durch Ausnutzung des Innenabstands) -->
+<div class="w-24 sm:w-44 h-11 -my-1.5 chart-frame overflow-hidden shrink-0">
+  <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
+</div>
 
         <!-- 4. GANZ RECHTS: BUTTONS (Desktop) -->
         <div class="hidden sm:flex items-center gap-1 pl-1.5 shrink-0" onclick="event.stopPropagation()">
