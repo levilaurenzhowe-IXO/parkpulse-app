@@ -3466,7 +3466,7 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
       }
     };
 
-    if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
     runInBatchesWithProgress(
       renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
@@ -3475,10 +3475,13 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
         batchEntries.forEach(({ item }) => rerenderCard(item));
       }
     );
+
+    } // <-- DIESE KLAMMER FEHLTE! Sie schließt "if (typeof Chart !== 'undefined')"
+
   } catch (e) {
     console.error("Chart Rendering Fehler:", e);
   }
-} // Schließt die umfassende Funktion
+} // Schließt die Funktion renderUI()
 // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
 function getOrCreateTooltipEl(chartElementId) {
   const id = `tooltip-${chartElementId}`;
