@@ -1785,7 +1785,7 @@ body.no-page-scroll {
       document.getElementById('weatherPrecipText').textContent = `${weather.precipitation ?? 0} mm`;
     }
 
-    function renderHolidaySummary(data) {
+ function renderHolidaySummary(data) {
       const today = data.today;
       const statusEl = document.getElementById('holidayStatusText');
       const detailBox = document.getElementById('holidayDetailBox');
@@ -1811,17 +1811,22 @@ body.no-page-scroll {
       }
       if (today.isSchoolHoliday) {
         detailHtml += `
-          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 text-[10px]">
-            <span class="text-amber-400 font-bold"><i class="fa-solid fa-school mr-1"></i>Schulferien heute in:</span>
-            <span class="text-slate-300">${today.schoolHolidayCountries.join(', ')}</span>
+          <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-[10px]">
+            <span class="text-green-400 font-bold"><i class="fa-solid fa-graduation-cap mr-1"></i>Ferien heute:</span>
+            <span class="text-slate-300">Schulferien in ${today.schoolHolidayCountries.join(', ')}</span>
           </div>
         `;
       }
+      
       if (!today.isPublicHoliday && !today.isSchoolHoliday) {
-        detailHtml = `<p class="text-[10px] text-slate-500 text-center py-1">Heute keine Ferien oder Feiertage in den erfassten Regionen.</p>`;
+        detailHtml = `
+          <div class="bg-white/5 border border-white/10 rounded-lg p-2 text-[10px] text-slate-400">
+            Keine aktiven Ferien oder Feiertage.
+          </div>
+        `;
       }
 
-      detailBox.innerHTML = detailHtml;
+      if (detailBox) detailBox.innerHTML = detailHtml;
     }
 
     // Der Live-Tab-Ferienkalender wurde entfernt (lebt jetzt ausschließlich
