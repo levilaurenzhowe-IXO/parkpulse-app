@@ -2926,8 +2926,8 @@ function renderLoadingPlaceholders() {
   const queueMetrics = calculateQueueMetrics(ride.name, wait, isOpen);
 
   return `
-    <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} py-0.5 px-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
-      <div class="flex items-stretch justify-between gap-2.5">
+     <div id="rideCard-${cardId}" class="panel ride-card ${isFav ? 'border-amber-400/60' : ''} px-3 cursor-pointer select-none" onclick="toggleAccordion('${cardId}')">
+      <div class="flex items-center justify-between gap-2.5 h-12">
         
         <!-- 1. GANZ LINKS: GROSSE ZAHL -->
         <div class="flex items-center gap-1 font-mono min-w-[45px] justify-center shrink-0">
@@ -2952,7 +2952,7 @@ function renderLoadingPlaceholders() {
         </div>
 
   <!-- 3. MITTEL-RECHTS: VORSCHAU-GRAPH (Maximum Höhe: h-14 mit -my-3) -->
-<div class="w-24 sm:w-44 self-stretch chart-frame overflow-hidden shrink-0">
+<div class="w-24 sm:w-44 h-10 chart-frame overflow-hidden shrink-0">
   <canvas id="dayGraph-${cardId}" class="w-full h-full"></canvas>
 </div>
 
