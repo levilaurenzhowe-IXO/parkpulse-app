@@ -356,7 +356,9 @@
 .map-fixed-tab {
   height: calc(100vh - 10px);
   height: calc(100dvh - 10px);
-  overflow: hidden;
+  overflow-y: auto;      /* statt hidden */
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   display: flex;
@@ -1850,7 +1852,7 @@
     // automatische Richtungserkennung beim Tab-Wechsel per Tap.
     const TAB_ORDER = ['live', 'stats', 'holidays', 'map'];
 
-   function switchTab(tab, direction) {
+ function switchTab(tab, direction) {
   if (!direction) {
     const fromIdx = TAB_ORDER.indexOf(currentTab);
     const toIdx = TAB_ORDER.indexOf(tab);
@@ -1859,23 +1861,29 @@
     }
   }
 
-  // Body-Scroll-Lock sauber ab-/aufbauen: da .no-page-scroll jetzt
-  // position:fixed nutzt (nötig gegen iOS-Rubber-Banding), muss die
-  // Scroll-Position VOR dem Sperren gesichert und beim Entsperren wieder
-  // hergestellt werden - sonst "vergisst" die Seite beim Zurückwechseln
-  // ihre vorherige Position und springt nach ganz oben.
   const wasLocked = document.body.classList.contains('no-page-scroll');
   const willBeLocked = (tab === 'holidays' || tab === 'map');
 
   if (!wasLocked && willBeLocked) {
+    // ungesperrt -> gesperrt: aktuelle Scroll-Position sichern
     savedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
     document.body.style.top = `-${savedScrollY}px`;
   } else if (wasLocked && !willBeLocked) {
+    // gesperrt -> ungesperrt: Position wiederherstellen
     document.body.style.top = '';
     window.scrollTo(0, savedScrollY);
+  } else if (wasLocked && willBeLocked) {
+    // NEU: gesperrt -> gesperrt (z.B. Karte -> Ferien direkt).
+    // top bleibt korrekt bei -savedScrollY stehen, das ist schon richtig -
+    // hier muss NICHTS zusätzlich passieren, außer sicherzustellen, dass
+    // kein Rest-Scroll im NEUEN Tab-Container von einem vorherigen Zustand
+    // übrig ist (z.B. Ferienkalender-Tabelle war mittig gescrollt).
+    const holidaysWrap = document.getElementById('holidayTableWrap');
+    if (holidaysWrap) holidaysWrap.scrollTop = 0;
   }
 
   currentTab = tab;
+  // ... Rest unverändert
   const liveContent = document.getElementById('tabContentLive');
   const statsContent = document.getElementById('tabContentStats');
   const holidaysContent = document.getElementById('tabContentHolidays');
@@ -5897,8 +5905,15 @@ function populateMapEditDropdown() {
       }, { passive: true });
     })();
 
-    window.onload = async function() {
-      updateNotifyIcon();
+window.onload = async function() {
+  // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
+  // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
+  document.body.classList.remove('no-page-scroll');
+  document.body.style.top = '';
+  window.scrollTo(0, 0);
+
+  updateNotifyIcon();
+  // ... Rest unverändert
 
       // Öffnungszeiten SYNCHRON aus dem Cache vorladen (0ms, kein await
       // nötig), damit applyOfficialHoursOverride() und die Zeitachsen-
