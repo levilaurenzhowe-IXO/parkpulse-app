@@ -219,16 +219,27 @@ body.no-page-scroll {
        klassischen vertikalen Fader. -webkit-appearance:slider-vertical ist
        ein zusätzlicher Fallback für ältere Safari-Versionen ohne
        writing-mode-Unterstützung bei Formularelementen. */
-.map-time-slider-vertical {
-      writing-mode: vertical-lr;
-      direction: rtl;
-      /* Entferne: -webkit-appearance: slider-vertical; */
-      width: 40px;
-      background: transparent;
-      appearance: none;
-      cursor: pointer;
-      touch-action: none;
-    }
+    .map-time-slider-vertical {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: slider-vertical;
+  /* Die tatsächliche Breite des Elements (= Touch-Trefferfläche quer zur
+     Ziehrichtung) wird deutlich größer als der sichtbar gezeichnete Track
+     gemacht - der Track selbst bleibt optisch dünn (siehe ::-webkit-slider-
+     runnable-track/::-moz-range-track unten), nur die unsichtbare Fläche
+     drumherum, auf die man tippen/klicken kann, wächst mit. Das ist der
+     Standard-Trick gegen "Regler ist zu schmal zum Treffen": der Browser
+     berechnet den Hit-Test-Bereich anhand der Element-Box, nicht anhand
+     des optisch sichtbaren Tracks.
+  */
+  width: 40px;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+  touch-action: none; /* verhindert, dass ein Tippen auf den breiteren
+                          Hit-Bereich versehentlich als Seiten-Scroll oder
+                          Pinch-Geste interpretiert wird */
+}
 .map-time-slider-vertical::-webkit-slider-runnable-track {
   width: 6px;
   background: rgba(0, 0, 0, 0.4);
@@ -1774,7 +1785,7 @@ body.no-page-scroll {
       document.getElementById('weatherPrecipText').textContent = `${weather.precipitation ?? 0} mm`;
     }
 
- function renderHolidaySummary(data) {
+    function renderHolidaySummary(data) {
       const today = data.today;
       const statusEl = document.getElementById('holidayStatusText');
       const detailBox = document.getElementById('holidayDetailBox');
@@ -1800,22 +1811,17 @@ body.no-page-scroll {
       }
       if (today.isSchoolHoliday) {
         detailHtml += `
-          <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-[10px]">
-            <span class="text-green-400 font-bold"><i class="fa-solid fa-graduation-cap mr-1"></i>Ferien heute:</span>
-            <span class="text-slate-300">Schulferien in ${today.schoolHolidayCountries.join(', ')}</span>
+          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 text-[10px]">
+            <span class="text-amber-400 font-bold"><i class="fa-solid fa-school mr-1"></i>Schulferien heute in:</span>
+            <span class="text-slate-300">${today.schoolHolidayCountries.join(', ')}</span>
           </div>
         `;
       }
-      
       if (!today.isPublicHoliday && !today.isSchoolHoliday) {
-        detailHtml = `
-          <div class="bg-white/5 border border-white/10 rounded-lg p-2 text-[10px] text-slate-400">
-            Keine aktiven Ferien oder Feiertage.
-          </div>
-        `;
+        detailHtml = `<p class="text-[10px] text-slate-500 text-center py-1">Heute keine Ferien oder Feiertage in den erfassten Regionen.</p>`;
       }
 
-      if (detailBox) detailBox.innerHTML = detailHtml;
+      detailBox.innerHTML = detailHtml;
     }
 
     // Der Live-Tab-Ferienkalender wurde entfernt (lebt jetzt ausschließlich
@@ -3369,108 +3375,147 @@ function renderLoadingPlaceholders() {
      // Rechnet mindestens 5 Min Puffer auf den Höchstwert und rundet auf den nächsten vollen 10er-Schritt auf
 CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
 
-    precomputed.forEach(({ item, dataObj }) => {
-      try {
-        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-      } catch (e) {
-        console.error(`Mini-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
-      }
-      try {
-        renderDetailedChart(`chart-${item.cardId}`, dataObj);
-      } catch (e) {
-        console.error(`Detail-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
-      }
-      try {
-        renderQueueChart(`queueChart-${item.cardId}`, dataObj);
-      } catch (e) {
-        console.error(`Queue-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
-      }
-    });
+      precomputed.forEach(({ item, dataObj }) => {
+            // Jede Karte EINZELN absichern: schlägt das Rendern einer
+            // Attraktion aus irgendeinem Grund fehl (z.B. unerwartete
+            // Datenlücke), darf das NICHT die komplette forEach-Schleife
+            // abbrechen - das war der Bug, durch den die Mini-Graphen leer
+            // blieben, bis man die Karte einmal aufklappte (dort läuft das
+            // Rendern über einen separaten, isolierten Aufruf in
+            // loadExpandedCardExtras, der von einem Fehler weiter oben in
+            // dieser Schleife nicht betroffen war).
+            try {
+              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+            } catch (e) {
+              console.error(`Mini-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
+            }
+            try {
+              renderDetailedChart(`chart-${item.cardId}`, dataObj);
+            } catch (e) {
+              console.error(`Detail-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
+            }
+            try {
+              renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+            } catch (e) {
+              console.error(`Queue-Graph für ${item.rideName} konnte nicht gerendert werden:`, e);
+            }
+          });
 
-    requestAnimationFrame(() => {
-      precomputed.forEach(({ item }) => {
-        const chart = sparklineInstances[`dayGraph-${item.cardId}`];
-        if (chart) {
-          try { chart.resize(); } catch (e) {}
-        }
-      });
-    });
+          // WICHTIG: Nach einem innerHTML-Rebuild (siehe oben, mainContainer.innerHTML = htmlBuffer)
+          // sind alle Canvas-Elemente brandneu im DOM. Chart.js zeichnet sich beim allerersten
+          // new Chart(...)-Aufruf anhand der GERADE JETZT gemessenen Canvas-Größe - bei frisch
+          // eingefügten, sichtbaren Elementen kann der Browser das Layout in diesem exakten Moment
+          // aber noch nicht final fertig berechnet haben (besonders bei vielen gleichzeitig neu
+          // erstellten Canvases). Ergebnis: Chart.js "verrechnet" sich einmalig auf eine falsche
+          // (oft 0-große) Fläche und zeichnet dann dauerhaft nichts Sichtbares, OHNE sich von
+          // selbst zu korrigieren - es gibt ja kein Resize-Event, das Chart.js nachträglich
+          // triggern würde. Ein einziger .resize()-Aufruf NACHDEM der Browser das Layout in einem
+          // Folge-Frame fertiggestellt hat, behebt das zuverlässig (dasselbe Prinzip wie schon
+          // beim bestehenden visibilitychange-Handler weiter unten in dieser Datei).
+          requestAnimationFrame(() => {
+            precomputed.forEach(({ item }) => {
+              const chart = sparklineInstances[`dayGraph-${item.cardId}`];
+              if (chart) {
+                try { chart.resize(); } catch (e) { /* Chart evtl. inzwischen schon wieder zerstört, ignorieren */ }
+              }
+            });
+          });
 
-    const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
-    const missingOutages = renderedItems.filter(item => !outageCache[`${item.rideName}|today`]);
-    const missingReliability = renderedItems.filter(item => !reliabilityCache[item.rideName]);
-    const needsRainLoad = !rainPeriodsCache['today'];
+          // Für alle sichtbaren Attraktionen, deren Prognose noch nicht im
+          // Cache liegt, jetzt im Hintergrund GESTAFFELT (in kleinen Batches,
+          // nicht alle auf einmal) nachladen. WICHTIG: Anders als vorher wird
+          // jetzt NACH JEDEM EINZELNEN BATCH neu gezeichnet, nicht erst ganz
+          // am Ende - bei ~35 Attraktionen und 3 Datenquellen pro Attraktion
+          // ergaben sich vorher gut 100 Tasks in Batches von 6, was heißt:
+          // ~17 Batches mussten komplett durchlaufen sein, bevor überhaupt
+          // EINE Karte ihre grüne Prognose oder rote Ausfall-Markierung zeigte
+          // - das war der Grund, warum praktisch nur die zufällig schon
+          // gecachten Karten sofort vollständig aussahen. Jetzt aktualisiert
+          // sich jede Karte, sobald IHRE Daten fertig geladen sind, nicht
+          // erst wenn ALLE Attraktionen durch sind.
+          const missing = renderedItems.filter(item => !dayForecastCache[item.rideName]);
+          const missingOutages = renderedItems.filter(item => !outageCache[`${item.rideName}|today`]);
+          const missingReliability = renderedItems.filter(item => !reliabilityCache[item.rideName]);
+          const needsRainLoad = !rainPeriodsCache['today'];
 
+          // Tasks so gruppieren, dass PRO ATTRAKTION alle drei Datenquellen
+          // (Prognose, Ausfälle, Zuverlässigkeit) gemeinsam in einem Batch
+          // landen - dadurch ist eine Karte nach ihrem eigenen Batch bereits
+          // KOMPLETT fertig (Linie + Prognose + rote Markierung zusammen),
+          // statt dass die drei Infos einer Karte über verschiedene,
+          // zeitlich weit auseinanderliegende Batches verteilt eintrudeln.
     const perRideTasks = renderedItems.map(item => async () => {
-      const jobs = [];
-      const cachedForecast = dayForecastCache[item.rideName];
-      const forecastNeedsRetry = !cachedForecast || !cachedForecast.slotMap || Object.keys(cachedForecast.slotMap).length === 0;
-      if (forecastNeedsRetry) jobs.push(ensureDayForecast(item.rideName));
-      if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
-      if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
-      if (jobs.length > 0) await Promise.all(jobs);
-    });
+  const jobs = [];
+  // Gleiche Logik wie in ensureDayForecast: nur ein ECHTER Treffer (mit
+  // Slots) gilt als "bereits geladen" - ein leerer Cache-Eintrag (nach
+  // einem Fehlversuch) löst hier erneut einen Ladeversuch aus.
+  const cachedForecast = dayForecastCache[item.rideName];
+  const forecastNeedsRetry = !cachedForecast || !cachedForecast.slotMap || Object.keys(cachedForecast.slotMap).length === 0;
+  if (forecastNeedsRetry) jobs.push(ensureDayForecast(item.rideName));
+  if (!outageCache[`${item.rideName}|today`]) jobs.push(ensureOutages(item.rideName));
+  if (!reliabilityCache[item.rideName]) jobs.push(ensureReliability(item.rideName));
+  if (jobs.length > 0) await Promise.all(jobs);
+});
 
-    const rerenderCard = (item) => {
-      try {
-        const dataObj = calculateSmartHistoryAndForecast(item.rideName);
-        renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
-        if (item.cardId === currentlyExpandedCardId) {
-          renderDetailedChart(`chart-${item.cardId}`, dataObj);
-          renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+          const rerenderCard = (item) => {
+            try {
+              const dataObj = calculateSmartHistoryAndForecast(item.rideName);
+              renderMiniTimelineGraph(`dayGraph-${item.cardId}`, dataObj);
+              if (item.cardId === currentlyExpandedCardId) {
+                renderDetailedChart(`chart-${item.cardId}`, dataObj);
+                renderQueueChart(`queueChart-${item.cardId}`, dataObj);
+              }
+            } catch (e) {
+              console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
+            }
+          };
+
+          if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
+
+          runInBatchesWithProgress(
+    renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+    3, // Auf 3 verringert: Verhindert Server-Überlastung durch zu viele simultane Prognose-Berechnungen
+    (batchEntries) => {
+      // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
+      // fertig geladen wurden (nicht die ganze Liste), das hält die
+      // Reaktionsfähigkeit hoch und vermeidet unnötioge Re-Renders
+      // bereits fertiger Karten
+      batchEntries.forEach(({ item }) => rerenderCard(item));
+    }
+)
+          );
         }
       } catch (e) {
-        console.error(`Re-Render nach Nachladen für ${item.rideName} fehlgeschlagen:`, e);
+        console.error("Chart Rendering Fehler:", e);
       }
-    };
+    }
 
-    if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
-
-    runInBatchesWithProgress(
-      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-      3,
-      (batchEntries) => {
-        batchEntries.forEach(({ item }) => rerenderCard(item));
+    // ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
+    // Chart.js' eingebautes Tooltip folgt standardmäßig direkt dem Cursor und
+    // wird von Finger/Maus verdeckt. Dieser externe Handler positioniert eine
+    // eigene DOM-Box oberhalb des Cursors (mit Rand-Clamping, damit sie nicht
+    // aus dem Chart-Container herausragt).
+    function getOrCreateTooltipEl(chartElementId) {
+      const id = `tooltip-${chartElementId}`;
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        el.className = 'chartjs-external-tooltip';
+        el.style.opacity = 0;
+        document.body.appendChild(el);
       }
-    );
+      return el;
+    }
 
-  } // Schließt das ursprüngliche "if (typeof Chart !== 'undefined')"
-
-} catch (e) {
-  console.error("Chart Rendering Fehler:", e);
-}
-if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
-
-    runInBatchesWithProgress(
-      renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-      3,
-      (batchEntries) => {
-        batchEntries.forEach(({ item }) => rerenderCard(item));
-      }
-    );
-
-    } // <-- DIESE KLAMMER FEHLTE! Sie schließt "if (typeof Chart !== 'undefined')"
-
-  } catch (e) {
-    console.error("Chart Rendering Fehler:", e);
-  }
-} // Schließt die Funktion renderUI()
-// ---------- Externes Tooltip (bleibt IMMER oberhalb von Maus/Finger) ----------
-function getOrCreateTooltipEl(chartElementId) {
-  const id = `tooltip-${chartElementId}`;
-  let el = document.getElementById(id);
-  if (!el) {
-    el = document.createElement('div');
-    el.id = id;
-    el.className = 'chartjs-external-tooltip';
-    el.style.opacity = 0;
-    document.body.appendChild(el);
-  }
-  return el;
-}
-
-function hideAllExternalTooltips() {
-  // ...
+    // ---------- Sticky-Tooltip-Fix für Touch-Geräte ----------
+    // Chart.js löst bei touchend/touchcancel KEIN automatisches "Tooltip
+    // verstecken" aus (das ist Standardverhalten der Library) - dadurch
+    // blieben die externen Tooltip-Boxen auf dem Handy sichtbar und
+    // verdeckten die Sicht, bis man woanders hin tippte. Dieser globale
+    // Listener versteckt ALLE aktuell sichtbaren externen Tooltip-Elemente,
+    // sobald der Finger den Bildschirm verlässt.
+    function hideAllExternalTooltips() {
       document.querySelectorAll('.chartjs-external-tooltip').forEach(el => {
         el.style.opacity = 0;
       });
@@ -5852,47 +5897,75 @@ function populateMapEditDropdown() {
     })();
 
 window.onload = async function() {
-      // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
-      // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
-      document.body.classList.remove('no-page-scroll');
-      document.body.style.top = '';
-      window.scrollTo(0, 0);
+  // Sicherheitsnetz: falls durch einen vorherigen Fehler/Reload body.style.top
+  // oder no-page-scroll hängen geblieben sind, hart zurücksetzen
+  document.body.classList.remove('no-page-scroll');
+  document.body.style.top = '';
+  window.scrollTo(0, 0);
 
-      updateNotifyIcon();
+  updateNotifyIcon();
+  // ... Rest unverändert
 
-      // Öffnungszeiten SYNCHRON aus dem Cache vorladen
+      // Öffnungszeiten SYNCHRON aus dem Cache vorladen (0ms, kein await
+      // nötig), damit applyOfficialHoursOverride() und die Zeitachsen-
+      // Berechnung schon beim allerersten Render eine sinnvolle Grundlage
+      // haben, OHNE dass dafür erst ein Netzwerk-Request abgewartet werden
+      // muss. Das war vorher der größte Bremsfaktor beim App-Start: ein
+      // "await loadOpeningHours()" hat den kompletten ersten Render
+      // blockiert, bis dieser eine Request durch war.
       const cachedHours = cacheGet('opening-hours');
       if (cachedHours && cachedHours.data) {
         globalOpeningHours = cachedHours.data;
         refreshTimeAxisFromOpeningHours();
       }
 
-      // Alle drei Haupt-Requests jetzt PARALLEL starten
+      // Alle drei Haupt-Requests jetzt PARALLEL starten statt sequenziell
+      // hintereinander - loadPhantasialandData() zeigt dank fetchWithCache/
+      // dem obigen Öffnungszeiten-Vorladen sofort sinnvolle Daten, während
+      // loadOpeningHours() und loadContextData() im Hintergrund die
+      // wirklich aktuellen Werte nachladen und bei Bedarf neu rendern.
       loadContextData();
       loadOpeningHours();
       loadPhantasialandData();
       startAutoRefresh();
 
-      // Öffnungszeiten stündlich neu abrufen
+      // Öffnungszeiten stündlich neu abrufen, synchron zum serverseitigen
+      // Scrape-Rhythmus (siehe cron.schedule('0 * * * *', ...) im Server)
       setInterval(loadOpeningHours, 60 * 60 * 1000);
     };
 
-    // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
+        // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
+    // Wenn der Browser-Tab im Hintergrund war (nicht geschlossen, nur
+    // inaktiv/minimiert) und dann wieder aktiviert wird, können Chart.js-
+    // Canvases auf 0x0 Pixel "einfrieren", wenn sie während der Inaktivität
+    // initialisiert/neu gezeichnet wurden (typisches Verhalten in vielen
+    // Browsern: Layout-Berechnungen für inaktive Tabs sind unzuverlässig).
+    // Chart.js hat dann KEINEN automatischen Trigger, um sich später neu zu
+    // zeichnen, sobald wieder Platz da ist - die Mini-Grafen blieben leer,
+    // bis man die Karte manuell aufklappte (was renderDetailedChart erneut
+    // aufruft und dadurch "zufällig" half). Der Fix: bei jedem Sichtbar-
+    // werden der Seite alle aktuell existierenden Chart.js-Instanzen
+    // (Mini-Grafen UND Detail-Grafen) einmal per resize() neu vermessen.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
 
-      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet hat
+      // Kurze Verzögerung, damit der Browser das Layout erst final berechnet
+      // hat (Canvas-Container muss seine echte Breite/Höhe schon haben)
       setTimeout(() => {
         Object.values(sparklineInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) {}
+          try { if (chart) chart.resize(); } catch (e) { /* Chart evtl. schon zerstört, ignorieren */ }
         });
         Object.values(chartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) {}
+          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
         });
         Object.values(queueChartInstances).forEach(chart => {
-          try { if (chart) chart.resize(); } catch (e) {}
+          try { if (chart) chart.resize(); } catch (e) { /* ignorieren */ }
         });
 
+        // Zusätzlich einen Live-Refresh anstoßen, falls die Seite lange im
+        // Hintergrund war - stellt sicher, dass nicht nur die Grafen wieder
+        // sichtbar sind, sondern auch inhaltlich aktuell (siehe Problem mit
+        // veralteter Prognose weiter unten, Fix 2)
         if (globalRidesData.length > 0) {
           loadPhantasialandData();
         }
