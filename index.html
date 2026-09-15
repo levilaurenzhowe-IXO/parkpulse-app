@@ -1357,7 +1357,7 @@ body.no-page-scroll {
     // der Server hat selbst schon einen 09:00-19:00 Notfall-Fallback).
     let CHART_TIME_START_HOUR = 9;
     let CHART_TIME_END_HOUR = 20;
-    const CHART_WAIT_DEFAULT_MAX = 30; // Standard-Y-Skala 0-80 Min...
+    const CHART_WAIT_DEFAULT_MAX = 80; // Standard-Y-Skala 0-80 Min...
     let CHART_WAIT_DYNAMIC_MAX = CHART_WAIT_DEFAULT_MAX; // ...wird dynamisch erhöht, falls nötig (gemeinsam für alle Mini-Grafen)
     
     let globalRidesData = [];
@@ -3354,28 +3354,28 @@ function renderLoadingPlaceholders() {
       cardIdToRideName = {};
       renderedItems.forEach(item => { cardIdToRideName[item.cardId] = item.rideName; });
 
-    try {
-    if (typeof Chart !== 'undefined') {
-      // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
-      // Y-Achsen-Obergrenze zu bestimmen
-      const precomputed = renderedItems.map(item => ({
-        item,
-        dataObj: calculateSmartHistoryAndForecast(item.rideName)
-      }));
+      try {
+        if (typeof Chart !== 'undefined') {
+          // Alle Datensätze einmal vorab berechnen, um daraus die gemeinsame
+          // Y-Achsen-Obergrenze zu bestimmen: Standard 80 Min, aber wenn eine
+          // sichtbare Attraktion mehr hat, wird die Skala für ALLE Mini-Grafen
+          // gemeinsam erhöht (nicht individuell), damit sie vergleichbar bleiben.
+          const precomputed = renderedItems.map(item => ({
+            item,
+            dataObj: calculateSmartHistoryAndForecast(item.rideName)
+          }));
 
-      // Höchsten gemessenen oder prognostizierten Wert ermitteln
-      let maxObserved = 0;
-      precomputed.forEach(({ dataObj }) => {
-        dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
-        dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
-      });
+          let maxObserved = 0;
+          precomputed.forEach(({ dataObj }) => {
+            dataObj.actualPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+            dataObj.forecastPoints.forEach(v => { if (v !== null && v > maxObserved) maxObserved = v; });
+          });
+          // Skala mit etwas Puffer nach oben (10%), aber nie unter dem Standard
+          CHART_WAIT_DYNAMIC_MAX = maxObserved > CHART_WAIT_DEFAULT_MAX
+            ? Math.ceil((maxObserved * 1.1) / 10) * 10
+            : CHART_WAIT_DEFAULT_MAX;
 
-      // Standardmäßig 30 Min. Geht ein Wert darüber (oder auf 26+ Min),
-      // bleiben immer exakt 5 Min Puffer über der Spitze.
-     // Rechnet mindestens 5 Min Puffer auf den Höchstwert und rundet auf den nächsten vollen 10er-Schritt auf
-CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
-
-      precomputed.forEach(({ item, dataObj }) => {
+                precomputed.forEach(({ item, dataObj }) => {
             // Jede Karte EINZELN absichern: schlägt das Rendern einer
             // Attraktion aus irgendeinem Grund fehl (z.B. unerwartete
             // Datenlücke), darf das NICHT die komplette forEach-Schleife
@@ -3472,17 +3472,20 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
 
           if (needsRainLoad) ensureRainPeriods().then(() => renderedItems.forEach(rerenderCard));
 
-          runInBatchesWithProgress(
-    renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
-    3, // Auf 3 verringert: Verhindert Server-Überlastung durch zu viele simultane Prognose-Berechnungen
-    (batchEntries) => {
-      // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
-      // fertig geladen wurden (nicht die ganze Liste), das hält die
-      // Reaktionsfähigkeit hoch und vermeidet unnötioge Re-Renders
-      // bereits fertiger Karten
-      batchEntries.forEach(({ item }) => rerenderCard(item));
-    }
-)
+                  runInBatchesWithProgress(
+            renderedItems.map((item, idx) => ({ item, task: perRideTasks[idx] })),
+            12, // Batch-Größe erhöht: mit Embedded-Replica-Backend (schnellere
+                // Antwortzeiten pro Request) verträgt der Server jetzt mehr
+                // gleichzeitige Anfragen, ohne spürbar zu stocken - das
+                // beschleunigt das vollständige Laden aller Prognosen/
+                // Ausfälle/Zuverlässigkeits-Daten spürbar.
+            (batchEntries) => {
+              // Nach JEDEM Batch: nur die Karten neu zeichnen, die gerade
+              // fertig geladen wurden (nicht die ganze Liste), das hält die
+              // Reaktionsfähigkeit hoch und vermeidet unnötige Re-Renders
+              // bereits fertiger Karten
+              batchEntries.forEach(({ item }) => rerenderCard(item));
+            }
           );
         }
       } catch (e) {
@@ -3821,12 +3824,12 @@ CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
                 }
               }
             },
-       y: { 
-  min: 0,
-  max: CHART_WAIT_DYNAMIC_MAX,
-  grid: { color: '#1e293b' }, 
-  ticks: { color: '#64748b', font: { size: 9 }, stepSize: 10 } 
-}
+            y: { 
+              min: 0,
+              max: CHART_WAIT_DYNAMIC_MAX,
+              grid: { color: '#1e293b' }, 
+              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 } 
+            }
           }
         }
       });
