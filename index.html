@@ -3372,7 +3372,8 @@ function renderLoadingPlaceholders() {
 
       // Standardmäßig 30 Min. Geht ein Wert darüber (oder auf 26+ Min),
       // bleiben immer exakt 5 Min Puffer über der Spitze.
-      CHART_WAIT_DYNAMIC_MAX = Math.max(30, maxObserved + 5);
+     // Rechnet mindestens 5 Min Puffer auf den Höchstwert und rundet auf den nächsten vollen 10er-Schritt auf
+CHART_WAIT_DYNAMIC_MAX = Math.max(30, Math.ceil((maxObserved + 5) / 10) * 10);
 
       precomputed.forEach(({ item, dataObj }) => {
             // Jede Karte EINZELN absichern: schlägt das Rendern einer
@@ -3823,12 +3824,12 @@ function renderLoadingPlaceholders() {
                 }
               }
             },
-            y: { 
-              min: 0,
-              max: CHART_WAIT_DYNAMIC_MAX,
-              grid: { color: '#1e293b' }, 
-              ticks: { color: '#64748b', font: { size: 9 }, stepSize: 20 } 
-            }
+       y: { 
+  min: 0,
+  max: CHART_WAIT_DYNAMIC_MAX,
+  grid: { color: '#1e293b' }, 
+  ticks: { color: '#64748b', font: { size: 9 }, stepSize: 10 } 
+}
           }
         }
       });
