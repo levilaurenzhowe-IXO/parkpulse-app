@@ -219,27 +219,16 @@ body.no-page-scroll {
        klassischen vertikalen Fader. -webkit-appearance:slider-vertical ist
        ein zusätzlicher Fallback für ältere Safari-Versionen ohne
        writing-mode-Unterstützung bei Formularelementen. */
-    .map-time-slider-vertical {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  -webkit-appearance: slider-vertical;
-  /* Die tatsächliche Breite des Elements (= Touch-Trefferfläche quer zur
-     Ziehrichtung) wird deutlich größer als der sichtbar gezeichnete Track
-     gemacht - der Track selbst bleibt optisch dünn (siehe ::-webkit-slider-
-     runnable-track/::-moz-range-track unten), nur die unsichtbare Fläche
-     drumherum, auf die man tippen/klicken kann, wächst mit. Das ist der
-     Standard-Trick gegen "Regler ist zu schmal zum Treffen": der Browser
-     berechnet den Hit-Test-Bereich anhand der Element-Box, nicht anhand
-     des optisch sichtbaren Tracks.
-  */
-  width: 40px;
-  background: transparent;
-  appearance: none;
-  cursor: pointer;
-  touch-action: none; /* verhindert, dass ein Tippen auf den breiteren
-                          Hit-Bereich versehentlich als Seiten-Scroll oder
-                          Pinch-Geste interpretiert wird */
-}
+.map-time-slider-vertical {
+      writing-mode: vertical-lr;
+      direction: rtl;
+      /* Entferne: -webkit-appearance: slider-vertical; */
+      width: 40px;
+      background: transparent;
+      appearance: none;
+      cursor: pointer;
+      touch-action: none;
+    }
 .map-time-slider-vertical::-webkit-slider-runnable-track {
   width: 6px;
   background: rgba(0, 0, 0, 0.4);
