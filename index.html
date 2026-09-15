@@ -5638,82 +5638,84 @@ function populateMapEditDropdown() {
       'Luxemburg': 'LU'
     };
 
-    function renderHolidayTable() {
-      if (!holidayTableData) return;
+  function renderHolidayTable() {
+  if (!holidayTableData) return;
 
-      const headerRow = document.getElementById('holidayTableHeaderRow');
-      const body = document.getElementById('holidayTableBody');
+  const headerRow = document.getElementById('holidayTableHeaderRow');
+  const body = document.getElementById('holidayTableBody');
 
-      // Feste Liste aller Tage von heute bis +365 Tage bauen
-      const days = [];
-      const startDate = new Date();
-      startDate.setHours(0, 0, 0, 0);
-      for (let i = 0; i < HOLIDAY_TABLE_DAYS_AHEAD; i++) {
-        const d = new Date(startDate);
-        d.setDate(d.getDate() + i);
-        days.push(d);
-      }
-      const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  const days = [];
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  for (let i = 0; i < HOLIDAY_TABLE_DAYS_AHEAD; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 
-      // ---------- Kopfzeile: EINE Zeile mit der Datums-Spalte links + einer
-      // Spalte pro Region, hochkant beschriftet mit der Kurz-Abkürzung.
-      // Bleibt beim Scrollen (sticky top-0) sichtbar, damit man beim
-      // Durchscrollen der Tage immer weiß, welche Spalte welche Region ist. ----------
-      let headerHtml = `<th class="sticky left-0 z-20 bg-[var(--bg-panel)] px-2 py-1.5 text-left text-[9px] text-slate-500 font-bold" style="min-width:64px;">Tag</th>`;
-      (holidayTableData.rows || []).forEach(row => {
-        const abbr = HOLIDAY_REGION_ABBR[row.country] || row.country.slice(0, 2).toUpperCase();
-        headerHtml += `
-          <th class="bg-[var(--bg-panel)] px-1 py-1.5 text-center" style="min-width:28px; height: 44px;">
-            <span class="holiday-region-header text-[9px] font-bold text-slate-300">${escapeHtml(abbr)}</span>
-          </th>
-        `;
-      });
-      headerRow.innerHTML = headerHtml;
+  // Kopfzeile mit klaren Trennlinien
+  let headerHtml = `<th class="sticky left-0 z-20 bg-[var(--bg-panel)] px-2 py-2 text-left text-[9px] text-slate-400 font-bold border-b border-r border-white/10" style="min-width:70px;">Tag</th>`;
+  (holidayTableData.rows || []).forEach(row => {
+    const abbr = HOLIDAY_REGION_ABBR[row.country] || row.country.slice(0, 2).toUpperCase();
+    headerHtml += `
+      <th class="bg-[var(--bg-panel)] px-1 py-2 text-center border-b border-r border-white/10" style="min-width:32px; height: 44px;">
+        <span class="holiday-region-header text-[9px] font-bold text-slate-300 tracking-wider">${escapeHtml(abbr)}</span>
+      </th>
+    `;
+  });
+  headerRow.innerHTML = headerHtml;
 
-      // ---------- Körper: eine Zeile PRO TAG (durchscrollbar nach unten),
-      // eine Zelle pro Region - genau umgekehrt zur vorherigen Ausrichtung. ----------
-      const publicHolidaysByDate = {};
-      (holidayTableData.publicHolidays || []).forEach(h => {
-        if (!publicHolidaysByDate[h.startDate]) publicHolidaysByDate[h.startDate] = [];
-        publicHolidaysByDate[h.startDate].push(h);
-      });
+  const publicHolidaysByDate = {};
+  (holidayTableData.publicHolidays || []).forEach(h => {
+    if (!publicHolidaysByDate[h.startDate]) publicHolidaysByDate[h.startDate] = [];
+    publicHolidaysByDate[h.startDate].push(h);
+  });
 
-      let bodyHtml = '';
-      let lastMonth = null;
-      days.forEach(d => {
-        const dateStr = d.toLocaleDateString('sv-SE');
-        const isToday = dateStr === todayStr;
-        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-        const month = d.getMonth();
-        const showMonthLabel = month !== lastMonth;
-        lastMonth = month;
+  let bodyHtml = '';
+  let lastMonth = null;
+  days.forEach(d => {
+    const dateStr = d.toLocaleDateString('sv-SE');
+    const isToday = dateStr === todayStr;
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const month = d.getMonth();
+    const showMonthLabel = month !== lastMonth;
+    lastMonth = month;
 
-        const dayNum = String(d.getDate()).padStart(2, '0');
-        const monthLabel = showMonthLabel ? MONTH_NAMES_DE[month].slice(0, 3) : '';
-        const weekdayShort = WEEKDAY_SHORT_2LETTER_DE[d.getDay()];
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    const monthLabel = showMonthLabel ? MONTH_NAMES_DE[month].slice(0, 3) : '';
+    const weekdayShort = WEEKDAY_SHORT_2LETTER_DE[d.getDay()];
 
-        let rowHtml = `
-          <td class="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 py-1 text-[10px] whitespace-nowrap ${isToday ? 'text-amber-400 font-bold' : isWeekend ? 'text-slate-500' : 'text-slate-300'}" ${isToday ? 'data-today-marker="1"' : ''}>
-            ${showMonthLabel ? `<span class="text-cyan-400 uppercase text-[8px] mr-1">${monthLabel}</span>` : ''}
-            ${dayNum}. <span class="text-slate-600">${weekdayShort}</span>
-          </td>
-        `;
+    // Optische Trennung für Wochenenden, Monate und den heutigen Tag
+    const rowBg = isToday ? 'bg-amber-500/10' : (isWeekend ? 'bg-white/[0.02]' : '');
+    const monthBorder = showMonthLabel ? 'border-t-2 border-cyan-500/40' : 'border-t border-white/5';
 
-        (holidayTableData.rows || []).forEach(row => {
-          const isSchoolHoliday = (row.schoolHolidays || []).some(h => dateStr >= h.startDate && dateStr <= h.endDate);
-          const isPublicHoliday = (publicHolidaysByDate[dateStr] || []).some(h => h.country === row.country);
+    let rowHtml = `
+      <td class="sticky left-0 z-10 ${isToday ? 'bg-amber-950/90' : 'bg-[var(--bg-panel)]'} px-2 py-1 text-[10px] whitespace-nowrap border-r border-white/10 ${isToday ? 'text-amber-400 font-extrabold' : (isWeekend ? 'text-slate-400 font-semibold' : 'text-slate-300')}" ${isToday ? 'data-today-marker="1"' : ''}>
+        ${showMonthLabel ? `<span class="text-cyan-400 uppercase text-[8px] font-bold mr-1">${monthLabel}</span>` : ''}
+        ${dayNum}. <span class="${isWeekend ? 'text-slate-400' : 'text-slate-500'}">${weekdayShort}</span>
+      </td>
+    `;
 
-          let cellColor = 'bg-transparent';
-          if (isPublicHoliday) cellColor = 'bg-red-500';
-          else if (isSchoolHoliday) cellColor = 'bg-green-500';
+    (holidayTableData.rows || []).forEach(row => {
+      const isSchoolHoliday = (row.schoolHolidays || []).some(h => dateStr >= h.startDate && dateStr <= h.endDate);
+      const isPublicHoliday = (publicHolidaysByDate[dateStr] || []).some(h => h.country === row.country);
 
-          rowHtml += `<td class="p-0" style="height:22px;"><div class="w-full h-full ${cellColor} ${isToday ? 'ring-1 ring-inset ring-amber-400' : ''}"></div></td>`;
-        });
+      let cellColor = 'bg-transparent';
+      if (isPublicHoliday) cellColor = 'bg-red-500/90 shadow-[0_0_6px_rgba(239,68,68,0.3)]';
+      else if (isSchoolHoliday) cellColor = 'bg-emerald-500/90 shadow-[0_0_6px_rgba(16,185,129,0.25)]';
 
-        bodyHtml += `<tr>${rowHtml}</tr>`;
-      });
-      body.innerHTML = bodyHtml;
-    }
+      rowHtml += `
+        <td class="p-0.5 border-r border-white/5 text-center" style="height:22px;">
+          <div class="w-full h-full rounded-sm ${cellColor} ${isToday && !isSchoolHoliday && !isPublicHoliday ? 'ring-1 ring-amber-400/50' : ''}"></div>
+        </td>
+      `;
+    });
+
+    bodyHtml += `<tr class="${rowBg} ${monthBorder}">${rowHtml}</tr>`;
+  });
+  body.innerHTML = bodyHtml;
+}
 
     // ---------- SWIPE-GESTEN: generische Horizontal-Wisch-Erkennung ----------
     // Wiederverwendbare Hilfsfunktion, die auf einem Element horizontale
