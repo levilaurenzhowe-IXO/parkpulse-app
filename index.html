@@ -1084,6 +1084,109 @@ body.no-page-scroll {
     </div>
     <!-- ================= ENDE KARTEN-TAB ================= -->
 
+      <!-- ================= WARTESCHLANGE-TAB ================= -->
+    <!-- Live-Tracking für die aktuell besuchte Attraktion: Restwartezeit,
+         Personen vor einem, verbleibende Strecke, Ausfall-Warnung. Darunter
+         die heute besuchten Attraktionen (lokal gespeichert, löschbar) und
+         eine Tagesstatistik. Kein Server-Speicher - alles läuft über
+         localStorage, damit es rein privat auf dem Gerät bleibt. -->
+    <div id="tabContentQueue" class="hidden space-y-3">
+
+      <!-- Aktive Warteschlange -->
+      <div id="activeQueueEmpty" class="panel py-10 text-center text-slate-500">
+        <i class="fa-solid fa-hourglass text-2xl text-slate-700 mb-2"></i>
+        <p class="text-xs font-bold">Du stehst gerade in keiner Schlange</p>
+        <p class="text-[11px] text-slate-600 mt-1 px-6">Tippe im Live-Tab auf "Ich stelle mich an", um die Wartezeit hier live zu verfolgen.</p>
+      </div>
+
+      <div id="activeQueueBox" class="hidden panel p-4 space-y-4 border-amber-500/30">
+        <div class="flex items-center justify-between">
+          <div class="min-w-0">
+            <p class="text-[9px] text-amber-400 uppercase font-bold tracking-wider">Du stehst an bei</p>
+            <h2 id="activeQueueRideName" class="text-lg font-black text-slate-100 truncate"></h2>
+          </div>
+          <button onclick="cancelQueueing()" class="pill w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-400 transition shrink-0" title="Anstehen abbrechen">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Ausfall-Warnung, nur sichtbar wenn ein Risiko-Zeitfenster naht -->
+        <div id="activeQueueOutageWarning" class="hidden bg-red-500/10 border border-red-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-red-400 text-xs mt-0.5 shrink-0"></i>
+          <p id="activeQueueOutageWarningText" class="text-[11px] text-red-200 leading-relaxed"></p>
+        </div>
+
+        <!-- Große Restwartezeit-Anzeige -->
+        <div class="text-center py-2">
+          <div id="activeQueueMinutesLeft" class="text-5xl font-black text-amber-400 font-mono">--</div>
+          <p class="text-[11px] text-slate-500 uppercase font-bold tracking-wider mt-1">Minuten verbleibend</p>
+        </div>
+
+        <!-- Details-Grid -->
+        <div class="grid grid-cols-3 gap-2 text-center font-mono">
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Personen vor dir</span>
+            <span id="activeQueuePeopleAhead" class="text-sm font-black text-cyan-400">--</span>
+          </div>
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Strecke übrig</span>
+            <span id="activeQueueMetersLeft" class="text-sm font-black text-cyan-400">--</span>
+          </div>
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Angestellt seit</span>
+            <span id="activeQueueStartedAt" class="text-sm font-black text-slate-300">--</span>
+          </div>
+        </div>
+
+            <button onclick="finishQueueing()" class="w-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 py-2.5 rounded-2xl text-sm font-black transition active:scale-[0.98] flex items-center justify-center gap-2">
+          <i class="fa-solid fa-check"></i> Fertig gefahren
+        </button>
+
+        <p class="text-[9px] text-slate-600 text-center leading-relaxed">Die Restwartezeit basiert auf der zuletzt gemeldeten Live-Wartezeit und aktualisiert sich automatisch.</p>
+      </div>
+
+      <!-- Heute besuchte Attraktionen -->
+      <div class="panel p-3.5 space-y-2">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-list-check"></i> Heute besucht
+          </h2>
+          <span id="visitedTodayCount" class="pill text-[10px] font-mono text-slate-400 px-2.5 py-0.5">0</span>
+        </div>
+        <div id="visitedTodayEmpty" class="py-6 text-center text-slate-600">
+          <p class="text-[11px]">Noch keine Attraktionen heute besucht.</p>
+        </div>
+        <div id="visitedTodayList" class="hidden space-y-1.5"></div>
+      </div>
+
+      <!-- Tagesstatistik -->
+      <div id="todayStatsBox" class="hidden panel p-3.5 space-y-3">
+        <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-chart-simple"></i> Deine Statistik heute
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Fahrten</span>
+            <span id="todayStatRides" class="text-sm font-black text-amber-400">0</span>
+          </div>
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Gewartet</span>
+            <span id="todayStatWaitTime" class="text-sm font-black text-cyan-400">0 Min</span>
+          </div>
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Ø Wartezeit</span>
+            <span id="todayStatAvgWait" class="text-sm font-black text-slate-300">0 Min</span>
+          </div>
+          <div class="panel-raised p-2.5">
+            <span class="block text-[9px] text-slate-500 uppercase font-semibold">Strecke gelaufen</span>
+            <span id="todayStatDistance" class="text-sm font-black text-green-400">0 m</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- ================= ENDE WARTESCHLANGE-TAB ================= -->
+
     <!-- Platzhalter, damit Inhalt nicht hinter der fixierten Bottom-Tab-Bar
          verschwindet (nur auf schmalen Bildschirmen relevant, siehe CSS) -->
     <div class="bottom-nav-spacer"></div>
@@ -1121,6 +1224,13 @@ body.no-page-scroll {
           <i class="fa-solid fa-map-location-dot text-sm"></i>
           <span class="hidden sm:inline text-xs font-black uppercase tracking-wider">Karte</span>
         </span>
+      </button>
+      <button onclick="switchTab('queue')" id="tabBtnQueue" title="Warteschlange" class="tab-btn-bottom flex flex-col sm:flex-row items-center gap-0 sm:gap-2 text-slate-400 transition py-1 sm:py-3 relative">
+        <span class="tab-icon-pill flex items-center gap-1.5">
+          <i class="fa-solid fa-hourglass-half text-sm"></i>
+          <span class="hidden sm:inline text-xs font-black uppercase tracking-wider">Warten</span>
+        </span>
+        <span id="queueTabBadge" class="hidden absolute -top-0.5 -right-0.5 sm:top-1 sm:right-1 w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]"></span>
       </button>
     </div>
   </nav>
@@ -1783,7 +1893,7 @@ body.no-page-scroll {
 
 
 // ---------- TAB-NAVIGATION ----------
-const TAB_ORDER = ['live', 'stats', 'holidays', 'map'];
+const TAB_ORDER = ['live', 'stats', 'holidays', 'map', 'queue'];
 
 function switchTab(tab, direction) {
   if (!direction) {
@@ -1818,21 +1928,25 @@ function switchTab(tab, direction) {
   const statsContent = document.getElementById('tabContentStats');
   const holidaysContent = document.getElementById('tabContentHolidays');
   const mapContent = document.getElementById('tabContentMap');
+  const queueContent = document.getElementById('tabContentQueue');
 
   const tabBtnLive = document.getElementById('tabBtnLive');
   const tabBtnStats = document.getElementById('tabBtnStats');
   const tabBtnHolidays = document.getElementById('tabBtnHolidays');
   const tabBtnMap = document.getElementById('tabBtnMap');
+  const tabBtnQueue = document.getElementById('tabBtnQueue');
 
   if (liveContent) liveContent.classList.add('hidden');
   if (statsContent) statsContent.classList.add('hidden');
   if (holidaysContent) holidaysContent.classList.add('hidden');
   if (mapContent) mapContent.classList.add('hidden');
+  if (queueContent) queueContent.classList.add('hidden');
 
   if (tabBtnLive) tabBtnLive.classList.remove('active');
   if (tabBtnStats) tabBtnStats.classList.remove('active');
   if (tabBtnHolidays) tabBtnHolidays.classList.remove('active');
   if (tabBtnMap) tabBtnMap.classList.remove('active');
+  if (tabBtnQueue) tabBtnQueue.classList.remove('active');
 
   const animClass = direction === 'right' ? 'tab-content-enter-right' : 'tab-content-enter-left';
   const applyEnterAnimation = (el) => {
@@ -1883,6 +1997,14 @@ function switchTab(tab, direction) {
         if (typeof loadMapLiveData === 'function') loadMapLiveData();
       }
     }, 100);
+  } else if (tab === 'queue') {
+    if (queueContent) queueContent.classList.remove('hidden');
+    if (tabBtnQueue) tabBtnQueue.classList.add('active');
+    applyEnterAnimation(queueContent);
+
+    renderActiveQueueBox();
+    renderVisitedToday();
+    renderTodayStats();
   }
 }
 
@@ -1940,6 +2062,299 @@ function switchTab(tab, direction) {
 
     function getThresholds() {
       try { return JSON.parse(localStorage.getItem('pp_thresholds') || '{}'); } catch { return {}; }
+    }
+
+        // ============================================================
+    // WARTESCHLANGE-TAB: Live-Tracking + lokale Tagesstatistik
+    // ============================================================
+    // Alles läuft rein lokal über localStorage - kein Server-Speicher, damit
+    // Besuchsdaten privat auf dem Gerät bleiben. Struktur pro Tag (Key
+    // "pp_visits_YYYY-MM-DD"): Array von { rideName, joinedAt, waitTimeAtJoin,
+    // leftAt (optional, gesetzt wenn abgehakt/beendet) }.
+
+    let activeQueue = null; // { rideName, joinedAt (ms), initialWaitTime, initialPeopleAhead, initialMetersAhead }
+    let activeQueueTimerInterval = null;
+
+    function todayDateKey() {
+      return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+    }
+
+    function getVisitsToday() {
+      try {
+        return JSON.parse(localStorage.getItem(`pp_visits_${todayDateKey()}`) || '[]');
+      } catch { return []; }
+    }
+
+    function saveVisitsToday(visits) {
+      try {
+        localStorage.setItem(`pp_visits_${todayDateKey()}`, JSON.stringify(visits));
+      } catch (err) {
+        console.warn('Konnte Besuchsliste nicht speichern:', err.message);
+      }
+    }
+
+    function getActiveQueueFromStorage() {
+      try {
+        const raw = localStorage.getItem('pp_active_queue');
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+
+    function saveActiveQueueToStorage() {
+      try {
+        if (activeQueue) {
+          localStorage.setItem('pp_active_queue', JSON.stringify(activeQueue));
+        } else {
+          localStorage.removeItem('pp_active_queue');
+        }
+      } catch (err) {
+        console.warn('Konnte aktive Warteschlange nicht speichern:', err.message);
+      }
+    }
+
+    // Wird vom "Ich stelle mich an"-Button in der Ride-Karte aufgerufen.
+    // Nimmt die aktuelle Live-Wartezeit als Startwert und beginnt das
+    // Live-Tracking. Wechselt automatisch in den Warteschlange-Tab.
+    function startQueueing(rideName) {
+      const ride = globalRidesData.find(r => r.name === rideName);
+      if (!ride || !ride.isOpen) return;
+
+      const metrics = calculateQueueMetrics(rideName, ride.waitTime, true);
+
+      activeQueue = {
+        rideName,
+        joinedAt: Date.now(),
+        initialWaitTime: ride.waitTime,
+        initialPeopleAhead: metrics.people,
+        initialMetersAhead: metrics.meters
+      };
+      saveActiveQueueToStorage();
+
+      switchTab('queue');
+      renderActiveQueueBox();
+      startActiveQueueTimer();
+      updateQueueTabBadge();
+    }
+
+    // Bricht das aktuelle Anstehen ab, OHNE es als besuchte Attraktion zu
+    // speichern - für den Fall, dass man sich umentscheidet und die Schlange
+    // wieder verlässt.
+    function cancelQueueing() {
+      activeQueue = null;
+      saveActiveQueueToStorage();
+      if (activeQueueTimerInterval) clearInterval(activeQueueTimerInterval);
+      renderActiveQueueBox();
+      updateQueueTabBadge();
+    }
+
+    // Markiert die aktuelle Attraktion als "gefahren": trägt sie in die
+    // heutige Besuchsliste ein und beendet das Live-Tracking.
+    function finishQueueing() {
+      if (!activeQueue) return;
+
+      const visits = getVisitsToday();
+      visits.push({
+        rideName: activeQueue.rideName,
+        joinedAt: activeQueue.joinedAt,
+        leftAt: Date.now(),
+        waitTimeAtJoin: activeQueue.initialWaitTime,
+        metersAtJoin: activeQueue.initialMetersAhead
+      });
+      saveVisitsToday(visits);
+
+      activeQueue = null;
+      saveActiveQueueToStorage();
+      if (activeQueueTimerInterval) clearInterval(activeQueueTimerInterval);
+
+      renderActiveQueueBox();
+      renderVisitedToday();
+      renderTodayStats();
+      updateQueueTabBadge();
+    }
+
+    // Entfernt einen einzelnen Besuch aus der heutigen Liste (falls man sich
+    // z.B. verklickt hat oder eine Attraktion doch nicht zählen soll)
+    function removeVisit(index) {
+      const visits = getVisitsToday();
+      visits.splice(index, 1);
+      saveVisitsToday(visits);
+      renderVisitedToday();
+      renderTodayStats();
+    }
+
+    function updateQueueTabBadge() {
+      const badge = document.getElementById('queueTabBadge');
+      if (!badge) return;
+      if (activeQueue) badge.classList.remove('hidden');
+      else badge.classList.add('hidden');
+    }
+
+    // Rechnet die aktuelle Restwartezeit für die aktive Warteschlange aus:
+    // nimmt die zuletzt gemeldete Live-Wartezeit dieser Attraktion (falls
+    // seit dem Anstehen neue Daten reinkamen) minus der bereits verstrichenen
+    // Zeit, geclampt auf 0. Fällt auf den ursprünglichen Wert beim Anstehen
+    // zurück, falls (noch) keine neuere Live-Meldung vorliegt.
+    function calculateQueueRemainingMinutes() {
+      if (!activeQueue) return 0;
+      const elapsedMinutes = (Date.now() - activeQueue.joinedAt) / 60000;
+
+      const liveRide = globalRidesData.find(r => r.name === activeQueue.rideName);
+      const currentReportedWait = liveRide && liveRide.isOpen ? liveRide.waitTime : activeQueue.initialWaitTime;
+
+      // Die aktuell gemeldete Wartezeit gilt für jemanden, der JETZT neu
+      // ansteht - für uns zählt: ursprüngliche Wartezeit minus bereits
+      // verstrichene Zeit, aber nach oben durch die aktuelle Live-Meldung
+      // gedeckelt (falls sich die Schlange verlängert hat, warten wir auch
+      // entsprechend länger)
+      const remaining = Math.max(activeQueue.initialWaitTime, currentReportedWait) - elapsedMinutes;
+      return Math.max(0, Math.round(remaining));
+    }
+
+    function renderActiveQueueBox() {
+      const emptyEl = document.getElementById('activeQueueEmpty');
+      const boxEl = document.getElementById('activeQueueBox');
+      if (!emptyEl || !boxEl) return;
+
+      if (!activeQueue) {
+        emptyEl.classList.remove('hidden');
+        boxEl.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      boxEl.classList.remove('hidden');
+
+      document.getElementById('activeQueueRideName').textContent = activeQueue.rideName;
+
+      const remainingMinutes = calculateQueueRemainingMinutes();
+      document.getElementById('activeQueueMinutesLeft').textContent = remainingMinutes;
+
+      // Personen vor einem und Strecke proportional zur Restzeit runterrechnen
+      const progressFraction = activeQueue.initialWaitTime > 0
+        ? Math.max(0, remainingMinutes / activeQueue.initialWaitTime)
+        : 0;
+      const peopleAhead = Math.round(activeQueue.initialPeopleAhead * progressFraction);
+      const metersLeft = Math.round(activeQueue.initialMetersAhead * progressFraction);
+
+      document.getElementById('activeQueuePeopleAhead').textContent = peopleAhead;
+      document.getElementById('activeQueueMetersLeft').textContent = `${metersLeft} m`;
+
+      const joinedDate = new Date(activeQueue.joinedAt);
+      document.getElementById('activeQueueStartedAt').textContent = joinedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+      // Ausfall-Warnung: prüft die Risikofenster aus der Tagesprognose
+      // dieser Attraktion (dayForecastCache, wird beim Live-Tab-Laden schon
+      // befüllt) - warnt, wenn ein Risikofenster in den nächsten ~45 Min liegt
+      renderActiveQueueOutageWarning();
+
+      // Sobald die Restzeit 0 erreicht, automatisch als gefahren markieren
+      if (remainingMinutes <= 0) {
+        finishQueueing();
+      }
+    }
+
+    function renderActiveQueueOutageWarning() {
+      const box = document.getElementById('activeQueueOutageWarning');
+      const textEl = document.getElementById('activeQueueOutageWarningText');
+      if (!box || !textEl || !activeQueue) return;
+
+      const forecast = dayForecastCache[activeQueue.rideName];
+      const riskWindows = forecast && forecast.riskWindows ? forecast.riskWindows : [];
+
+      if (riskWindows.length === 0) { box.classList.add('hidden'); return; }
+
+      const nowStr = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false });
+      const nowMinutes = slotToMinutes(nowStr);
+      const remainingMinutes = calculateQueueRemainingMinutes();
+      const expectedRideMinutes = nowMinutes + remainingMinutes;
+
+      // Risikofenster finden, das in den nächsten ~45 Minuten beginnt oder
+      // in den erwarteten Fahrt-Zeitpunkt hineinfällt
+      const relevantWindow = riskWindows.find(w => {
+        const startMin = slotToMinutes(w.startTime);
+        const endMin = slotToMinutes(w.endTime);
+        return (startMin <= expectedRideMinutes + 45 && endMin >= nowMinutes) && (w.frequencyPercent || 0) >= 20;
+      });
+
+      if (!relevantWindow) { box.classList.add('hidden'); return; }
+
+      textEl.textContent = `Historisch fällt diese Attraktion öfter zwischen ${relevantWindow.startTime} und ${relevantWindow.endTime} Uhr aus (${relevantWindow.frequencyPercent}% der Tage). Falls das jetzt passiert, kann sich deine Wartezeit verlängern.`;
+      box.classList.remove('hidden');
+    }
+
+    function startActiveQueueTimer() {
+      if (activeQueueTimerInterval) clearInterval(activeQueueTimerInterval);
+      activeQueueTimerInterval = setInterval(() => {
+        if (!activeQueue) { clearInterval(activeQueueTimerInterval); return; }
+        renderActiveQueueBox();
+      }, 15000); // alle 15 Sekunden neu berechnen, reicht für eine Minuten-Anzeige
+    }
+
+    function renderVisitedToday() {
+      const listEl = document.getElementById('visitedTodayList');
+      const emptyEl = document.getElementById('visitedTodayEmpty');
+      const countEl = document.getElementById('visitedTodayCount');
+      if (!listEl || !emptyEl || !countEl) return;
+
+      const visits = getVisitsToday();
+      countEl.textContent = visits.length;
+
+      if (visits.length === 0) {
+        emptyEl.classList.remove('hidden');
+        listEl.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      listEl.classList.remove('hidden');
+
+      // Neueste zuerst
+      listEl.innerHTML = visits.slice().reverse().map((visit, reverseIdx) => {
+        const idx = visits.length - 1 - reverseIdx; // echter Index für removeVisit
+        const waitedMinutes = Math.round((visit.leftAt - visit.joinedAt) / 60000);
+        const time = new Date(visit.leftAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="panel-raised px-3 py-2 flex items-center justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold text-slate-100 truncate">${escapeHtml(visit.rideName)}</p>
+              <p class="text-[10px] text-slate-500 font-mono">${time} Uhr · ~${waitedMinutes} Min gewartet</p>
+            </div>
+            <button onclick="removeVisit(${idx})" class="w-7 h-7 flex items-center justify-center rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition shrink-0" title="Entfernen">
+              <i class="fa-solid fa-trash text-[11px]"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTodayStats() {
+      const box = document.getElementById('todayStatsBox');
+      if (!box) return;
+
+      const visits = getVisitsToday();
+      if (visits.length === 0) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+
+      const totalWaitMinutes = visits.reduce((sum, v) => sum + Math.round((v.leftAt - v.joinedAt) / 60000), 0);
+      const avgWaitMinutes = Math.round(totalWaitMinutes / visits.length);
+      const totalMeters = visits.reduce((sum, v) => sum + (v.metersAtJoin || 0), 0);
+
+      document.getElementById('todayStatRides').textContent = visits.length;
+      document.getElementById('todayStatWaitTime').textContent = `${totalWaitMinutes} Min`;
+      document.getElementById('todayStatAvgWait').textContent = `${avgWaitMinutes} Min`;
+      document.getElementById('todayStatDistance').textContent = `${totalMeters.toLocaleString('de-DE')} m`;
+    }
+
+    // Beim App-Start: prüft ob eine Warteschlange über einen Reload hinweg
+    // noch aktiv war (z.B. Seite neu geladen während man ansteht) und stellt
+    // sie wieder her, inkl. Timer.
+    function restoreActiveQueueOnLoad() {
+      const stored = getActiveQueueFromStorage();
+      if (!stored) return;
+      activeQueue = stored;
+      renderActiveQueueBox();
+      startActiveQueueTimer();
+      updateQueueTabBadge();
     }
 
     function openThresholdModal(rideName) {
@@ -3150,10 +3565,7 @@ function renderLoadingPlaceholders() {
     }
 
         // Platzhalter - wird im nächsten Schritt durch die echte Warteschlangen-
-    // Tracking-Logik ersetzt (neuer "Warteschlange"-Tab)
-    function startQueueing(rideName) {
-      console.log('Anstellen gestartet für:', rideName);
-    }
+
 
     // Ermittelt die beste (wartezeit-ärmste) Uhrzeit direkt aus der bereits
     // vorhandenen 30-Tage-Ø-Kurve (/api/ride-history?days=30, averaged) -
@@ -5910,6 +6322,14 @@ window.onload = async function() {
 
       // Öffnungszeiten stündlich neu abrufen
       setInterval(loadOpeningHours, 60 * 60 * 1000);
+
+      // Aktive Warteschlange (falls über einen Reload hinweg noch offen)
+      // und die heutige Besuchsliste/Statistik initial vorbereiten, auch
+      // wenn der Nutzer den Tab noch nicht geöffnet hat, damit das Badge
+      // in der Bottom-Bar sofort korrekt ist.
+      restoreActiveQueueOnLoad();
+      renderVisitedToday();
+      renderTodayStats();
     };
 
     // ---------- Chart-Resize bei Tab-Reaktivierung erzwingen ----------
