@@ -439,19 +439,24 @@ body.no-page-scroll {
       bottom: 0;
     }
 
-    /* Zeitregler: schwebende horizontale Pille direkt ÜBER/AUF der
-       Bottom-Tab-Bar, im selben dunklen Glas-Look wie der Rest der App. */
+    /* Zeitregler: schwebende VERTIKALE Pille unten RECHTS an der Seite -
+       NICHT mehr in der Mitte (dort liegt die Tab-Navigation) und nicht
+       mehr horizontal. Steht als eigene schmale Säule über der Bottom-Bar,
+       mit genug Sicherheitsabstand nach unten/rechts, damit sie weder die
+       Tab-Pillen noch den Bildschirmrand überlappt. */
     .map-time-slider-pill {
       position: fixed;
-      left: 50%;
-      bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-      transform: translateX(-50%);
+      right: 12px;
+      bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+      left: auto;
+      transform: none;
       z-index: 54;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 8px;
-      height: 34px;
-      padding: 0 12px;
+      gap: 6px;
+      width: 40px;
+      padding: 10px 0;
       background-color: rgba(18, 18, 18, 0.85);
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -460,8 +465,8 @@ body.no-page-scroll {
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     .map-time-slider-pill .map-time-slider-vertical {
-      width: 100px;
-      height: 20px;
+      width: 26px;
+      height: 100px;
     }
 
     /* ============================================================
@@ -1185,18 +1190,19 @@ body.no-page-scroll {
              .map-fullscreen-canvas, position:fixed inset:0) -->
       <div id="parkMapContainer" class="map-fullscreen-canvas"></div>
 
-      <!-- Zeitregler als schwebende Pille auf der Bottom-Tab-Bar, hochkant,
-           halb so hoch wie vorher -->
+      <!-- Zeitregler: schwebende VERTIKALE Pille unten rechts an der Seite,
+           Reihenfolge von oben nach unten: Endzeit -> Regler -> Startzeit ->
+           Reset-Button -> Label -->
       <div id="mapTimeSliderBox" class="map-time-slider-pill">
-        <span id="mapTimeSliderStart" class="text-[8px] text-slate-500 font-mono shrink-0">--:--</span>
+        <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono shrink-0">--:--</span>
         <input type="range" id="mapTimeSlider" min="0" max="0" step="1" value="0"
           oninput="onMapTimeSliderInput()"
           class="map-time-slider-vertical cursor-pointer shrink-0">
-        <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono shrink-0">--:--</span>
+        <span id="mapTimeSliderStart" class="text-[8px] text-slate-500 font-mono shrink-0">--:--</span>
         <button onclick="resetMapTimeSlider()" title="Zurück zu 'Jetzt'" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-400 active:scale-90 transition shrink-0">
           <i class="fa-solid fa-rotate-left text-[9px]"></i>
         </button>
-        <span id="mapTimeSliderLabel" class="text-[9px] font-mono font-bold text-cyan-300 shrink-0 whitespace-nowrap">Jetzt</span>
+        <span id="mapTimeSliderLabel" class="text-[8px] font-mono font-bold text-cyan-300 shrink-0 whitespace-nowrap" style="writing-mode: vertical-rl;">Jetzt</span>
       </div>
 
     </div>
@@ -2110,10 +2116,11 @@ function switchTab(tab, direction) {
       } else {
         if (typeof parkMapInstance !== 'undefined' && parkMapInstance) {
           parkMapInstance.invalidateSize();
+          setTimeout(() => parkMapInstance && parkMapInstance.invalidateSize(), 300);
         }
         if (typeof loadMapLiveData === 'function') loadMapLiveData();
       }
-    }, 100);
+    }, 150);
   } else if (tab === 'queue') {
     if (queueContent) queueContent.classList.remove('hidden');
     if (tabBtnQueue) tabBtnQueue.classList.add('active');
@@ -5401,11 +5408,15 @@ let mapTimeSliderIsPast = false;
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'
   }).addTo(parkMapInstance);
 
-  // NEU: nach der Erstellung Größe erzwingen, für den Fall dass der Container
-  // beim allerersten Messen doch noch nicht die finale Größe hatte
-  setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, 100);
+  // Größe mehrfach erzwingen (100ms, 300ms, 600ms), da der Tab-Wechsel per
+  // hidden-Klasse dem Browser nicht immer rechtzeitig ein fertiges Layout
+  // liefert, bevor Leaflet seine erste Größe misst - eine einzelne späte
+  // Prüfung reicht dann nicht, mehrere Versuche schon.
+  [100, 300, 600].forEach(delay => {
+    setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, delay);
+  });
 
-      window.addEventListener('resize', () => {
+  window.addEventListener('resize', () => {
     if (parkMapInstance) parkMapInstance.invalidateSize();
   });
 
@@ -5423,8 +5434,8 @@ let mapTimeSliderIsPast = false;
         saveRideCoordinate(mapEditSelectedRide, e.latlng.lat, e.latlng.lng);
       });
 
-      loadMapLiveData();
-      initMapTimeSlider(); // Zeitregler ist jetzt immer aktiv, nicht erst bei "flow"
+           loadMapLiveData();
+      try { initMapTimeSlider(); } catch (e) { console.error('Zeitregler-Init fehlgeschlagen:', e); }
       ensureAllForecastsForMap(); // Prognosedaten für ALLE Attraktionen mit
       // Koordinate vorladen, damit der Regler beim Verschieben in die
       // Zukunft sofort echte Werte zeigt statt Fragezeichen (siehe unten)
