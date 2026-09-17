@@ -370,7 +370,7 @@ body.no-page-scroll {
        Resize auf jede Fenstergröße. Karte ist jetzt die einzige Ebene,
        darüber schweben nur noch der Fab-Button (oben rechts) und der
        Zeitregler (unten, als Pille über der Bottom-Tab-Bar). */
-    .map-fixed-tab-full {
+     .map-fixed-tab-full {
       position: fixed;
       top: 0;
       left: 0;
@@ -378,6 +378,17 @@ body.no-page-scroll {
       bottom: 0;
       z-index: 10;
       display: block;
+    }
+    /* KRITISCH: Ist der Karten-Tab per .hidden ausgeblendet, muss auch
+       diese Klasse komplett aus dem Rendering verschwinden - da sie
+       position:fixed nutzt, reicht "hidden { display:none }" von Tailwind
+       zwar theoretisch aus, aber falls die Elternklasse .hidden durch
+       spätere Style-Regeln überschrieben wird, blockiert eine fixed-Karte
+       mit z-index:10 sonst klickbar den kompletten Bildschirm über allen
+       anderen Tabs. Diese Regel erzwingt es zusätzlich mit voller Priorität. */
+    #tabContentMap.hidden {
+      display: none !important;
+      pointer-events: none !important;
     }
 
     /* Fab-Button jetzt OBEN RECHTS (Google-Maps-typische Position für den
@@ -664,6 +675,17 @@ body.no-page-scroll {
       }
       .bottom-nav-spacer { display: none; }
     }
+
+        /* Sicherheitsnetz: Leaflets eigene Panes/Controls sind manchmal als
+       eigenständige position:absolute-Kinder außerhalb des sichtbaren
+       Containers im DOM verankert. Ist der Karten-Tab NICHT aktiv, dürfen
+       sie unter keinen Umständen Klicks/Sicht auf andere Tabs blockieren. */
+    body:not(.map-tab-active) #parkMapContainer,
+    body:not(.map-tab-active) .leaflet-container {
+      display: none !important;
+    }
+
+    
   </style>
 </head>
 <body class="text-slate-100 min-h-screen p-2 sm:p-5 font-sans selection:bg-amber-500/30">
@@ -2046,6 +2068,8 @@ function switchTab(tab, direction) {
   }
 
   currentTab = tab;
+
+  document.body.classList.toggle('map-tab-active', tab === 'map');
 
   const liveContent = document.getElementById('tabContentLive');
   const statsContent = document.getElementById('tabContentStats');
