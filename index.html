@@ -365,6 +365,11 @@ body.no-page-scroll {
        (Google Maps, Apple Maps), wo die Karte immer den Hintergrund bildet
        und Bedienelemente darüber schweben.
        ============================================================ */
+ /* Karten-Tab: ECHTES Vollbild ohne Innenabstände/Ränder - nimmt exakt die
+       Fenstergröße ein (wie bei Google Maps), reagiert per Media Query/JS-
+       Resize auf jede Fenstergröße. Karte ist jetzt die einzige Ebene,
+       darüber schweben nur noch der Fab-Button (oben rechts) und der
+       Zeitregler (unten, als Pille über der Bottom-Tab-Bar). */
     .map-fixed-tab-full {
       position: fixed;
       top: 0;
@@ -372,26 +377,19 @@ body.no-page-scroll {
       right: 0;
       bottom: 0;
       z-index: 10;
-      display: flex;
-      flex-direction: column;
+      display: block;
     }
 
-    /* Schwebendes Overlay oben: Titel + Bearbeiten-Button + Hinweise.
-       Position fixed statt Teil des Karten-Flex-Layouts, damit es über der
-       Karte "schwebt" statt ihr Platz wegzunehmen. */
-    /* Der Wrapper selbst braucht kein eigenes Styling mehr - er positioniert
-       nur den Fab-Button und das Panel relativ zueinander (siehe unten,
-       beide sind position:fixed) */
+    /* Fab-Button jetzt OBEN RECHTS (Google-Maps-typische Position für den
+       Ebenen-/Einstellungs-Button), statt oben links. */
     .map-overlay-top {
       position: fixed;
       top: max(12px, env(safe-area-inset-top, 0px));
-      left: 12px;
+      right: 12px;
+      left: auto;
       z-index: 20;
     }
 
-    /* Kleiner runder Button (Fab), IMMER sichtbar, egal ob das Panel offen
-       ist - dasselbe Pattern wie der Ebenen-Umschalter bei Google/Apple Maps.
-       Nimmt fast keinen Platz weg, ragt nicht in die Karte hinein. */
     .map-overlay-fab {
       width: 42px;
       height: 42px;
@@ -411,52 +409,15 @@ body.no-page-scroll {
       transform: scale(0.9);
     }
 
-    /* Ausklappbares Panel: erscheint UNTER dem Fab-Button, nicht mehr über
-       die volle Breite - eine kompakte Box, die nur bei Bedarf erscheint */
+    /* Panel klappt jetzt nach LINKS unter dem Button auf (statt rechts),
+       da der Button jetzt rechts sitzt und das Panel sonst über den
+       Bildschirmrand hinausragen würde. */
     .map-overlay-panel {
       position: absolute;
       top: 50px;
-      left: 0;
+      right: 0;
+      left: auto;
       width: min(280px, calc(100vw - 40px));
-      background-color: rgba(18, 18, 18, 0.95);
-      backdrop-filter: blur(16px) saturate(180%);
-      -webkit-backdrop-filter: blur(16px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 18px;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-      padding: 14px;
-      max-height: calc(100vh - 80px);
-      overflow-y: auto;
-    }
-
-    /* Kompakte "Jetzt/Uhrzeit"-Anzeige, schwebt direkt über dem Zeitregler
-       unten rechts */
- 
-
-    /* Karte + Regler: teilen sich die komplette verbleibende Höhe unter dem
-       (fixed positionierten, also aus dem Fluss genommenen) Overlay oben */
-    .map-fullscreen-row {
-      flex: 1;
-      display: flex;
-      min-height: 0;
-      padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-    }
-    .map-fullscreen-canvas {
-      flex: 1;
-      min-width: 0;
-    }
-    .map-fullscreen-slider {
-      width: 52px;
-      flex-shrink: 0;
-      background-color: rgba(18, 18, 18, 0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-left: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 12px 6px;
-    }
 
     /* ============================================================
        LEAFLET-KARTE: dunkles App-Design statt Leaflets heller Standard-
@@ -1175,29 +1136,25 @@ body.no-page-scroll {
         </div>
       </div>
 
-        <!-- Karte + Zeitregler: nehmen den kompletten restlichen Platz ein -->
-      <div class="map-fullscreen-row">
-        <div id="parkMapContainer" class="map-fullscreen-canvas"></div>
+        <!-- Karte: nimmt jetzt den kompletten Viewport ein (siehe
+             .map-fullscreen-canvas, position:fixed inset:0) -->
+      <div id="parkMapContainer" class="map-fullscreen-canvas"></div>
 
-        <div id="mapTimeSliderBox" class="map-fullscreen-slider">
-          <div class="flex items-center gap-1 mb-2">
-            <span id="mapTimeSliderLabel" class="text-[9px] font-mono font-bold text-cyan-300 writing-mode-vertical">Jetzt</span>
-          </div>
-          <button onclick="resetMapTimeSlider()" title="Zurück zu 'Jetzt'" class="w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-slate-400 active:scale-90 transition mb-2 shrink-0">
-            <i class="fa-solid fa-rotate-left text-[10px]"></i>
-          </button>
-          <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono mb-1">--:--</span>
-          <input type="range" id="mapTimeSlider" min="0" max="0" step="1" value="0"
-            oninput="onMapTimeSliderInput()"
-            class="map-time-slider-vertical flex-1 cursor-pointer">
-          <span id="mapTimeSliderStart" class="text-[8px] text-slate-500 font-mono mt-1">--:--</span>
-        </div>
+      <!-- Zeitregler als schwebende Pille auf der Bottom-Tab-Bar, hochkant,
+           halb so hoch wie vorher -->
+      <div id="mapTimeSliderBox" class="map-time-slider-pill">
+        <span id="mapTimeSliderStart" class="text-[8px] text-slate-500 font-mono shrink-0">--:--</span>
+        <input type="range" id="mapTimeSlider" min="0" max="0" step="1" value="0"
+          oninput="onMapTimeSliderInput()"
+          class="map-time-slider-vertical cursor-pointer shrink-0">
+        <span id="mapTimeSliderEnd" class="text-[8px] text-slate-500 font-mono shrink-0">--:--</span>
+        <button onclick="resetMapTimeSlider()" title="Zurück zu 'Jetzt'" class="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-slate-400 active:scale-90 transition shrink-0">
+          <i class="fa-solid fa-rotate-left text-[9px]"></i>
+        </button>
+        <span id="mapTimeSliderLabel" class="text-[9px] font-mono font-bold text-cyan-300 shrink-0 whitespace-nowrap">Jetzt</span>
       </div>
 
     </div>
-    <!-- ================= ENDE KARTEN-TAB ================= -->
-
-    <!-- ================= WARTESCHLANGE-TAB ================= -->
 
       <!-- ================= WARTESCHLANGE-TAB ================= -->
     <!-- Live-Tracking für die aktuell besuchte Attraktion: Restwartezeit,
@@ -5402,6 +5359,10 @@ let mapTimeSliderIsPast = false;
   // NEU: nach der Erstellung Größe erzwingen, für den Fall dass der Container
   // beim allerersten Messen doch noch nicht die finale Größe hatte
   setTimeout(() => { if (parkMapInstance) parkMapInstance.invalidateSize(); }, 100);
+
+      window.addEventListener('resize', () => {
+    if (parkMapInstance) parkMapInstance.invalidateSize();
+  });
 
   mapMarkersLayerGroup = L.layerGroup();
   mapMarkersLayerGroup.addTo(parkMapInstance);
