@@ -379,28 +379,54 @@ body.no-page-scroll {
     /* Schwebendes Overlay oben: Titel + Bearbeiten-Button + Hinweise.
        Position fixed statt Teil des Karten-Flex-Layouts, damit es über der
        Karte "schwebt" statt ihr Platz wegzunehmen. */
+    /* Der Wrapper selbst braucht kein eigenes Styling mehr - er positioniert
+       nur den Fab-Button und das Panel relativ zueinander (siehe unten,
+       beide sind position:fixed) */
     .map-overlay-top {
       position: fixed;
-      top: max(8px, env(safe-area-inset-top, 0px));
-      left: 8px;
-      right: 8px;
+      top: max(12px, env(safe-area-inset-top, 0px));
+      left: 12px;
       z-index: 20;
+    }
+
+    /* Kleiner runder Button (Fab), IMMER sichtbar, egal ob das Panel offen
+       ist - dasselbe Pattern wie der Ebenen-Umschalter bei Google/Apple Maps.
+       Nimmt fast keinen Platz weg, ragt nicht in die Karte hinein. */
+    .map-overlay-fab {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background-color: rgba(18, 18, 18, 0.92);
       backdrop-filter: blur(16px) saturate(180%);
       -webkit-backdrop-filter: blur(16px) saturate(180%);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-      max-height: calc(100vh - 16px);
+      font-size: 15px;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    .map-overlay-fab:active {
+      transform: scale(0.9);
+    }
+
+    /* Ausklappbares Panel: erscheint UNTER dem Fab-Button, nicht mehr über
+       die volle Breite - eine kompakte Box, die nur bei Bedarf erscheint */
+    .map-overlay-panel {
+      position: absolute;
+      top: 50px;
+      left: 0;
+      width: min(280px, calc(100vw - 40px));
+      background-color: rgba(18, 18, 18, 0.95);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      padding: 14px;
+      max-height: calc(100vh - 80px);
       overflow-y: auto;
-    }
-    /* Eingeklappter Zustand: Inhalt unterhalb der Titelzeile ausgeblendet,
-       gesteuert per JS (siehe toggleMapOverlayCollapse) */
-    .map-overlay-top.collapsed #mapOverlayContent {
-      display: none;
-    }
-    .map-overlay-top.collapsed #mapOverlayChevron {
-      transform: rotate(180deg);
     }
 
     /* Kompakte "Jetzt/Uhrzeit"-Anzeige, schwebt direkt über dem Zeitregler
@@ -1101,37 +1127,44 @@ body.no-page-scroll {
          permanent sichtbar, da er die Kern-Interaktion dieses Tabs ist. -->
     <div id="tabContentMap" class="hidden map-fixed-tab-full">
 
-      <!-- Schwebendes Overlay oben: Titel + Bearbeiten-Button, per Tap auf
-           den Chevron ein-/ausklappbar, damit er bei Bedarf ganz aus dem Weg
-           geht und noch mehr Kartenfläche freigibt. -->
+         <!-- Schwebender Mini-Button oben links: standardmäßig NUR ein kleiner,
+           dezenter Kreis-Button (wie das Ebenen-Icon bei Google Maps), der
+           beim Antippen erst die Bearbeitungs-Box (Dropdown, Hinweise)
+           ausklappt. Kein Titel-Balken mehr, der ständig reinragt. -->
       <div class="map-overlay-top">
-        <button onclick="toggleMapOverlayCollapse()" class="w-full px-3.5 py-2.5 flex items-center justify-between">
-          <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-            <i class="fa-solid fa-map-location-dot"></i> Parkkarte
-          </h2>
-          <i id="mapOverlayChevron" class="fa-solid fa-chevron-up text-xs text-slate-500 transition-transform duration-200"></i>
+        <button onclick="toggleMapOverlayCollapse()" id="mapOverlayToggleBtn" class="map-overlay-fab">
+          <i class="fa-solid fa-location-crosshairs text-amber-400"></i>
         </button>
 
-        <div id="mapOverlayContent" class="px-3.5 pb-3 space-y-2.5">
-          <button onclick="toggleMapEditMode()" id="mapEditModeBtn" class="w-full pill px-3 py-1.5 text-[11px] font-bold text-slate-300 flex items-center justify-center gap-1.5 active:scale-95 transition">
+        <div id="mapOverlayContent" class="hidden map-overlay-panel">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-map-location-dot"></i> Parkkarte
+            </h2>
+            <button onclick="toggleMapOverlayCollapse()" class="w-6 h-6 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-300 transition shrink-0">
+              <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
+          </div>
+
+          <button onclick="toggleMapEditMode()" id="mapEditModeBtn" class="w-full pill px-3 py-1.5 text-[11px] font-bold text-slate-300 flex items-center justify-center gap-1.5 active:scale-95 transition mb-2">
             <i class="fa-solid fa-location-crosshairs text-amber-400"></i>
             <span id="mapEditModeLabel">Positionen bearbeiten</span>
           </button>
 
           <!-- Hinweis im Bearbeitungsmodus -->
-          <div id="mapEditHint" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
+          <div id="mapEditHint" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2 mb-2">
             <i class="fa-solid fa-circle-info text-amber-400 text-xs mt-0.5 shrink-0"></i>
             <p class="text-[11px] text-amber-200 leading-relaxed">Wähle unten eine Attraktion, dann tippe auf die Karte, um ihre Position zu setzen. Bereits gesetzte Attraktionen sind mit einem <i class="fa-solid fa-check"></i> markiert.</p>
           </div>
 
           <!-- Attraktions-Auswahl für den Bearbeitungsmodus -->
-          <div id="mapEditRideSelect" class="hidden">
+          <div id="mapEditRideSelect" class="hidden mb-2">
             <select id="mapEditRideDropdown" onchange="onMapEditRideSelected()" class="w-full pill text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-amber-500/60 transition cursor-pointer">
               <option value="">Attraktion auswählen...</option>
             </select>
           </div>
 
-          <div id="mapNoCoordsHint" class="hidden bg-cyan-500/10 border border-cyan-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2">
+          <div id="mapNoCoordsHint" class="hidden bg-cyan-500/10 border border-cyan-500/30 rounded-2xl px-3.5 py-2.5 flex items-start gap-2 mb-2">
             <i class="fa-solid fa-circle-info text-cyan-400 text-xs mt-0.5 shrink-0"></i>
             <p class="text-[11px] text-cyan-200 leading-relaxed">Noch keine Positionen gesetzt. Tippe oben auf "Positionen bearbeiten", wähle eine Attraktion und anschließend eine Stelle auf der Karte.</p>
           </div>
@@ -5675,11 +5708,12 @@ function renderMapMarkersLayer() {
 
         // Klappt das schwebende Overlay oben (Titel + Bearbeiten-Button +
     // Hinweise) ein/aus, um bei Bedarf noch mehr Kartenfläche freizugeben
-    let mapOverlayCollapsed = false;
+    // Klappt das kleine Bearbeitungs-Panel neben dem Fab-Button auf/zu.
+    // Standardmäßig geschlossen (siehe class="hidden" im HTML), damit auf
+    // der Karte nur der winzige runde Button sichtbar ist, bis man ihn antippt.
     function toggleMapOverlayCollapse() {
-      mapOverlayCollapsed = !mapOverlayCollapsed;
-      const overlay = document.querySelector('.map-overlay-top');
-      if (overlay) overlay.classList.toggle('collapsed', mapOverlayCollapsed);
+      const panel = document.getElementById('mapOverlayContent');
+      if (panel) panel.classList.toggle('hidden');
     }
 
     function toggleMapLayer(layer) {
